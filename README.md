@@ -2,9 +2,6 @@
 
 This repo contains a combined Express + Vite setup for the fence and decking planner web app. Follow the steps below to run it locally.
 
-> **Where to run commands**
-> Run all npm commands from the repository root (the folder that contains `package.json`). For example, if you cloned to `C:\dev\FPR2`, make sure you `cd C:\dev\FPR2` before running `npm install` or `npm run dev`.
-
 ## Prerequisites
 - Node.js 18 or newer
 - npm 9+
