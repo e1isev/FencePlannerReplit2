@@ -47,13 +47,3 @@ export interface DeckingCuttingList {
   clips: number;
   totalBoardLength: number;
 }
-
-export interface DeckingBoardPlan {
-  boardLengthMm: number;
-  boardWidthMm: number;
-  numberOfRows: number;
-  averageBoardsPerRow: number;
-  totalBoards: number;
-  totalWasteMm: number;
-  averageOverflowMm: number;
-}
