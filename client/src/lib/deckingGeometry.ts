@@ -62,6 +62,16 @@ export interface Rect {
   height: number;
 }
 
+export interface SnapTarget {
+  value: number;
+  type: "grid" | "shape";
+}
+
+export interface SnapContext {
+  xTargets: SnapTarget[];
+  yTargets: SnapTarget[];
+}
+
 export function doRectanglesOverlap(rect1: Rect, rect2: Rect): boolean {
   return !(
     rect1.x + rect1.width < rect2.x ||
@@ -156,4 +166,62 @@ export function shapeToRect(shape: {
     width: shape.width,
     height: shape.height,
   };
+}
+
+export interface Interval {
+  start: number;
+  end: number;
+}
+
+export function mergeIntervals(
+  intervals: Interval[],
+  toleranceMm: number
+): Interval[] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const merged: Interval[] = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+    if (current.start - last.end <= toleranceMm) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+
+  return merged;
+}
+
+export interface BoardRunPlan {
+  boardLengths: number[];
+  overflowMm: number;
+  wasteMm: number;
+}
+
+export function planBoardsForRun(runLengthMm: number): BoardRunPlan {
+  const boardLengths: number[] = [];
+  let remaining = runLengthMm;
+  let wasteMm = 0;
+  let overflowMm = 0;
+
+  while (remaining > 0) {
+    if (remaining <= MAX_BOARD_LENGTH_MM) {
+      const overhang = MAX_BOARD_LENGTH_MM - remaining;
+      if (overhang <= MAX_OVERHANG_MM) {
+        boardLengths.push(MAX_BOARD_LENGTH_MM);
+        overflowMm += overhang;
+      } else {
+        boardLengths.push(remaining);
+        wasteMm += overhang;
+      }
+      remaining = 0;
+    } else {
+      boardLengths.push(MAX_BOARD_LENGTH_MM);
+      remaining -= MAX_BOARD_LENGTH_MM;
+    }
+  }
+
+  return { boardLengths, overflowMm, wasteMm };
 }

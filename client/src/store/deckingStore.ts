@@ -9,14 +9,16 @@ import type {
   Clip,
   DeckingCuttingList,
   Point,
+  DeckingBoardPlan,
 } from "@/types/decking";
 import {
   BOARD_WIDTH_MM,
   BOARD_GAP_MM,
   JOIST_SPACING_MM,
   MAX_BOARD_LENGTH_MM,
+  buildSnapContext,
   doRectanglesOverlap,
-  findSnapPosition,
+  type Rect,
   shapeToRect,
   mmToPx,
   pxToMm,
@@ -40,6 +42,7 @@ interface DeckingState {
   boardDirection: BoardDirection;
   boards: Board[];
   clips: Clip[];
+  boardPlan: DeckingBoardPlan | null;
   history: Array<{
     shapes: DeckShape[];
     boardDirection: BoardDirection;
@@ -71,6 +74,7 @@ export const useDeckingStore = create<DeckingState>()(
       boardDirection: "horizontal",
       boards: [],
       clips: [],
+      boardPlan: null,
       history: [],
       historyIndex: -1,
 
@@ -113,11 +117,22 @@ export const useDeckingStore = create<DeckingState>()(
         const newShape: DeckShape = {
           id: generateId("shape"),
           type: selectedShapeType,
-          position: finalPosition,
-          width,
-          height,
+          position: {
+            x: snapToGrid(position.x, GRID_SIZE_MM),
+            y: snapToGrid(position.y, GRID_SIZE_MM),
+          },
+          width: normalizedWidth,
+          height: normalizedHeight,
           rotation: 0,
         };
+
+        const snappedRect = snapRectWithContext(
+          shapeToRect(newShape),
+          shapes.map(shapeToRect)
+        );
+        newShape.position = { x: snappedRect.x, y: snappedRect.y };
+        newShape.width = snappedRect.width;
+        newShape.height = snappedRect.height;
 
         const newRect = shapeToRect(newShape);
         const hasOverlap = shapes.some((existing) =>
@@ -156,27 +171,31 @@ export const useDeckingStore = create<DeckingState>()(
           shape.id === id ? { ...shape, ...normalizedUpdates } : shape
         );
 
-        const updatedShape = updatedShapes.find((s) => s.id === id);
-        if (updatedShape && updates.position) {
-          const tempRect = shapeToRect(updatedShape);
-          const otherShapes = updatedShapes.filter((s) => s.id !== id);
-          
-          const snapPos = findSnapPosition(tempRect, otherShapes.map(shapeToRect));
-          if (snapPos) {
-            updatedShape.position = snapPos;
-            updatedShapes[updatedShapes.findIndex((s) => s.id === id)] = updatedShape;
-          }
+        const mode: "move" | "resize" =
+          typeof updates.width === "number" || typeof updates.height === "number"
+            ? "resize"
+            : "move";
 
-          const finalRect = shapeToRect(updatedShape);
-          const hasOverlap = otherShapes.some((existing) =>
-            doRectanglesOverlap(finalRect, shapeToRect(existing))
-          );
+        const snappedRect = snapRectWithContext(proposedRect, otherRects, mode);
 
-          if (hasOverlap) {
-            console.warn("Cannot update shape: would overlap with existing shape");
-            return;
-          }
+        const hasOverlap = otherRects.some((existing) =>
+          doRectanglesOverlap(snappedRect, existing)
+        );
+
+        if (hasOverlap) {
+          console.warn("Cannot update shape: would overlap with existing shape");
+          return;
         }
+
+        const updatedShape: DeckShape = {
+          ...shape,
+          ...updates,
+          position: { x: snappedRect.x, y: snappedRect.y },
+          width: snappedRect.width,
+          height: snappedRect.height,
+        };
+
+        const updatedShapes = shapes.map((s) => (s.id === id ? updatedShape : s));
 
         set({ shapes: updatedShapes });
         get().calculateBoards();
@@ -327,6 +346,7 @@ export const useDeckingStore = create<DeckingState>()(
           .forEach((shape) => {
             const isHorizontal = boardDirection === "horizontal";
             const numBoards = Math.ceil((isHorizontal ? shape.height : shape.width) / boardWidthWithGap);
+            triangleRows += numBoards;
 
             for (let i = 0; i < numBoards; i++) {
               const offset = i * boardWidthWithGap;
@@ -349,6 +369,8 @@ export const useDeckingStore = create<DeckingState>()(
                     },
                     length: boardLength,
                   });
+                  totalBoards += 1;
+                  totalWasteMm += Math.max(0, MAX_BOARD_LENGTH_MM - boardLength);
                 }
               } else {
                 const xPos = shape.position.x + shape.width - offset;
@@ -368,12 +390,14 @@ export const useDeckingStore = create<DeckingState>()(
                     },
                     length: boardLength,
                   });
+                  totalBoards += 1;
+                  totalWasteMm += Math.max(0, MAX_BOARD_LENGTH_MM - boardLength);
                 }
               }
             }
           });
 
-        set({ boards, clips });
+        set({ boards, clips, boardPlan });
       },
 
       getCuttingList: () => {
@@ -412,6 +436,7 @@ export const useDeckingStore = create<DeckingState>()(
           boards: [],
           clips: [],
           selectedShapeType: null,
+          boardPlan: null,
         });
         get().saveHistory();
       },

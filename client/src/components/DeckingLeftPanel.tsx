@@ -10,15 +10,47 @@ const SHAPES: { type: ShapeType; label: string; icon: typeof Square }[] = [
   { type: "triangle", label: "Triangle", icon: Triangle },
 ];
 
-const COLORS: { color: DeckColor; label: string; swatch: string }[] = [
-  { color: "storm-granite", label: "Storm Granite", swatch: "radial-gradient(circle at 30% 30%, #d9d9d9, #8c8c8c)" },
-  { color: "mallee-bark", label: "Mallee Bark", swatch: "linear-gradient(135deg, #5a3a28, #7b4b2f)" },
-  { color: "ironbark-ember", label: "Ironbark Ember", swatch: "linear-gradient(135deg, #4a2416, #7a3824)" },
-  { color: "saltbush-veil", label: "Saltbush Veil", swatch: "linear-gradient(135deg, #c7c7bf, #9fa3a1)" },
-  { color: "outback", label: "Outback", swatch: "linear-gradient(135deg, #5d4636, #8b6a52)" },
-  { color: "coastal-spiniflex", label: "Coastal Spinifex", swatch: "linear-gradient(135deg, #7b8a6d, #4f5e45)" },
-  { color: "wild-shore", label: "Wild Shore", swatch: "linear-gradient(135deg, #7b6d5d, #c4b7a6)" },
-  { color: "coastal-sandstone", label: "Coastal Sandstone", swatch: "linear-gradient(135deg, #d5c7a5, #bfa67b)" },
+const COLORS: { color: DeckColor; label: string; image: string }[] = [
+  {
+    color: "storm-granite",
+    label: "Storm Granite",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Storm_Granite-1.jpg",
+  },
+  {
+    color: "mallee-bark",
+    label: "Mallee Bark",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Mallee_Bark-1.jpg",
+  },
+  {
+    color: "ironbark-ember",
+    label: "Ironbark Ember",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Ironbark_Ember-1.jpg",
+  },
+  {
+    color: "saltbush-veil",
+    label: "Saltbush Veil",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Saltbush_Veil-1.jpg",
+  },
+  {
+    color: "outback",
+    label: "Outback",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Outback-1.jpg",
+  },
+  {
+    color: "coastal-spinifex",
+    label: "Coastal Spinifex",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Coastal_Spinifex-1.jpg",
+  },
+  {
+    color: "wild-shore",
+    label: "Wild Shore",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Wild_Shore-1.jpg",
+  },
+  {
+    color: "coastal-sandstone",
+    label: "Coastal Sandstone",
+    image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Coastal_Sandstone-3.jpg",
+  },
 ];
 
 export function DeckingLeftPanel() {
@@ -28,6 +60,7 @@ export function DeckingLeftPanel() {
     selectedShapeId,
     selectedColor,
     boardDirection,
+    boardPlan,
     setSelectedShapeType,
     setSelectedColor,
     toggleBoardDirection,
@@ -89,7 +122,11 @@ export function DeckingLeftPanel() {
                 <span
                   aria-hidden
                   className="absolute inset-0"
-                  style={{ backgroundImage: colorOption.swatch }}
+                  style={{
+                    backgroundImage: `url(${colorOption.image})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
                 />
                 <span className="sr-only">{colorOption.label}</span>
               </button>
@@ -160,6 +197,39 @@ export function DeckingLeftPanel() {
             Current: {boardDirection === "horizontal" ? "Horizontal" : "Vertical"}
           </p>
         </div>
+
+        {boardPlan && (
+          <div>
+            <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+              Board Plan
+            </Label>
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs space-y-1">
+              <div className="flex justify-between" data-testid="board-plan-rows">
+                <span className="text-slate-600">Rows</span>
+                <span className="font-semibold">{boardPlan.numberOfRows}</span>
+              </div>
+              <div className="flex justify-between" data-testid="board-plan-total">
+                <span className="text-slate-600">Total boards</span>
+                <span className="font-semibold">{Math.ceil(boardPlan.totalBoards)}</span>
+              </div>
+              <div className="flex justify-between" data-testid="board-plan-average">
+                <span className="text-slate-600">Avg boards / row</span>
+                <span className="font-semibold">{boardPlan.averageBoardsPerRow.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between" data-testid="board-plan-waste">
+                <span className="text-slate-600">Estimated waste</span>
+                <span className="font-semibold">{Math.round(boardPlan.totalWasteMm)} mm</span>
+              </div>
+              <div className="flex justify-between" data-testid="board-plan-overflow">
+                <span className="text-slate-600">Avg overhang used</span>
+                <span className="font-semibold">{boardPlan.averageOverflowMm.toFixed(1)} mm</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Uses the longest possible runs and allows a small overhang to reduce board count.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
