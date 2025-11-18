@@ -20,13 +20,12 @@ import {
   doRectanglesOverlap,
   type Rect,
   shapeToRect,
+  mmToPx,
   pxToMm,
   GRID_SIZE_MM,
   SNAP_TOLERANCE_PX,
+  BOARD_OVERFLOW_ALLOWANCE_MM,
   snapToGrid,
-  snapRectToTargets,
-  planBoardsForRun,
-  mergeIntervals,
 } from "@/lib/deckingGeometry";
 
 function generateId(prefix: string): string {
@@ -34,16 +33,6 @@ function generateId(prefix: string): string {
 }
 
 const DEFAULT_TOLERANCE_MM = pxToMm(SNAP_TOLERANCE_PX);
-const MIN_SIZE_MM = 10;
-
-function snapRectWithContext(
-  rect: Rect,
-  otherRects: Rect[],
-  mode: "move" | "resize" = "move"
-): Rect {
-  const snapContext = buildSnapContext(rect, otherRects, GRID_SIZE_MM);
-  return snapRectToTargets(rect, snapContext, SNAP_TOLERANCE_PX, mode);
-}
 
 interface DeckingState {
   shapes: DeckShape[];
@@ -244,6 +233,9 @@ export const useDeckingStore = create<DeckingState>()(
                 : { start: shape.position.y, end: shape.position.y + spanLength };
 
               registerInterval(lineCoord, interval);
+              const intervals = lineIntervals.get(key) || [];
+              intervals.push(interval);
+              lineIntervals.set(key, intervals);
             }
 
             // Clip estimation remains per-shape for now
