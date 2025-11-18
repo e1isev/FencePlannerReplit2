@@ -20,13 +20,12 @@ import {
   doRectanglesOverlap,
   type Rect,
   shapeToRect,
+  mmToPx,
   pxToMm,
   GRID_SIZE_MM,
   SNAP_TOLERANCE_PX,
+  BOARD_OVERFLOW_ALLOWANCE_MM,
   snapToGrid,
-  snapRectToTargets,
-  planBoardsForRun,
-  mergeIntervals,
 } from "@/lib/deckingGeometry";
 
 function generateId(prefix: string): string {
@@ -34,16 +33,6 @@ function generateId(prefix: string): string {
 }
 
 const DEFAULT_TOLERANCE_MM = pxToMm(SNAP_TOLERANCE_PX);
-const MIN_SIZE_MM = 10;
-
-function snapRectWithContext(
-  rect: Rect,
-  otherRects: Rect[],
-  mode: "move" | "resize" = "move"
-): Rect {
-  const snapContext = buildSnapContext(rect, otherRects, GRID_SIZE_MM);
-  return snapRectToTargets(rect, snapContext, SNAP_TOLERANCE_PX, mode);
-}
 
 interface DeckingState {
   shapes: DeckShape[];
@@ -106,8 +95,24 @@ export const useDeckingStore = create<DeckingState>()(
         const { selectedShapeType, shapes } = get();
         if (!selectedShapeType) return;
 
-        const normalizedWidth = Math.max(MIN_SIZE_MM, snapToGrid(width, GRID_SIZE_MM));
-        const normalizedHeight = Math.max(MIN_SIZE_MM, snapToGrid(height, GRID_SIZE_MM));
+        let finalPosition = {
+          x: snapToGrid(position.x, GRID_SIZE_MM),
+          y: snapToGrid(position.y, GRID_SIZE_MM),
+        };
+
+        const tempShape = {
+          position: finalPosition,
+          width,
+          height,
+        };
+
+        const snapPos = findSnapPosition(
+          shapeToRect(tempShape),
+          shapes.map(shapeToRect)
+        );
+        if (snapPos) {
+          finalPosition = snapPos;
+        }
 
         const newShape: DeckShape = {
           id: generateId("shape"),
@@ -145,26 +150,26 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       updateShape: (id, updates) => {
-        const shapes = get().shapes;
-        const shape = shapes.find((s) => s.id === id);
-        if (!shape) return;
+        const normalizedUpdates: Partial<DeckShape> = { ...updates };
 
-        const otherRects = shapes
-          .filter((s) => s.id !== id)
-          .map((other) => shapeToRect(other));
+        if (updates.position) {
+          normalizedUpdates.position = {
+            x: snapToGrid(updates.position.x, GRID_SIZE_MM),
+            y: snapToGrid(updates.position.y, GRID_SIZE_MM),
+          };
+        }
 
-        const proposedRect: Rect = {
-          x: snapToGrid(updates.position?.x ?? shape.position.x, GRID_SIZE_MM),
-          y: snapToGrid(updates.position?.y ?? shape.position.y, GRID_SIZE_MM),
-          width: snapToGrid(
-            Math.max(MIN_SIZE_MM, updates.width ?? shape.width),
-            GRID_SIZE_MM
-          ),
-          height: snapToGrid(
-            Math.max(MIN_SIZE_MM, updates.height ?? shape.height),
-            GRID_SIZE_MM
-          ),
-        };
+        if (typeof updates.width === "number") {
+          normalizedUpdates.width = snapToGrid(Math.max(10, updates.width), GRID_SIZE_MM);
+        }
+
+        if (typeof updates.height === "number") {
+          normalizedUpdates.height = snapToGrid(Math.max(10, updates.height), GRID_SIZE_MM);
+        }
+
+        const updatedShapes = get().shapes.map((shape) =>
+          shape.id === id ? { ...shape, ...normalizedUpdates } : shape
+        );
 
         const mode: "move" | "resize" =
           typeof updates.width === "number" || typeof updates.height === "number"
@@ -212,6 +217,8 @@ export const useDeckingStore = create<DeckingState>()(
         const toleranceMm = DEFAULT_TOLERANCE_MM;
         const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
         const isHorizontalDirection = boardDirection === "horizontal";
+
+        type Interval = { start: number; end: number };
         const lineIntervals = new Map<number, Interval[]>();
 
         const findLineKey = (value: number): number => {
@@ -221,11 +228,22 @@ export const useDeckingStore = create<DeckingState>()(
           return value;
         };
 
-        const registerInterval = (lineCoord: number, interval: Interval) => {
-          const key = findLineKey(lineCoord);
-          const intervals = lineIntervals.get(key) || [];
-          intervals.push(interval);
-          lineIntervals.set(key, intervals);
+        const mergeIntervals = (intervals: Interval[]): Interval[] => {
+          if (intervals.length === 0) return [];
+          const sorted = [...intervals].sort((a, b) => a.start - b.start);
+          const merged: Interval[] = [sorted[0]];
+
+          for (let i = 1; i < sorted.length; i++) {
+            const current = sorted[i];
+            const last = merged[merged.length - 1];
+            if (current.start - last.end <= toleranceMm) {
+              last.end = Math.max(last.end, current.end);
+            } else {
+              merged.push({ ...current });
+            }
+          }
+
+          return merged;
         };
 
         shapes.forEach((shape) => {
@@ -239,11 +257,14 @@ export const useDeckingStore = create<DeckingState>()(
               const lineCoord = isHorizontalDirection
                 ? shape.position.y + offset
                 : shape.position.x + offset;
+              const key = findLineKey(lineCoord);
               const interval: Interval = isHorizontalDirection
                 ? { start: shape.position.x, end: shape.position.x + spanLength }
                 : { start: shape.position.y, end: shape.position.y + spanLength };
 
-              registerInterval(lineCoord, interval);
+              const intervals = lineIntervals.get(key) || [];
+              intervals.push(interval);
+              lineIntervals.set(key, intervals);
             }
 
             // Clip estimation remains per-shape for now
@@ -282,46 +303,40 @@ export const useDeckingStore = create<DeckingState>()(
           }
         });
 
-        let totalWasteMm = 0;
-        let totalOverflowMm = 0;
-        let totalBoards = 0;
-        let triangleRows = 0;
-
         lineIntervals.forEach((intervals, lineKey) => {
-          const mergedIntervals = mergeIntervals(intervals, toleranceMm);
+          const mergedIntervals = mergeIntervals(intervals);
 
           mergedIntervals.forEach((interval) => {
             const runLength = interval.end - interval.start;
             if (runLength <= 0) return;
 
-            const plan = planBoardsForRun(runLength);
-            totalWasteMm += plan.wasteMm;
-            totalOverflowMm += plan.overflowMm;
-            totalBoards += plan.boardLengths.length;
+            const boardCount = Math.max(
+              1,
+              Math.ceil(runLength / (MAX_BOARD_LENGTH_MM + BOARD_OVERFLOW_ALLOWANCE_MM))
+            );
+            const boardLength = runLength / boardCount;
 
-            let cursor = interval.start;
-
-            plan.boardLengths.forEach((boardLength) => {
+            for (let i = 0; i < boardCount; i++) {
+              const startOffset = interval.start + boardLength * i;
+              const endOffset = startOffset + boardLength;
               const boardId = generateId("board");
 
               if (isHorizontalDirection) {
                 boards.push({
                   id: boardId,
-                  start: { x: cursor, y: lineKey },
-                  end: { x: cursor + boardLength, y: lineKey },
+                  start: { x: startOffset, y: lineKey },
+                  end: { x: endOffset, y: lineKey },
                   length: boardLength,
                 });
               } else {
                 boards.push({
                   id: boardId,
-                  start: { x: lineKey, y: cursor },
-                  end: { x: lineKey, y: cursor + boardLength },
+                  start: { x: lineKey, y: startOffset },
+                  end: { x: lineKey, y: endOffset },
                   length: boardLength,
                 });
               }
-
-              cursor += boardLength;
-            });
+            }
           });
         });
 
@@ -381,17 +396,6 @@ export const useDeckingStore = create<DeckingState>()(
               }
             }
           });
-
-        const numberOfRows = lineIntervals.size + triangleRows;
-        const boardPlan: DeckingBoardPlan = {
-          boardLengthMm: MAX_BOARD_LENGTH_MM,
-          boardWidthMm: BOARD_WIDTH_MM,
-          numberOfRows,
-          averageBoardsPerRow: numberOfRows ? totalBoards / numberOfRows : 0,
-          totalBoards,
-          totalWasteMm,
-          averageOverflowMm: numberOfRows ? totalOverflowMm / Math.max(1, lineIntervals.size) : 0,
-        };
 
         set({ boards, clips, boardPlan });
       },
