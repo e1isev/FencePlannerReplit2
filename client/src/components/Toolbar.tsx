@@ -1,0 +1,144 @@
+import { Button } from "@/components/ui/button";
+import { useAppStore } from "@/store/appStore";
+import {
+  Undo2,
+  Redo2,
+  Trash2,
+  FileCheck,
+  ArrowLeftRight,
+  FileDown,
+  FileSpreadsheet,
+  Grid3x3,
+} from "lucide-react";
+import { useLocation } from "wouter";
+import { exportPDF, exportCuttingListCSV } from "@/lib/exports";
+
+export function Toolbar() {
+  const {
+    clear,
+    undo,
+    redo,
+    history,
+    historyIndex,
+    gates,
+    selectedGateType,
+    fenceStyleId,
+    panels,
+    posts,
+    lines,
+  } = useAppStore();
+  const [location, setLocation] = useLocation();
+
+  const selectedGate = gates.find((g) =>
+    g.type.startsWith("sliding")
+  );
+
+const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+  const hasData = lines.length > 0;
+
+  const handleExportPDF = () => {
+    exportPDF(fenceStyleId, panels, posts, gates, lines);
+  };
+
+  const handleExportCSV = () => {
+    exportCuttingListCSV(fenceStyleId, panels, posts, gates, lines);
+  };
+
+  return (
+    <div className="h-14 border-b border-slate-200 bg-white px-6 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <Button
+          variant={location === "/decking" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setLocation("/decking")}
+          data-testid="button-decking"
+        >
+          <Grid3x3 className="w-4 h-4 mr-2" />
+          Decking
+        </Button>
+        <div className="h-8 w-px bg-slate-300 mx-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={clear}
+          data-testid="button-clear"
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Clear
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={undo}
+          disabled={!canUndo}
+          data-testid="button-undo"
+        >
+          <Undo2 className="w-4 h-4 mr-2" />
+          Undo
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={redo}
+          disabled={!canRedo}
+          data-testid="button-redo"
+        >
+          <Redo2 className="w-4 h-4 mr-2" />
+          Redo
+        </Button>
+        <div className="h-8 w-px bg-slate-300 mx-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportPDF}
+          disabled={!hasData}
+          data-testid="button-export-pdf"
+        >
+          <FileDown className="w-4 h-4 mr-2" />
+          Export PDF
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCSV}
+          disabled={!hasData}
+          data-testid="button-export-csv"
+        >
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Export CSV
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {selectedGate && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const { updateGateReturnDirection } = useAppStore.getState();
+              const newDirection =
+                selectedGate.slidingReturnDirection === "left"
+                  ? "right"
+                  : "left";
+              updateGateReturnDirection(selectedGate.id, newDirection);
+            }}
+            data-testid="button-toggle-return"
+          >
+            <ArrowLeftRight className="w-4 h-4 mr-2" />
+            Change Return Direction
+          </Button>
+        )}
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => setLocation("/drawing")}
+          data-testid="button-finish"
+        >
+          <FileCheck className="w-4 h-4 mr-2" />
+          Finish
+        </Button>
+      </div>
+    </div>
+  );
+}

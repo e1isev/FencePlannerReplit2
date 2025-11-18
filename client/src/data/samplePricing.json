@@ -1,0 +1,46 @@
+{
+  "styles": [
+    {
+      "id": "mystique_lattice",
+      "name": "Mystique Lattice",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "mystique_solid",
+      "name": "Mystique Solid",
+      "panel_mm": 2390,
+      "panel_unit_price": 110,
+      "post_unit_price": 32,
+      "gate_prices": {
+        "single_900": 400,
+        "single_1800": 520,
+        "double_900": 800,
+        "double_1800": 1040,
+        "sliding_4800": 2100
+      }
+    },
+    {
+      "id": "wren",
+      "name": "Wren",
+      "panel_mm": 2390,
+      "panel_unit_price": 95,
+      "post_unit_price": 30,
+      "gate_prices": {
+        "single_900": 360,
+        "single_1800": 480,
+        "double_900": 720,
+        "double_1800": 960,
+        "sliding_4800": 1900
+      }
+    }
+  ]
+}
