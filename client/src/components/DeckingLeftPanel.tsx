@@ -28,7 +28,6 @@ export function DeckingLeftPanel() {
     selectedShapeId,
     selectedColor,
     boardDirection,
-    boardPlan,
     setSelectedShapeType,
     setSelectedColor,
     toggleBoardDirection,
@@ -161,39 +160,6 @@ export function DeckingLeftPanel() {
             Current: {boardDirection === "horizontal" ? "Horizontal" : "Vertical"}
           </p>
         </div>
-
-        {boardPlan && (
-          <div>
-            <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-              Board Plan
-            </Label>
-            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs space-y-1">
-              <div className="flex justify-between" data-testid="board-plan-rows">
-                <span className="text-slate-600">Rows</span>
-                <span className="font-semibold">{boardPlan.numberOfRows}</span>
-              </div>
-              <div className="flex justify-between" data-testid="board-plan-total">
-                <span className="text-slate-600">Total boards</span>
-                <span className="font-semibold">{Math.ceil(boardPlan.totalBoards)}</span>
-              </div>
-              <div className="flex justify-between" data-testid="board-plan-average">
-                <span className="text-slate-600">Avg boards / row</span>
-                <span className="font-semibold">{boardPlan.averageBoardsPerRow.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between" data-testid="board-plan-waste">
-                <span className="text-slate-600">Estimated waste</span>
-                <span className="font-semibold">{Math.round(boardPlan.totalWasteMm)} mm</span>
-              </div>
-              <div className="flex justify-between" data-testid="board-plan-overflow">
-                <span className="text-slate-600">Avg overhang used</span>
-                <span className="font-semibold">{boardPlan.averageOverflowMm.toFixed(1)} mm</span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                Uses the longest possible runs and allows a small overhang to reduce board count.
-              </p>
-            </div>
-          </div>
-        )}
 
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
