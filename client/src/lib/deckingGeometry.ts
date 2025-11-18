@@ -3,7 +3,10 @@ export const BOARD_WIDTH_MM = 140;
 export const BOARD_GAP_MM = 3;
 export const JOIST_SPACING_MM = 450;
 export const MAX_BOARD_LENGTH_MM = 5400; // 5.4 meters
-export const SNAP_TOLERANCE_MM = 5;
+
+export const GRID_SIZE_MM = 100;
+export const SNAP_TOLERANCE_PX = 8;
+export const BOARD_OVERFLOW_ALLOWANCE_MM = 50;
 
 export interface Point {
   x: number;
@@ -16,6 +19,26 @@ export function mmToPx(mm: number): number {
 
 export function pxToMm(px: number): number {
   return px * SCALE_FACTOR;
+}
+
+export function snapToGrid(
+  valueMm: number,
+  gridSizeMm: number = GRID_SIZE_MM,
+  tolerancePx: number = SNAP_TOLERANCE_PX
+): number {
+  const toleranceMm = pxToMm(tolerancePx);
+  const remainder = valueMm % gridSizeMm;
+
+  if (remainder < toleranceMm) {
+    return valueMm - remainder;
+  }
+
+  const distanceToNext = gridSizeMm - remainder;
+  if (distanceToNext < toleranceMm) {
+    return valueMm + distanceToNext;
+  }
+
+  return valueMm;
 }
 
 export function pointMmToPx(point: Point): Point {
@@ -51,8 +74,29 @@ export function doRectanglesOverlap(rect1: Rect, rect2: Rect): boolean {
 export function findSnapPosition(
   movingShape: Rect,
   existingShapes: Rect[],
-  tolerance: number = SNAP_TOLERANCE_MM
+  tolerancePx: number = SNAP_TOLERANCE_PX,
+  gridSizeMm: number = GRID_SIZE_MM
 ): Point | null {
+  const toleranceMm = pxToMm(tolerancePx);
+
+  const candidates: Point[] = [];
+
+  // Grid snapping for smooth alignment
+  const snappedX = snapToGrid(movingShape.x, gridSizeMm, tolerancePx);
+  const snappedY = snapToGrid(movingShape.y, gridSizeMm, tolerancePx);
+
+  if (snappedX !== movingShape.x) {
+    candidates.push({ x: snappedX, y: movingShape.y });
+  }
+
+  if (snappedY !== movingShape.y) {
+    candidates.push({ x: movingShape.x, y: snappedY });
+  }
+
+  if (snappedX !== movingShape.x || snappedY !== movingShape.y) {
+    candidates.push({ x: snappedX, y: snappedY });
+  }
+
   for (const existing of existingShapes) {
     const movingRight = movingShape.x + movingShape.width;
     const movingBottom = movingShape.y + movingShape.height;
@@ -60,31 +104,45 @@ export function findSnapPosition(
     const existingBottom = existing.y + existing.height;
 
     if (
-      Math.abs(movingShape.y - existing.y) < tolerance ||
-      Math.abs(movingBottom - existingBottom) < tolerance
+      Math.abs(movingShape.y - existing.y) < toleranceMm ||
+      Math.abs(movingBottom - existingBottom) < toleranceMm
     ) {
-      if (Math.abs(movingRight - existing.x) < tolerance) {
-        return { x: existing.x - movingShape.width, y: movingShape.y };
+      if (Math.abs(movingRight - existing.x) < toleranceMm) {
+        candidates.push({ x: existing.x - movingShape.width, y: movingShape.y });
       }
-      if (Math.abs(movingShape.x - existingRight) < tolerance) {
-        return { x: existingRight, y: movingShape.y };
+      if (Math.abs(movingShape.x - existingRight) < toleranceMm) {
+        candidates.push({ x: existingRight, y: movingShape.y });
       }
     }
 
     if (
-      Math.abs(movingShape.x - existing.x) < tolerance ||
-      Math.abs(movingRight - existingRight) < tolerance
+      Math.abs(movingShape.x - existing.x) < toleranceMm ||
+      Math.abs(movingRight - existingRight) < toleranceMm
     ) {
-      if (Math.abs(movingBottom - existing.y) < tolerance) {
-        return { x: movingShape.x, y: existing.y - movingShape.height };
+      if (Math.abs(movingBottom - existing.y) < toleranceMm) {
+        candidates.push({ x: movingShape.x, y: existing.y - movingShape.height });
       }
-      if (Math.abs(movingShape.y - existingBottom) < tolerance) {
-        return { x: movingShape.x, y: existingBottom };
+      if (Math.abs(movingShape.y - existingBottom) < toleranceMm) {
+        candidates.push({ x: movingShape.x, y: existingBottom });
       }
     }
   }
 
-  return null;
+  let bestCandidate: Point | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const dx = candidate.x - movingShape.x;
+    const dy = candidate.y - movingShape.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance <= toleranceMm && distance < bestDistance) {
+      bestCandidate = candidate;
+      bestDistance = distance;
+    }
+  }
+
+  return bestCandidate;
 }
 
 export function shapeToRect(shape: {
