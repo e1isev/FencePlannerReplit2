@@ -70,12 +70,26 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  const port = Number(process.env.PORT ?? 5000);
+
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    const code = err.code ?? "UNKNOWN";
+    const address = `${port}`;
+    const message =
+      code === "ENOTSUP"
+        ? `Address not supported when binding to port ${address}`
+        : code === "EADDRINUSE"
+          ? `Address already in use at port ${address}`
+          : `Server error (${code}) while binding to port ${address}: ${err.message}`;
+
+    log(message, "server");
+    if (code !== "EADDRINUSE" && code !== "ENOTSUP") {
+      console.error(err);
+    }
+    process.exit(1);
+  });
+
+  server.listen(port, () => {
+    log(`serving on http://localhost:${port}`);
   });
 })();
