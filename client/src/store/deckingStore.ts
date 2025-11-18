@@ -19,11 +19,18 @@ import {
   findSnapPosition,
   shapeToRect,
   mmToPx,
+  pxToMm,
+  GRID_SIZE_MM,
+  SNAP_TOLERANCE_PX,
+  BOARD_OVERFLOW_ALLOWANCE_MM,
+  snapToGrid,
 } from "@/lib/deckingGeometry";
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
+
+const DEFAULT_TOLERANCE_MM = pxToMm(SNAP_TOLERANCE_PX);
 
 interface DeckingState {
   shapes: DeckShape[];
@@ -84,10 +91,13 @@ export const useDeckingStore = create<DeckingState>()(
         const { selectedShapeType, shapes } = get();
         if (!selectedShapeType) return;
 
-        let finalPosition = position;
+        let finalPosition = {
+          x: snapToGrid(position.x, GRID_SIZE_MM),
+          y: snapToGrid(position.y, GRID_SIZE_MM),
+        };
 
         const tempShape = {
-          position,
+          position: finalPosition,
           width,
           height,
         };
@@ -125,8 +135,25 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       updateShape: (id, updates) => {
+        const normalizedUpdates: Partial<DeckShape> = { ...updates };
+
+        if (updates.position) {
+          normalizedUpdates.position = {
+            x: snapToGrid(updates.position.x, GRID_SIZE_MM),
+            y: snapToGrid(updates.position.y, GRID_SIZE_MM),
+          };
+        }
+
+        if (typeof updates.width === "number") {
+          normalizedUpdates.width = snapToGrid(Math.max(10, updates.width), GRID_SIZE_MM);
+        }
+
+        if (typeof updates.height === "number") {
+          normalizedUpdates.height = snapToGrid(Math.max(10, updates.height), GRID_SIZE_MM);
+        }
+
         const updatedShapes = get().shapes.map((shape) =>
-          shape.id === id ? { ...shape, ...updates } : shape
+          shape.id === id ? { ...shape, ...normalizedUpdates } : shape
         );
 
         const updatedShape = updatedShapes.find((s) => s.id === id);
@@ -168,133 +195,61 @@ export const useDeckingStore = create<DeckingState>()(
         const boards: Board[] = [];
         const clips: Clip[] = [];
 
-        const isShapeAdjacent = (shape1: DeckShape, shape2: DeckShape, isHorizontal: boolean): boolean => {
-          const tolerance = 10;
-          if (isHorizontal) {
-            const rightEdge1 = shape1.position.x + shape1.width;
-            const leftEdge2 = shape2.position.x;
-            const edgesTouch = Math.abs(rightEdge1 - leftEdge2) < tolerance;
-            
-            const top1 = shape1.position.y;
-            const bottom1 = shape1.position.y + shape1.height;
-            const top2 = shape2.position.y;
-            const bottom2 = shape2.position.y + shape2.height;
-            const verticalOverlap = !(bottom1 < top2 || bottom2 < top1);
-            
-            return edgesTouch && verticalOverlap;
-          } else {
-            const bottomEdge1 = shape1.position.y + shape1.height;
-            const topEdge2 = shape2.position.y;
-            const edgesTouch = Math.abs(bottomEdge1 - topEdge2) < tolerance;
-            
-            const left1 = shape1.position.x;
-            const right1 = shape1.position.x + shape1.width;
-            const left2 = shape2.position.x;
-            const right2 = shape2.position.x + shape2.width;
-            const horizontalOverlap = !(right1 < left2 || right2 < left1);
-            
-            return edgesTouch && horizontalOverlap;
+        const toleranceMm = DEFAULT_TOLERANCE_MM;
+        const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
+        const isHorizontalDirection = boardDirection === "horizontal";
+
+        type Interval = { start: number; end: number };
+        const lineIntervals = new Map<number, Interval[]>();
+
+        const findLineKey = (value: number): number => {
+          for (const key of lineIntervals.keys()) {
+            if (Math.abs(key - value) <= toleranceMm) return key;
           }
+          return value;
         };
 
-        const findAdjacentShape = (currentShape: DeckShape, isHorizontal: boolean): DeckShape | null => {
-          for (const otherShape of shapes) {
-            if (otherShape.id !== currentShape.id && 
-                (otherShape.type === "rectangle" || otherShape.type === "square") &&
-                (currentShape.type === "rectangle" || currentShape.type === "square")) {
-              if (isShapeAdjacent(currentShape, otherShape, isHorizontal)) {
-                return otherShape;
-              }
+        const mergeIntervals = (intervals: Interval[]): Interval[] => {
+          if (intervals.length === 0) return [];
+          const sorted = [...intervals].sort((a, b) => a.start - b.start);
+          const merged: Interval[] = [sorted[0]];
+
+          for (let i = 1; i < sorted.length; i++) {
+            const current = sorted[i];
+            const last = merged[merged.length - 1];
+            if (current.start - last.end <= toleranceMm) {
+              last.end = Math.max(last.end, current.end);
+            } else {
+              merged.push({ ...current });
             }
           }
-          return null;
+
+          return merged;
         };
 
-        const processedBoards = new Set<string>();
-
         shapes.forEach((shape) => {
-          if (shape.type === "square" || shape.type === "rectangle") {
-            const isHorizontal = boardDirection === "horizontal";
-            const boardRunLength = isHorizontal ? shape.width : shape.height;
-            const boardRunWidth = isHorizontal ? shape.height : shape.width;
-
-            const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
-            const numBoards = Math.ceil(boardRunWidth / boardWidthWithGap);
+          if (shape.type === "rectangle" || shape.type === "square") {
+            const spanLength = isHorizontalDirection ? shape.width : shape.height;
+            const spanWidth = isHorizontalDirection ? shape.height : shape.width;
+            const numBoards = Math.ceil(spanWidth / boardWidthWithGap);
 
             for (let i = 0; i < numBoards; i++) {
               const offset = i * boardWidthWithGap;
-              const boardKey = `${shape.id}-${i}`;
-              
-              if (processedBoards.has(boardKey)) continue;
-              processedBoards.add(boardKey);
+              const lineCoord = isHorizontalDirection
+                ? shape.position.y + offset
+                : shape.position.x + offset;
+              const key = findLineKey(lineCoord);
+              const interval: Interval = isHorizontalDirection
+                ? { start: shape.position.x, end: shape.position.x + spanLength }
+                : { start: shape.position.y, end: shape.position.y + spanLength };
 
-              let totalLength = isHorizontal ? shape.width : shape.height;
-              let endX = isHorizontal ? shape.position.x + shape.width : shape.position.x + offset;
-              let endY = isHorizontal ? shape.position.y + offset : shape.position.y + shape.height;
-
-              let currentShape: DeckShape | null = shape;
-              const visitedShapes = new Set<string>([shape.id]);
-              
-              while (currentShape && totalLength < MAX_BOARD_LENGTH_MM) {
-                const adjacentShape = findAdjacentShape(currentShape, isHorizontal);
-                if (!adjacentShape || visitedShapes.has(adjacentShape.id)) break;
-                
-                visitedShapes.add(adjacentShape.id);
-                const additionalLength = isHorizontal ? adjacentShape.width : adjacentShape.height;
-                
-                if (totalLength + additionalLength > MAX_BOARD_LENGTH_MM) {
-                  const remainingLength = MAX_BOARD_LENGTH_MM - totalLength;
-                  if (isHorizontal) {
-                    endX += remainingLength;
-                  } else {
-                    endY += remainingLength;
-                  }
-                  totalLength = MAX_BOARD_LENGTH_MM;
-                  break;
-                } else {
-                  totalLength += additionalLength;
-                  if (isHorizontal) {
-                    endX = adjacentShape.position.x + adjacentShape.width;
-                  } else {
-                    endY = adjacentShape.position.y + adjacentShape.height;
-                  }
-                  currentShape = adjacentShape;
-                }
-              }
-
-              const finalLength = Math.min(totalLength, MAX_BOARD_LENGTH_MM);
-              
-              const boardId = generateId("board");
-              if (isHorizontal) {
-                boards.push({
-                  id: boardId,
-                  start: {
-                    x: shape.position.x,
-                    y: shape.position.y + offset,
-                  },
-                  end: {
-                    x: shape.position.x + finalLength,
-                    y: shape.position.y + offset,
-                  },
-                  length: finalLength,
-                });
-              } else {
-                boards.push({
-                  id: boardId,
-                  start: {
-                    x: shape.position.x + offset,
-                    y: shape.position.y,
-                  },
-                  end: {
-                    x: shape.position.x + offset,
-                    y: shape.position.y + finalLength,
-                  },
-                  length: finalLength,
-                });
-              }
+              const intervals = lineIntervals.get(key) || [];
+              intervals.push(interval);
+              lineIntervals.set(key, intervals);
             }
 
-            const effectiveBoardRunLength = Math.min(boardRunLength, MAX_BOARD_LENGTH_MM);
+            // Clip estimation remains per-shape for now
+            const effectiveBoardRunLength = Math.min(spanLength, MAX_BOARD_LENGTH_MM);
             const joistCount = Math.max(2, Math.ceil(effectiveBoardRunLength / JOIST_SPACING_MM) + 1);
             const joistSpacing = effectiveBoardRunLength / (joistCount - 1);
 
@@ -305,7 +260,7 @@ export const useDeckingStore = create<DeckingState>()(
                 const isEdge = b === 0 || b === numBoards - 1;
                 const boardCount = isEdge ? 2.5 : 3;
 
-                if (isHorizontal) {
+                if (isHorizontalDirection) {
                   clips.push({
                     id: generateId("clip"),
                     position: {
@@ -326,19 +281,61 @@ export const useDeckingStore = create<DeckingState>()(
                 }
               }
             }
-          } else if (shape.type === "triangle") {
+          }
+        });
+
+        lineIntervals.forEach((intervals, lineKey) => {
+          const mergedIntervals = mergeIntervals(intervals);
+
+          mergedIntervals.forEach((interval) => {
+            const runLength = interval.end - interval.start;
+            if (runLength <= 0) return;
+
+            const boardCount = Math.max(
+              1,
+              Math.ceil(runLength / (MAX_BOARD_LENGTH_MM + BOARD_OVERFLOW_ALLOWANCE_MM))
+            );
+            const boardLength = runLength / boardCount;
+
+            for (let i = 0; i < boardCount; i++) {
+              const startOffset = interval.start + boardLength * i;
+              const endOffset = startOffset + boardLength;
+              const boardId = generateId("board");
+
+              if (isHorizontalDirection) {
+                boards.push({
+                  id: boardId,
+                  start: { x: startOffset, y: lineKey },
+                  end: { x: endOffset, y: lineKey },
+                  length: boardLength,
+                });
+              } else {
+                boards.push({
+                  id: boardId,
+                  start: { x: lineKey, y: startOffset },
+                  end: { x: lineKey, y: endOffset },
+                  length: boardLength,
+                });
+              }
+            }
+          });
+        });
+
+        // Triangles retain their bespoke layout logic
+        shapes
+          .filter((shape) => shape.type === "triangle")
+          .forEach((shape) => {
             const isHorizontal = boardDirection === "horizontal";
-            const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
             const numBoards = Math.ceil((isHorizontal ? shape.height : shape.width) / boardWidthWithGap);
 
             for (let i = 0; i < numBoards; i++) {
               const offset = i * boardWidthWithGap;
-              
+
               if (isHorizontal) {
                 const yPos = shape.position.y + offset;
                 const progress = offset / shape.height;
                 const boardLength = Math.min(shape.width * (1 - progress), MAX_BOARD_LENGTH_MM);
-                
+
                 if (boardLength > 0) {
                   boards.push({
                     id: generateId("board"),
@@ -357,7 +354,7 @@ export const useDeckingStore = create<DeckingState>()(
                 const xPos = shape.position.x + shape.width - offset;
                 const progress = offset / shape.width;
                 const boardLength = Math.min(shape.height * (1 - progress), MAX_BOARD_LENGTH_MM);
-                
+
                 if (boardLength > 0) {
                   boards.push({
                     id: generateId("board"),
@@ -374,8 +371,7 @@ export const useDeckingStore = create<DeckingState>()(
                 }
               }
             }
-          }
-        });
+          });
 
         set({ boards, clips });
       },
