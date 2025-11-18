@@ -4,29 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Square, RectangleHorizontal, Circle, RotateCw, Triangle } from "lucide-react";
 import { useDeckingStore } from "@/store/deckingStore";
 import type { ShapeType, DeckColor } from "@/types/decking";
-import stormGraniteImg from "@assets/Tile_Storm_Granite-1_1763424352700.jpg";
-import malleeBarkImg from "@assets/Tile_Mallee_Bark-1_1763424355684.jpg";
-import ironbarkEmberImg from "@assets/Tile_Ironbark_Ember-1_1763424358469.jpg";
-import saltbushVeilImg from "@assets/Tile_Saltbush_Veil-1_1763424360650.jpg";
-import outbackImg from "@assets/Tile_Outback-1_1763424364636.jpg";
-import coastalSpiniflexImg from "@assets/Tile_Coastal_Spiniflex-1_1763424368138.jpg";
-import wildShoreImg from "@assets/Tile_Wild_Shore-1_1763424370480.jpg";
-import coastalSandstoneImg from "@assets/Tile_Coastal_Sandstone-3_1763424372801.jpg";
 
 const SHAPES: { type: ShapeType; label: string; icon: typeof Square }[] = [
   { type: "rectangle", label: "Rectangle", icon: RectangleHorizontal },
   { type: "triangle", label: "Triangle", icon: Triangle },
 ];
 
-const COLORS: { color: DeckColor; label: string; image: string }[] = [
-  { color: "storm-granite", label: "Storm Granite", image: stormGraniteImg },
-  { color: "mallee-bark", label: "Mallee Bark", image: malleeBarkImg },
-  { color: "ironbark-ember", label: "Ironbark Ember", image: ironbarkEmberImg },
-  { color: "saltbush-veil", label: "Saltbush Veil", image: saltbushVeilImg },
-  { color: "outback", label: "Outback", image: outbackImg },
-  { color: "coastal-spiniflex", label: "Coastal Spinifex", image: coastalSpiniflexImg },
-  { color: "wild-shore", label: "Wild Shore", image: wildShoreImg },
-  { color: "coastal-sandstone", label: "Coastal Sandstone", image: coastalSandstoneImg },
+const COLORS: { color: DeckColor; label: string; swatch: string }[] = [
+  { color: "storm-granite", label: "Storm Granite", swatch: "radial-gradient(circle at 30% 30%, #d9d9d9, #8c8c8c)" },
+  { color: "mallee-bark", label: "Mallee Bark", swatch: "linear-gradient(135deg, #5a3a28, #7b4b2f)" },
+  { color: "ironbark-ember", label: "Ironbark Ember", swatch: "linear-gradient(135deg, #4a2416, #7a3824)" },
+  { color: "saltbush-veil", label: "Saltbush Veil", swatch: "linear-gradient(135deg, #c7c7bf, #9fa3a1)" },
+  { color: "outback", label: "Outback", swatch: "linear-gradient(135deg, #5d4636, #8b6a52)" },
+  { color: "coastal-spiniflex", label: "Coastal Spinifex", swatch: "linear-gradient(135deg, #7b8a6d, #4f5e45)" },
+  { color: "wild-shore", label: "Wild Shore", swatch: "linear-gradient(135deg, #7b6d5d, #c4b7a6)" },
+  { color: "coastal-sandstone", label: "Coastal Sandstone", swatch: "linear-gradient(135deg, #d5c7a5, #bfa67b)" },
 ];
 
 export function DeckingLeftPanel() {
@@ -94,11 +86,12 @@ export function DeckingLeftPanel() {
                 title={colorOption.label}
                 data-testid={`button-color-${colorOption.color}`}
               >
-                <img
-                  src={colorOption.image}
-                  alt={colorOption.label}
-                  className="w-full h-full object-cover"
+                <span
+                  aria-hidden
+                  className="absolute inset-0"
+                  style={{ backgroundImage: colorOption.swatch }}
                 />
+                <span className="sr-only">{colorOption.label}</span>
               </button>
             ))}
           </div>
