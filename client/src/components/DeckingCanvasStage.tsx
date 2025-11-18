@@ -1,9 +1,9 @@
 import { useRef, useState, useEffect } from "react";
 import { Stage, Layer, Rect, Text, Circle, Arc, Line } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
-import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
+import { mmToPx, pxToMm, BOARD_WIDTH_MM, GRID_SIZE_MM } from "@/lib/deckingGeometry";
 
-const GRID_SIZE = 50;
+const GRID_SIZE = mmToPx(GRID_SIZE_MM);
 const GRID_COLOR = "#e0e0e0";
 const DEFAULT_SHAPE_SIZE_MM = 2000; // 2000mm = 2m default size
 
