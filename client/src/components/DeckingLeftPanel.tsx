@@ -37,7 +37,7 @@ const COLORS: { color: DeckColor; label: string; image: string }[] = [
     image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Outback-1.jpg",
   },
   {
-    color: "coastal-spinifex",
+    color: "coastal-spiniflex",
     label: "Coastal Spinifex",
     image: "https://de2bd644.delivery.rocketcdn.me/wp-content/uploads/2025/11/Tile_Coastal_Spinifex-1.jpg",
   },

@@ -16,7 +16,6 @@ import {
   BOARD_GAP_MM,
   JOIST_SPACING_MM,
   MAX_BOARD_LENGTH_MM,
-  buildSnapContext,
   doRectanglesOverlap,
   type Rect,
   shapeToRect,
@@ -27,14 +26,6 @@ import {
   BOARD_OVERFLOW_ALLOWANCE_MM,
   snapToGrid,
 } from "@/lib/deckingGeometry";
-
-// Snapping helpers for decking shapes
-type Rect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
 
 function findSnapPosition(
   moving: Rect,
@@ -103,6 +94,55 @@ function generateId(prefix: string): string {
 }
 
 const DEFAULT_TOLERANCE_MM = pxToMm(SNAP_TOLERANCE_PX);
+
+function snapRectWithContext(
+  rect: Rect,
+  otherRects: Rect[],
+  mode: "move" | "resize" = "move",
+  gridSizeMm: number = GRID_SIZE_MM,
+  tolerancePx: number = SNAP_TOLERANCE_PX
+): Rect {
+  const toleranceMm = pxToMm(tolerancePx);
+
+  const xTargets = otherRects.flatMap((r) => [r.x, r.x + r.width]);
+  const yTargets = otherRects.flatMap((r) => [r.y, r.y + r.height]);
+
+  const snapValue = (value: number, targets: number[]) => {
+    let bestValue = snapToGrid(value, gridSizeMm, tolerancePx);
+    let bestDelta = Math.abs(bestValue - value);
+
+    for (const target of targets) {
+      const delta = Math.abs(value - target);
+      if (delta <= toleranceMm && delta < bestDelta) {
+        bestDelta = delta;
+        bestValue = target;
+      }
+    }
+
+    return snapToGrid(bestValue, gridSizeMm, tolerancePx);
+  };
+
+  const snappedX = snapValue(rect.x, xTargets);
+  const snappedY = snapValue(rect.y, yTargets);
+
+  let snappedWidth = snapToGrid(rect.width, gridSizeMm, tolerancePx);
+  let snappedHeight = snapToGrid(rect.height, gridSizeMm, tolerancePx);
+
+  if (mode === "resize") {
+    const snappedRight = snapValue(rect.x + rect.width, xTargets);
+    const snappedBottom = snapValue(rect.y + rect.height, yTargets);
+
+    snappedWidth = Math.max(10, snappedRight - snappedX);
+    snappedHeight = Math.max(10, snappedBottom - snappedY);
+  }
+
+  return {
+    x: snappedX,
+    y: snappedY,
+    width: snappedWidth,
+    height: snappedHeight,
+  };
+}
 
 interface DeckingState {
   shapes: DeckShape[];
@@ -215,6 +255,10 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       updateShape: (id, updates) => {
+        const shapes = get().shapes;
+        const shape = shapes.find((s) => s.id === id);
+        if (!shape) return;
+
         const normalizedUpdates: Partial<DeckShape> = { ...updates };
 
         if (updates.position) {
@@ -237,6 +281,17 @@ export const useDeckingStore = create<DeckingState>()(
             ? "resize"
             : "move";
 
+        const proposedRect: Rect = {
+          x: normalizedUpdates.position?.x ?? shape.position.x,
+          y: normalizedUpdates.position?.y ?? shape.position.y,
+          width: normalizedUpdates.width ?? shape.width,
+          height: normalizedUpdates.height ?? shape.height,
+        };
+
+        const otherRects = shapes
+          .filter((s) => s.id !== id)
+          .map((existing) => shapeToRect(existing));
+
         const snappedRect = snapRectWithContext(proposedRect, otherRects, mode);
 
         const hasOverlap = otherRects.some((existing) =>
@@ -250,7 +305,7 @@ export const useDeckingStore = create<DeckingState>()(
 
         const updatedShape: DeckShape = {
           ...shape,
-          ...updates,
+          ...normalizedUpdates,
           position: { x: snappedRect.x, y: snappedRect.y },
           width: snappedRect.width,
           height: snappedRect.height,
@@ -274,6 +329,10 @@ export const useDeckingStore = create<DeckingState>()(
         const { shapes, boardDirection } = get();
         const boards: Board[] = [];
         const clips: Clip[] = [];
+        let boardPlan: DeckingBoardPlan | null = null;
+        let triangleRows = 0;
+        let totalBoards = 0;
+        let totalWasteMm = 0;
 
         const toleranceMm = DEFAULT_TOLERANCE_MM;
         const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
@@ -283,7 +342,7 @@ export const useDeckingStore = create<DeckingState>()(
         const lineIntervals = new Map<number, Interval[]>();
 
         const findLineKey = (value: number): number => {
-          for (const key of lineIntervals.keys()) {
+          for (const key of Array.from(lineIntervals.keys())) {
             if (Math.abs(key - value) <= toleranceMm) return key;
           }
           return value;
