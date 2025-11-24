@@ -1,14 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Square, RectangleHorizontal, Circle, RotateCw, Triangle } from "lucide-react";
+import { RotateCw, Ruler } from "lucide-react";
 import { useDeckingStore } from "@/store/deckingStore";
-import type { ShapeType, DeckColor } from "@/types/decking";
-
-const SHAPES: { type: ShapeType; label: string; icon: typeof Square }[] = [
-  { type: "rectangle", label: "Rectangle", icon: RectangleHorizontal },
-  { type: "triangle", label: "Triangle", icon: Triangle },
-];
+import type { DeckColor } from "@/types/decking";
 
 const COLORS: { color: DeckColor; label: string; image: string }[] = [
   {
@@ -55,21 +49,17 @@ const COLORS: { color: DeckColor; label: string; image: string }[] = [
 
 export function DeckingLeftPanel() {
   const {
-    shapes,
-    selectedShapeType,
-    selectedShapeId,
     selectedColor,
     boardDirection,
     boardPlan,
-    setSelectedShapeType,
     setSelectedColor,
     toggleBoardDirection,
-    updateShape,
     getCuttingList,
+    polygon,
   } = useDeckingStore();
 
   const cuttingList = getCuttingList();
-  const selectedShape = shapes.find((s) => s.id === selectedShapeId);
+  const hasPolygon = polygon.length >= 3;
 
   return (
     <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
@@ -80,25 +70,15 @@ export function DeckingLeftPanel() {
 
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-            Select Shape
+            Drawing mode
           </Label>
-          <p className="text-xs text-slate-500 mb-2">
-            Click a shape, then click on the canvas to draw.
-          </p>
-          <div className="space-y-2">
-            {SHAPES.map((shape) => (
-              <Button
-                key={shape.type}
-                variant={selectedShapeType === shape.type ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedShapeType(shape.type)}
-                className="w-full justify-start text-xs"
-                data-testid={`button-shape-${shape.type}`}
-              >
-                <shape.icon className="w-4 h-4 mr-2" />
-                {shape.label}
-              </Button>
-            ))}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-2">
+            <p>Click to drop points and outline your deck.</p>
+            <p>Close the loop to calculate area and boards.</p>
+            <p className="flex items-center gap-2 font-medium text-slate-700">
+              <Ruler className="w-4 h-4" />
+              {hasPolygon ? "Shape closed" : "Shape not closed"}
+            </p>
           </div>
         </div>
 
@@ -137,48 +117,6 @@ export function DeckingLeftPanel() {
           </p>
         </div>
 
-        {selectedShape && (
-          <div>
-            <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-              Dimensions (mm)
-            </Label>
-            <div className="space-y-2">
-              <div>
-                <Label className="text-xs text-slate-500">Width</Label>
-                <Input
-                  type="number"
-                  min="100"
-                  max="10000"
-                  step="10"
-                  value={Math.round(selectedShape.width)}
-                  onChange={(e) => {
-                    const newWidth = parseInt(e.target.value) || selectedShape.width;
-                    updateShape(selectedShape.id, { width: newWidth });
-                  }}
-                  className="text-xs"
-                  data-testid="input-shape-width"
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Height</Label>
-                <Input
-                  type="number"
-                  min="100"
-                  max="10000"
-                  step="10"
-                  value={Math.round(selectedShape.height)}
-                  onChange={(e) => {
-                    const newHeight = parseInt(e.target.value) || selectedShape.height;
-                    updateShape(selectedShape.id, { height: newHeight });
-                  }}
-                  className="text-xs"
-                  data-testid="input-shape-height"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Board Direction
@@ -198,12 +136,16 @@ export function DeckingLeftPanel() {
           </p>
         </div>
 
-        {boardPlan && (
-          <div>
-            <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-              Board Plan
-            </Label>
+        <div>
+          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+            Board Plan
+          </Label>
+          {boardPlan ? (
             <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs space-y-1">
+              <div className="flex justify-between" data-testid="board-plan-area">
+                <span className="text-slate-600">Area</span>
+                <span className="font-semibold">{boardPlan.areaM2.toFixed(2)} m²</span>
+              </div>
               <div className="flex justify-between" data-testid="board-plan-rows">
                 <span className="text-slate-600">Rows</span>
                 <span className="font-semibold">{boardPlan.numberOfRows}</span>
@@ -225,11 +167,15 @@ export function DeckingLeftPanel() {
                 <span className="font-semibold">{boardPlan.averageOverflowMm.toFixed(1)} mm</span>
               </div>
               <p className="text-[11px] text-slate-500 mt-2">
-                Uses the longest possible runs and allows a small overhang to reduce board count.
+                Close the outline to see calculated runs and waste estimates.
               </p>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              Draw and close a shape to calculate decking coverage.
+            </div>
+          )}
+        </div>
 
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
@@ -254,7 +200,7 @@ export function DeckingLeftPanel() {
                 {cuttingList.boards.length === 0 && cuttingList.clips === 0 ? (
                   <tr className="border-b border-slate-100">
                     <td className="px-3 py-2 text-slate-400" colSpan={3}>
-                      No shapes drawn yet
+                      Draw and close a shape to see the cutting list
                     </td>
                   </tr>
                 ) : (

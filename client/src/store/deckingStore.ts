@@ -1,171 +1,92 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  BOARD_GAP_MM,
+  BOARD_WIDTH_MM,
+  MAX_BOARD_LENGTH_MM,
+  planBoardsForRun,
+} from "@/lib/deckingGeometry";
 import type {
-  ShapeType,
+  Board,
   BoardDirection,
   DeckColor,
-  DeckShape,
-  Board,
-  Clip,
+  DeckingBoardPlan,
   DeckingCuttingList,
   Point,
-  DeckingBoardPlan,
 } from "@/types/decking";
-import {
-  BOARD_WIDTH_MM,
-  BOARD_GAP_MM,
-  JOIST_SPACING_MM,
-  MAX_BOARD_LENGTH_MM,
-  doRectanglesOverlap,
-  type Rect,
-  shapeToRect,
-  mmToPx,
-  pxToMm,
-  GRID_SIZE_MM,
-  SNAP_TOLERANCE_PX,
-  BOARD_OVERFLOW_ALLOWANCE_MM,
-  snapToGrid,
-} from "@/lib/deckingGeometry";
-
-function findSnapPosition(
-  moving: Rect,
-  others: Rect[],
-  tolerance: number = SNAP_TOLERANCE_PX
-): { x: number; y: number } {
-  let snappedX = moving.x;
-  let snappedY = moving.y;
-
-  const movingLeft = moving.x;
-  const movingRight = moving.x + moving.width;
-  const movingTop = moving.y;
-  const movingBottom = moving.y + moving.height;
-
-  let bestDx = tolerance + 1;
-  let bestDy = tolerance + 1;
-
-  for (const rect of others) {
-    // ignore same rect by exact match
-    if (
-      rect.x === moving.x &&
-      rect.y === moving.y &&
-      rect.width === moving.width &&
-      rect.height === moving.height
-    ) {
-      continue;
-    }
-
-    const left = rect.x;
-    const right = rect.x + rect.width;
-    const top = rect.y;
-    const bottom = rect.y + rect.height;
-
-    // horizontal snapping (left/right edges)
-    const dxLeftToRight = movingLeft - right; // snap moving left to other right
-    if (Math.abs(dxLeftToRight) <= tolerance && Math.abs(dxLeftToRight) < bestDx) {
-      bestDx = Math.abs(dxLeftToRight);
-      snappedX = moving.x - dxLeftToRight;
-    }
-
-    const dxRightToLeft = movingRight - left; // snap moving right to other left
-    if (Math.abs(dxRightToLeft) <= tolerance && Math.abs(dxRightToLeft) < bestDx) {
-      bestDx = Math.abs(dxRightToLeft);
-      snappedX = moving.x - dxRightToLeft;
-    }
-
-    // vertical snapping (top/bottom edges)
-    const dyTopToBottom = movingTop - bottom; // snap moving top to other bottom
-    if (Math.abs(dyTopToBottom) <= tolerance && Math.abs(dyTopToBottom) < bestDy) {
-      bestDy = Math.abs(dyTopToBottom);
-      snappedY = moving.y - dyTopToBottom;
-    }
-
-    const dyBottomToTop = movingBottom - top; // snap moving bottom to other top
-    if (Math.abs(dyBottomToTop) <= tolerance && Math.abs(dyBottomToTop) < bestDy) {
-      bestDy = Math.abs(dyBottomToTop);
-      snappedY = moving.y - dyBottomToTop;
-    }
-  }
-
-  return { x: snappedX, y: snappedY };
-}
 
 function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-const DEFAULT_TOLERANCE_MM = pxToMm(SNAP_TOLERANCE_PX);
-
-function snapRectWithContext(
-  rect: Rect,
-  otherRects: Rect[],
-  mode: "move" | "resize" = "move",
-  gridSizeMm: number = GRID_SIZE_MM,
-  tolerancePx: number = SNAP_TOLERANCE_PX
-): Rect {
-  const toleranceMm = pxToMm(tolerancePx);
-
-  const xTargets = otherRects.flatMap((r) => [r.x, r.x + r.width]);
-  const yTargets = otherRects.flatMap((r) => [r.y, r.y + r.height]);
-
-  const snapValue = (value: number, targets: number[]) => {
-    let bestValue = snapToGrid(value, gridSizeMm, tolerancePx);
-    let bestDelta = Math.abs(bestValue - value);
-
-    for (const target of targets) {
-      const delta = Math.abs(value - target);
-      if (delta <= toleranceMm && delta < bestDelta) {
-        bestDelta = delta;
-        bestValue = target;
-      }
-    }
-
-    return snapToGrid(bestValue, gridSizeMm, tolerancePx);
-  };
-
-  const snappedX = snapValue(rect.x, xTargets);
-  const snappedY = snapValue(rect.y, yTargets);
-
-  let snappedWidth = snapToGrid(rect.width, gridSizeMm, tolerancePx);
-  let snappedHeight = snapToGrid(rect.height, gridSizeMm, tolerancePx);
-
-  if (mode === "resize") {
-    const snappedRight = snapValue(rect.x + rect.width, xTargets);
-    const snappedBottom = snapValue(rect.y + rect.height, yTargets);
-
-    snappedWidth = Math.max(10, snappedRight - snappedX);
-    snappedHeight = Math.max(10, snappedBottom - snappedY);
+function polygonArea(points: Point[]): number {
+  if (points.length < 3) return 0;
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    area += points[i].x * points[j].y - points[j].x * points[i].y;
   }
+  return Math.abs(area) / 2;
+}
 
-  return {
-    x: snappedX,
-    y: snappedY,
-    width: snappedWidth,
-    height: snappedHeight,
-  };
+function getBounds(points: Point[]) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  points.forEach((p) => {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  });
+
+  return { minX, minY, maxX, maxY };
+}
+
+function getHorizontalIntersections(polygon: Point[], y: number): number[] {
+  const intersections: number[] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const p1 = polygon[i];
+    const p2 = polygon[(i + 1) % polygon.length];
+
+    if ((p1.y <= y && p2.y > y) || (p2.y <= y && p1.y > y)) {
+      const t = (y - p1.y) / (p2.y - p1.y);
+      const x = p1.x + t * (p2.x - p1.x);
+      intersections.push(x);
+    }
+  }
+  return intersections.sort((a, b) => a - b);
+}
+
+function getVerticalIntersections(polygon: Point[], x: number): number[] {
+  const intersections: number[] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const p1 = polygon[i];
+    const p2 = polygon[(i + 1) % polygon.length];
+
+    if ((p1.x <= x && p2.x > x) || (p2.x <= x && p1.x > x)) {
+      const t = (x - p1.x) / (p2.x - p1.x);
+      const y = p1.y + t * (p2.y - p1.y);
+      intersections.push(y);
+    }
+  }
+  return intersections.sort((a, b) => a - b);
 }
 
 interface DeckingState {
-  shapes: DeckShape[];
-  selectedShapeType: ShapeType | null;
-  selectedShapeId: string | null;
+  polygon: Point[];
+  boards: Board[];
   selectedColor: DeckColor;
   boardDirection: BoardDirection;
-  boards: Board[];
-  clips: Clip[];
   boardPlan: DeckingBoardPlan | null;
-  history: Array<{
-    shapes: DeckShape[];
-    boardDirection: BoardDirection;
-  }>;
+  history: Array<{ polygon: Point[]; boardDirection: BoardDirection }>;
   historyIndex: number;
 
-  setSelectedShapeType: (type: ShapeType | null) => void;
-  setSelectedShapeId: (id: string | null) => void;
   setSelectedColor: (color: DeckColor) => void;
   toggleBoardDirection: () => void;
-  addShape: (position: Point, width: number, height: number) => void;
-  updateShape: (id: string, updates: Partial<DeckShape>) => void;
-  deleteShape: (id: string) => void;
+  setPolygon: (points: Point[]) => void;
   calculateBoards: () => void;
   getCuttingList: () => DeckingCuttingList;
   clear: () => void;
@@ -177,351 +98,128 @@ interface DeckingState {
 export const useDeckingStore = create<DeckingState>()(
   persist(
     (set, get) => ({
-      shapes: [],
-      selectedShapeType: null,
-      selectedShapeId: null,
+      polygon: [],
+      boards: [],
       selectedColor: "mallee-bark",
       boardDirection: "horizontal",
-      boards: [],
-      clips: [],
       boardPlan: null,
       history: [],
       historyIndex: -1,
 
-      setSelectedShapeType: (type) => set({ selectedShapeType: type }),
-      setSelectedShapeId: (id) => set({ selectedShapeId: id }),
       setSelectedColor: (color) => set({ selectedColor: color }),
 
       toggleBoardDirection: () => {
         const current = get().boardDirection;
-        const newDirection: BoardDirection =
-          current === "horizontal" ? "vertical" : "horizontal";
-        set({ boardDirection: newDirection });
+        const next: BoardDirection = current === "horizontal" ? "vertical" : "horizontal";
+        set({ boardDirection: next });
         get().calculateBoards();
         get().saveHistory();
       },
 
-      addShape: (position, width, height) => {
-        const { selectedShapeType, shapes } = get();
-        if (!selectedShapeType) return;
-
-        let finalPosition = {
-          x: snapToGrid(position.x, GRID_SIZE_MM),
-          y: snapToGrid(position.y, GRID_SIZE_MM),
-        };
-
-        const normalizedWidth = snapToGrid(Math.max(10, width), GRID_SIZE_MM);
-        const normalizedHeight = snapToGrid(Math.max(10, height), GRID_SIZE_MM);
-
-        const newShape: DeckShape = {
-          id: generateId("shape"),
-          type: selectedShapeType,
-          position: finalPosition,
-          width: normalizedWidth,
-          height: normalizedHeight,
-          rotation: 0,
-        };
-
-        const snapPos = findSnapPosition(
-          shapeToRect(newShape),
-          shapes.map(shapeToRect)
-        );
-
-        if (snapPos) {
-          newShape.position = snapPos;
-        }
-
-        const snappedRect = snapRectWithContext(
-          shapeToRect(newShape),
-          shapes.map(shapeToRect)
-        );
-        newShape.position = { x: snappedRect.x, y: snappedRect.y };
-        newShape.width = snappedRect.width;
-        newShape.height = snappedRect.height;
-
-        const newRect = shapeToRect(newShape);
-        const hasOverlap = shapes.some((existing) =>
-          doRectanglesOverlap(newRect, shapeToRect(existing))
-        );
-
-        if (hasOverlap) {
-          console.warn("Cannot place shape: would overlap with existing shape");
-          return;
-        }
-
-        set({ shapes: [...shapes, newShape] });
-        get().calculateBoards();
-        get().saveHistory();
-      },
-
-      updateShape: (id, updates) => {
-        const shapes = get().shapes;
-        const shape = shapes.find((s) => s.id === id);
-        if (!shape) return;
-
-        const normalizedUpdates: Partial<DeckShape> = { ...updates };
-
-        if (updates.position) {
-          normalizedUpdates.position = {
-            x: snapToGrid(updates.position.x, GRID_SIZE_MM),
-            y: snapToGrid(updates.position.y, GRID_SIZE_MM),
-          };
-        }
-
-        if (typeof updates.width === "number") {
-          normalizedUpdates.width = snapToGrid(Math.max(10, updates.width), GRID_SIZE_MM);
-        }
-
-        if (typeof updates.height === "number") {
-          normalizedUpdates.height = snapToGrid(Math.max(10, updates.height), GRID_SIZE_MM);
-        }
-
-        const mode: "move" | "resize" =
-          typeof updates.width === "number" || typeof updates.height === "number"
-            ? "resize"
-            : "move";
-
-        const proposedRect: Rect = {
-          x: normalizedUpdates.position?.x ?? shape.position.x,
-          y: normalizedUpdates.position?.y ?? shape.position.y,
-          width: normalizedUpdates.width ?? shape.width,
-          height: normalizedUpdates.height ?? shape.height,
-        };
-
-        const otherRects = shapes
-          .filter((s) => s.id !== id)
-          .map((existing) => shapeToRect(existing));
-
-        const snappedRect = snapRectWithContext(proposedRect, otherRects, mode);
-
-        const hasOverlap = otherRects.some((existing) =>
-          doRectanglesOverlap(snappedRect, existing)
-        );
-
-        if (hasOverlap) {
-          console.warn("Cannot update shape: would overlap with existing shape");
-          return;
-        }
-
-        const updatedShape: DeckShape = {
-          ...shape,
-          ...normalizedUpdates,
-          position: { x: snappedRect.x, y: snappedRect.y },
-          width: snappedRect.width,
-          height: snappedRect.height,
-        };
-
-        const updatedShapes = shapes.map((s) => (s.id === id ? updatedShape : s));
-
-        set({ shapes: updatedShapes });
-        get().calculateBoards();
-        get().saveHistory();
-      },
-
-      deleteShape: (id) => {
-        const shapes = get().shapes.filter((shape) => shape.id !== id);
-        set({ shapes });
+      setPolygon: (points) => {
+        set({ polygon: points });
         get().calculateBoards();
         get().saveHistory();
       },
 
       calculateBoards: () => {
-        const { shapes, boardDirection } = get();
+        const { polygon, boardDirection } = get();
+        if (polygon.length < 3) {
+          set({ boards: [], boardPlan: null });
+          return;
+        }
+
         const boards: Board[] = [];
-        const clips: Clip[] = [];
-        let boardPlan: DeckingBoardPlan | null = null;
-        let triangleRows = 0;
-        let totalBoards = 0;
-        let totalWasteMm = 0;
-
-        const toleranceMm = DEFAULT_TOLERANCE_MM;
         const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
-        const isHorizontalDirection = boardDirection === "horizontal";
+        const bounds = getBounds(polygon);
 
-        type Interval = { start: number; end: number };
-        const lineIntervals = new Map<number, Interval[]>();
+        let totalWasteMm = 0;
+        let totalOverflowMm = 0;
+        let totalBoards = 0;
+        let rowsWithBoards = 0;
 
-        const findLineKey = (value: number): number => {
-          for (const key of Array.from(lineIntervals.keys())) {
-            if (Math.abs(key - value) <= toleranceMm) return key;
+        if (boardDirection === "horizontal") {
+          const span = bounds.maxY - bounds.minY;
+          const numRows = Math.ceil(span / boardWidthWithGap) + 1;
+          for (let i = 0; i < numRows; i++) {
+            const y = bounds.minY + i * boardWidthWithGap;
+            const intersections = getHorizontalIntersections(polygon, y);
+            if (intersections.length < 2) continue;
+            rowsWithBoards += 1;
+            for (let j = 0; j < intersections.length - 1; j += 2) {
+              const startX = intersections[j];
+              const endX = intersections[j + 1];
+              const runLength = endX - startX;
+              if (runLength <= 0) continue;
+
+              const plan = planBoardsForRun(runLength);
+              let cursor = startX;
+              plan.boardLengths.forEach((length) => {
+                boards.push({
+                  id: generateId("board"),
+                  start: { x: cursor, y },
+                  end: { x: cursor + length, y },
+                  length,
+                });
+                cursor += length;
+              });
+
+              totalWasteMm += plan.wasteMm;
+              totalOverflowMm += plan.overflowMm;
+              totalBoards += plan.boardLengths.length;
+            }
           }
-          return value;
+        } else {
+          const span = bounds.maxX - bounds.minX;
+          const numRows = Math.ceil(span / boardWidthWithGap) + 1;
+          for (let i = 0; i < numRows; i++) {
+            const x = bounds.minX + i * boardWidthWithGap;
+            const intersections = getVerticalIntersections(polygon, x);
+            if (intersections.length < 2) continue;
+            rowsWithBoards += 1;
+            for (let j = 0; j < intersections.length - 1; j += 2) {
+              const startY = intersections[j];
+              const endY = intersections[j + 1];
+              const runLength = endY - startY;
+              if (runLength <= 0) continue;
+
+              const plan = planBoardsForRun(runLength);
+              let cursor = startY;
+              plan.boardLengths.forEach((length) => {
+                boards.push({
+                  id: generateId("board"),
+                  start: { x, y: cursor },
+                  end: { x, y: cursor + length },
+                  length,
+                });
+                cursor += length;
+              });
+
+              totalWasteMm += plan.wasteMm;
+              totalOverflowMm += plan.overflowMm;
+              totalBoards += plan.boardLengths.length;
+            }
+          }
+        }
+
+        const areaMm2 = polygonArea(polygon);
+        const boardPlan: DeckingBoardPlan = {
+          boardLengthMm: MAX_BOARD_LENGTH_MM,
+          boardWidthMm: BOARD_WIDTH_MM,
+          numberOfRows: rowsWithBoards,
+          averageBoardsPerRow: rowsWithBoards === 0 ? 0 : totalBoards / rowsWithBoards,
+          totalBoards,
+          totalWasteMm,
+          averageOverflowMm: totalBoards === 0 ? 0 : totalOverflowMm / totalBoards,
+          areaMm2,
+          areaM2: areaMm2 / 1_000_000,
         };
 
-        const mergeIntervals = (intervals: Interval[]): Interval[] => {
-          if (intervals.length === 0) return [];
-          const sorted = [...intervals].sort((a, b) => a.start - b.start);
-          const merged: Interval[] = [sorted[0]];
-
-          for (let i = 1; i < sorted.length; i++) {
-            const current = sorted[i];
-            const last = merged[merged.length - 1];
-            if (current.start - last.end <= toleranceMm) {
-              last.end = Math.max(last.end, current.end);
-            } else {
-              merged.push({ ...current });
-            }
-          }
-
-          return merged;
-        };
-
-        shapes.forEach((shape) => {
-          if (shape.type === "rectangle" || shape.type === "square") {
-            const spanLength = isHorizontalDirection ? shape.width : shape.height;
-            const spanWidth = isHorizontalDirection ? shape.height : shape.width;
-            const numBoards = Math.ceil(spanWidth / boardWidthWithGap);
-
-            for (let i = 0; i < numBoards; i++) {
-              const offset = i * boardWidthWithGap;
-              const lineCoord = isHorizontalDirection
-                ? shape.position.y + offset
-                : shape.position.x + offset;
-              const key = findLineKey(lineCoord);
-              const interval: Interval = isHorizontalDirection
-                ? { start: shape.position.x, end: shape.position.x + spanLength }
-                : { start: shape.position.y, end: shape.position.y + spanLength };
-
-              const intervals = lineIntervals.get(key) || [];
-              intervals.push(interval);
-              lineIntervals.set(key, intervals);
-            }
-
-            // Clip estimation remains per-shape for now
-            const effectiveBoardRunLength = Math.min(spanLength, MAX_BOARD_LENGTH_MM);
-            const joistCount = Math.max(2, Math.ceil(effectiveBoardRunLength / JOIST_SPACING_MM) + 1);
-            const joistSpacing = effectiveBoardRunLength / (joistCount - 1);
-
-            for (let j = 0; j < joistCount; j++) {
-              const joistOffset = j * joistSpacing;
-              for (let b = 0; b < numBoards; b++) {
-                const boardOffset = b * boardWidthWithGap;
-                const isEdge = b === 0 || b === numBoards - 1;
-                const boardCount = isEdge ? 2.5 : 3;
-
-                if (isHorizontalDirection) {
-                  clips.push({
-                    id: generateId("clip"),
-                    position: {
-                      x: shape.position.x + joistOffset,
-                      y: shape.position.y + boardOffset,
-                    },
-                    boardCount,
-                  });
-                } else {
-                  clips.push({
-                    id: generateId("clip"),
-                    position: {
-                      x: shape.position.x + boardOffset,
-                      y: shape.position.y + joistOffset,
-                    },
-                    boardCount,
-                  });
-                }
-              }
-            }
-          }
-        });
-
-        lineIntervals.forEach((intervals, lineKey) => {
-          const mergedIntervals = mergeIntervals(intervals);
-
-          mergedIntervals.forEach((interval) => {
-            const runLength = interval.end - interval.start;
-            if (runLength <= 0) return;
-
-            const boardCount = Math.max(
-              1,
-              Math.ceil(runLength / (MAX_BOARD_LENGTH_MM + BOARD_OVERFLOW_ALLOWANCE_MM))
-            );
-            const boardLength = runLength / boardCount;
-
-            for (let i = 0; i < boardCount; i++) {
-              const startOffset = interval.start + boardLength * i;
-              const endOffset = startOffset + boardLength;
-              const boardId = generateId("board");
-
-              if (isHorizontalDirection) {
-                boards.push({
-                  id: boardId,
-                  start: { x: startOffset, y: lineKey },
-                  end: { x: endOffset, y: lineKey },
-                  length: boardLength,
-                });
-              } else {
-                boards.push({
-                  id: boardId,
-                  start: { x: lineKey, y: startOffset },
-                  end: { x: lineKey, y: endOffset },
-                  length: boardLength,
-                });
-              }
-            }
-          });
-        });
-
-        // Triangles retain their bespoke layout logic
-        shapes
-          .filter((shape) => shape.type === "triangle")
-          .forEach((shape) => {
-            const isHorizontal = boardDirection === "horizontal";
-            const numBoards = Math.ceil((isHorizontal ? shape.height : shape.width) / boardWidthWithGap);
-            triangleRows += numBoards;
-
-            for (let i = 0; i < numBoards; i++) {
-              const offset = i * boardWidthWithGap;
-
-              if (isHorizontal) {
-                const yPos = shape.position.y + offset;
-                const progress = offset / shape.height;
-                const boardLength = Math.min(shape.width * (1 - progress), MAX_BOARD_LENGTH_MM);
-
-                if (boardLength > 0) {
-                  boards.push({
-                    id: generateId("board"),
-                    start: {
-                      x: shape.position.x,
-                      y: yPos,
-                    },
-                    end: {
-                      x: shape.position.x + boardLength,
-                      y: yPos,
-                    },
-                    length: boardLength,
-                  });
-                  totalBoards += 1;
-                  totalWasteMm += Math.max(0, MAX_BOARD_LENGTH_MM - boardLength);
-                }
-              } else {
-                const xPos = shape.position.x + shape.width - offset;
-                const progress = offset / shape.width;
-                const boardLength = Math.min(shape.height * (1 - progress), MAX_BOARD_LENGTH_MM);
-
-                if (boardLength > 0) {
-                  boards.push({
-                    id: generateId("board"),
-                    start: {
-                      x: xPos,
-                      y: shape.position.y + shape.height - boardLength,
-                    },
-                    end: {
-                      x: xPos,
-                      y: shape.position.y + shape.height,
-                    },
-                    length: boardLength,
-                  });
-                  totalBoards += 1;
-                  totalWasteMm += Math.max(0, MAX_BOARD_LENGTH_MM - boardLength);
-                }
-              }
-            }
-          });
-
-        set({ boards, clips, boardPlan });
+        set({ boards, boardPlan });
       },
 
       getCuttingList: () => {
-        const { boards, clips } = get();
+        const { boards } = get();
 
         const boardsByLength = new Map<number, number>();
         boards.forEach((board) => {
@@ -533,31 +231,17 @@ export const useDeckingStore = create<DeckingState>()(
           .map(([length, count]) => ({ length, count }))
           .sort((a, b) => b.length - a.length);
 
-        const totalBoardLength = boards.reduce(
-          (sum, board) => sum + board.length,
-          0
-        );
-
-        let totalClipsNeeded = 0;
-        clips.forEach((clip) => {
-          totalClipsNeeded += Math.ceil(clip.boardCount / 3);
-        });
+        const totalBoardLength = boards.reduce((sum, board) => sum + board.length, 0);
 
         return {
           boards: boardsList,
-          clips: totalClipsNeeded,
+          clips: 0,
           totalBoardLength,
         };
       },
 
       clear: () => {
-        set({
-          shapes: [],
-          boards: [],
-          clips: [],
-          selectedShapeType: null,
-          boardPlan: null,
-        });
+        set({ polygon: [], boards: [], boardPlan: null });
         get().saveHistory();
       },
 
@@ -566,11 +250,7 @@ export const useDeckingStore = create<DeckingState>()(
         if (historyIndex > 0) {
           const newIndex = historyIndex - 1;
           const snapshot = history[newIndex];
-          set({
-            shapes: snapshot.shapes,
-            boardDirection: snapshot.boardDirection,
-            historyIndex: newIndex,
-          });
+          set({ polygon: snapshot.polygon, boardDirection: snapshot.boardDirection, historyIndex: newIndex });
           get().calculateBoards();
         }
       },
@@ -580,27 +260,20 @@ export const useDeckingStore = create<DeckingState>()(
         if (historyIndex < history.length - 1) {
           const newIndex = historyIndex + 1;
           const snapshot = history[newIndex];
-          set({
-            shapes: snapshot.shapes,
-            boardDirection: snapshot.boardDirection,
-            historyIndex: newIndex,
-          });
+          set({ polygon: snapshot.polygon, boardDirection: snapshot.boardDirection, historyIndex: newIndex });
           get().calculateBoards();
         }
       },
 
       saveHistory: () => {
-        const { shapes, boardDirection, history, historyIndex } = get();
+        const { polygon, boardDirection, history, historyIndex } = get();
         const snapshot = {
-          shapes: JSON.parse(JSON.stringify(shapes)),
+          polygon: JSON.parse(JSON.stringify(polygon)),
           boardDirection,
         };
         const newHistory = history.slice(0, historyIndex + 1);
         newHistory.push(snapshot);
-        set({
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
-        });
+        set({ history: newHistory, historyIndex: newHistory.length - 1 });
       },
     }),
     {

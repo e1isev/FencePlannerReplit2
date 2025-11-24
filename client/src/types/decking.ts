@@ -1,5 +1,3 @@
-export type ShapeType = "square" | "rectangle" | "triangle";
-
 export type BoardDirection = "horizontal" | "vertical";
 
 export type DeckColor =
@@ -15,15 +13,6 @@ export type DeckColor =
 export interface Point {
   x: number;
   y: number;
-}
-
-export interface DeckShape {
-  id: string;
-  type: ShapeType;
-  position: Point;
-  width: number;
-  height: number;
-  rotation: number;
 }
 
 export interface Board {
@@ -56,4 +45,6 @@ export interface DeckingBoardPlan {
   totalBoards: number;
   totalWasteMm: number;
   averageOverflowMm: number;
+  areaMm2: number;
+  areaM2: number;
 }
