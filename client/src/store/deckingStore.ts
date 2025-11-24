@@ -28,6 +28,76 @@ import {
   snapToGrid,
 } from "@/lib/deckingGeometry";
 
+// Snapping helpers for decking shapes
+type Rect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function findSnapPosition(
+  moving: Rect,
+  others: Rect[],
+  tolerance: number = SNAP_TOLERANCE_PX
+): { x: number; y: number } {
+  let snappedX = moving.x;
+  let snappedY = moving.y;
+
+  const movingLeft = moving.x;
+  const movingRight = moving.x + moving.width;
+  const movingTop = moving.y;
+  const movingBottom = moving.y + moving.height;
+
+  let bestDx = tolerance + 1;
+  let bestDy = tolerance + 1;
+
+  for (const rect of others) {
+    // ignore same rect by exact match
+    if (
+      rect.x === moving.x &&
+      rect.y === moving.y &&
+      rect.width === moving.width &&
+      rect.height === moving.height
+    ) {
+      continue;
+    }
+
+    const left = rect.x;
+    const right = rect.x + rect.width;
+    const top = rect.y;
+    const bottom = rect.y + rect.height;
+
+    // horizontal snapping (left/right edges)
+    const dxLeftToRight = movingLeft - right; // snap moving left to other right
+    if (Math.abs(dxLeftToRight) <= tolerance && Math.abs(dxLeftToRight) < bestDx) {
+      bestDx = Math.abs(dxLeftToRight);
+      snappedX = moving.x - dxLeftToRight;
+    }
+
+    const dxRightToLeft = movingRight - left; // snap moving right to other left
+    if (Math.abs(dxRightToLeft) <= tolerance && Math.abs(dxRightToLeft) < bestDx) {
+      bestDx = Math.abs(dxRightToLeft);
+      snappedX = moving.x - dxRightToLeft;
+    }
+
+    // vertical snapping (top/bottom edges)
+    const dyTopToBottom = movingTop - bottom; // snap moving top to other bottom
+    if (Math.abs(dyTopToBottom) <= tolerance && Math.abs(dyTopToBottom) < bestDy) {
+      bestDy = Math.abs(dyTopToBottom);
+      snappedY = moving.y - dyTopToBottom;
+    }
+
+    const dyBottomToTop = movingBottom - top; // snap moving bottom to other top
+    if (Math.abs(dyBottomToTop) <= tolerance && Math.abs(dyBottomToTop) < bestDy) {
+      bestDy = Math.abs(dyBottomToTop);
+      snappedY = moving.y - dyBottomToTop;
+    }
+  }
+
+  return { x: snappedX, y: snappedY };
+}
+
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
