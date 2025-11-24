@@ -11,6 +11,7 @@ import {
 } from "@/geometry/snapping";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
+import MapOverlay from "./MapOverlay";
 
 const GRID_SIZE = 50;
 const SCALE_FACTOR = 10;
@@ -333,7 +334,7 @@ export function CanvasStage() {
     }
   };
 
-const handleLabelClick = (lineId: string, currentLength: number, e: any) => {
+  const handleLabelClick = (lineId: string, currentLength: number, e: any) => {
     e.cancelBubble = true;
     const line = lines.find((l) => l.id === lineId);
     if (line && !line.gateId) {
@@ -371,8 +372,10 @@ const handleLabelClick = (lineId: string, currentLength: number, e: any) => {
     setEditValue("");
   };
 
-return (
-    <div ref={containerRef} className="flex-1 bg-slate-50 relative">
+  return (
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
+      <MapOverlay />
+
       {selectedLineId && (
         <LineControls
           lineId={selectedLineId}
@@ -420,176 +423,186 @@ return (
         </div>
       )}
 
-<Stage
-        width={dimensions.width}
-        height={dimensions.height}
-        scaleX={scale}
-        scaleY={scale}
-        x={stagePos.x}
-        y={stagePos.y}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onContextMenu={(e) => e.evt.preventDefault()}
-        data-testid="canvas-stage"
-      >
-<Layer>
-          {Array.from({ length: Math.ceil(dimensions.width / GRID_SIZE) + 10 }).map(
-            (_, i) => (
+      <div className="absolute inset-0 z-10">
+        <Stage
+          width={dimensions.width}
+          height={dimensions.height}
+          scaleX={scale}
+          scaleY={scale}
+          x={stagePos.x}
+          y={stagePos.y}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onContextMenu={(e) => e.evt.preventDefault()}
+          data-testid="canvas-stage"
+        >
+          <Layer>
+            {Array.from({ length: Math.ceil(dimensions.width / GRID_SIZE) + 10 }).map((_, i) => (
               <Line
                 key={`v-${i}`}
-                points={[i * GRID_SIZE - GRID_SIZE * 5, -GRID_SIZE * 5, i * GRID_SIZE - GRID_SIZE * 5, dimensions.height + GRID_SIZE * 5]}
+                points={[
+                  i * GRID_SIZE - GRID_SIZE * 5,
+                  -GRID_SIZE * 5,
+                  i * GRID_SIZE - GRID_SIZE * 5,
+                  dimensions.height + GRID_SIZE * 5,
+                ]}
                 stroke="#e2e8f0"
                 strokeWidth={0.5 / scale}
               />
-            )
-          )}
-          {Array.from({ length: Math.ceil(dimensions.height / GRID_SIZE) + 10 }).map(
-            (_, i) => (
+            ))}
+            {Array.from({ length: Math.ceil(dimensions.height / GRID_SIZE) + 10 }).map((_, i) => (
               <Line
                 key={`h-${i}`}
-                points={[-GRID_SIZE * 5, i * GRID_SIZE - GRID_SIZE * 5, dimensions.width + GRID_SIZE * 5, i * GRID_SIZE - GRID_SIZE * 5]}
+                points={[
+                  -GRID_SIZE * 5,
+                  i * GRID_SIZE - GRID_SIZE * 5,
+                  dimensions.width + GRID_SIZE * 5,
+                  i * GRID_SIZE - GRID_SIZE * 5,
+                ]}
                 stroke="#e2e8f0"
                 strokeWidth={0.5 / scale}
               />
-            )
-          )}
-        </Layer>
+            ))}
+          </Layer>
 
-        <Layer>
-{lines.map((line) => {
-            const isGate = !!line.gateId;
-            const isSelected = line.id === selectedLineId;
-            const panelPositions = panelPositionsMap.get(line.id) || [];
-            
-            const dx = line.b.x - line.a.x;
-            const dy = line.b.y - line.a.y;
-            const lineLength_px = Math.sqrt(dx * dx + dy * dy);
-            const unitX = dx / lineLength_px;
-            const unitY = dy / lineLength_px;
-            const perpX = -unitY;
-            const perpY = unitX;
-            
-            return (
-<Group key={line.id}>
-                <Line
-                  points={[line.a.x, line.a.y, line.b.x, line.b.y]}
-                  stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
-                  strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / scale}
-                  opacity={isGate ? 0.8 : 1}
-                  onClick={(e) => handleLineClick(line.id, e)}
-                  listening={!isGate}
-                />
-                
-                {!isGate && panelPositions.length > 1 && panelPositions.map((pos_mm, idx) => {
-                  if (idx === panelPositions.length - 1) return null;
-                  
-                  const nextPos_mm = panelPositions[idx + 1];
-                  const segmentLength_mm = nextPos_mm - pos_mm;
-                  
-                  const startPos_px = pos_mm / SCALE_FACTOR;
-                  const endPos_px = nextPos_mm / SCALE_FACTOR;
-                  const midPos_px = (startPos_px + endPos_px) / 2;
-                  
-                  const midPoint = {
-                    x: line.a.x + unitX * midPos_px,
-                    y: line.a.y + unitY * midPos_px,
-                  };
-                  
-                  const labelOffset = 15 / scale;
-                  const labelPoint = {
-                    x: midPoint.x + perpX * labelOffset,
-                    y: midPoint.y + perpY * labelOffset,
-                  };
-                  
-                  return (
-                    <Text
-                      key={`seg-${line.id}-${idx}`}
-                      x={labelPoint.x - 20 / scale}
-                      y={labelPoint.y - 8 / scale}
-                      text={`${(segmentLength_mm / 1000).toFixed(2)}m`}
-                      fontSize={11 / scale}
-                      fill="#1e293b"
-                      padding={3 / scale}
-                      onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
-                      listening={true}
-                    />
-                  );
-                })}
-                
-                {(isGate || panelPositions.length <= 1) && (
-                  <Text
-                    x={(line.a.x + line.b.x) / 2 - 30 / scale}
-                    y={(line.a.y + line.b.y) / 2 - 15 / scale}
-                    text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                    fontSize={12 / scale}
-                    fill={isGate ? "#f59e0b" : "#1e293b"}
-                    padding={4 / scale}
-                    onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+          <Layer>
+            {lines.map((line) => {
+              const isGate = !!line.gateId;
+              const isSelected = line.id === selectedLineId;
+              const panelPositions = panelPositionsMap.get(line.id) || [];
+
+              const dx = line.b.x - line.a.x;
+              const dy = line.b.y - line.a.y;
+              const lineLength_px = Math.sqrt(dx * dx + dy * dy);
+              const unitX = dx / lineLength_px;
+              const unitY = dy / lineLength_px;
+              const perpX = -unitY;
+              const perpY = unitX;
+
+              return (
+                <Group key={line.id}>
+                  <Line
+                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
+                    stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
+                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / scale}
+                    opacity={isGate ? 0.8 : 1}
+                    onClick={(e) => handleLineClick(line.id, e)}
                     listening={!isGate}
                   />
-                )}
-              </Group>
-            );
-          })}
 
-{isDrawing && startPoint && currentPoint && (
-            <Line
-              points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
-              stroke="#94a3b8"
-              strokeWidth={3 / scale}
-              dash={[5 / scale, 5 / scale]}
-            />
-          )}
+                  {!isGate &&
+                    panelPositions.length > 1 &&
+                    panelPositions.map((pos_mm, idx) => {
+                      if (idx === panelPositions.length - 1) return null;
 
-{posts.map((post) => {
-            const colors = {
-              end: "#10b981",
-              corner: "#ef4444",
-              line: "#06b6d4",
-            };
-            return (
-              <Circle
-                key={post.id}
-                x={post.pos.x}
-                y={post.pos.y}
-                radius={6 / scale}
-                fill={colors[post.category]}
-                stroke={colors[post.category]}
-                strokeWidth={2 / scale}
+                      const nextPos_mm = panelPositions[idx + 1];
+                      const segmentLength_mm = nextPos_mm - pos_mm;
+
+                      const startPos_px = pos_mm / SCALE_FACTOR;
+                      const endPos_px = nextPos_mm / SCALE_FACTOR;
+                      const midPos_px = (startPos_px + endPos_px) / 2;
+
+                      const midPoint = {
+                        x: line.a.x + unitX * midPos_px,
+                        y: line.a.y + unitY * midPos_px,
+                      };
+
+                      const labelOffset = 15 / scale;
+                      const labelPoint = {
+                        x: midPoint.x + perpX * labelOffset,
+                        y: midPoint.y + perpY * labelOffset,
+                      };
+
+                      return (
+                        <Text
+                          key={`seg-${line.id}-${idx}`}
+                          x={labelPoint.x - 20 / scale}
+                          y={labelPoint.y - 8 / scale}
+                          text={`${(segmentLength_mm / 1000).toFixed(2)}m`}
+                          fontSize={11 / scale}
+                          fill="#1e293b"
+                          padding={3 / scale}
+                          onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+                          listening={true}
+                        />
+                      );
+                    })}
+
+                  {(isGate || panelPositions.length <= 1) && (
+                    <Text
+                      x={(line.a.x + line.b.x) / 2 - 30 / scale}
+                      y={(line.a.y + line.b.y) / 2 - 15 / scale}
+                      text={`${(line.length_mm / 1000).toFixed(2)}m`}
+                      fontSize={12 / scale}
+                      fill={isGate ? "#f59e0b" : "#1e293b"}
+                      padding={4 / scale}
+                      onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+                      listening={!isGate}
+                    />
+                  )}
+                </Group>
+              );
+            })}
+
+            {isDrawing && startPoint && currentPoint && (
+              <Line
+                points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
+                stroke="#94a3b8"
+                strokeWidth={3 / scale}
+                dash={[5 / scale, 5 / scale]}
               />
-            );
-          })}
+            )}
 
-          {gates
-            .filter((g) => g.type.startsWith("sliding"))
-            .map((gate) => {
-              const gateLine = lines.find((l) => l.gateId === gate.id);
-              if (!gateLine) return null;
-
-              const rect = getSlidingReturnRect(gate, gateLine, lines);
-              if (!rect) return null;
-
-return (
-                <Rect
-                  key={gate.id}
-                  x={rect.x}
-                  y={rect.y}
-                  width={rect.width}
-                  height={rect.height}
-                  stroke="#ef4444"
+            {posts.map((post) => {
+              const colors = {
+                end: "#10b981",
+                corner: "#ef4444",
+                line: "#06b6d4",
+              };
+              return (
+                <Circle
+                  key={post.id}
+                  x={post.pos.x}
+                  y={post.pos.y}
+                  radius={6 / scale}
+                  fill={colors[post.category]}
+                  stroke={colors[post.category]}
                   strokeWidth={2 / scale}
-                  dash={[8 / scale, 4 / scale]}
-                  fill="rgba(239, 68, 68, 0.1)"
                 />
               );
             })}
-        </Layer>
-      </Stage>
+
+            {gates
+              .filter((g) => g.type.startsWith("sliding"))
+              .map((gate) => {
+                const gateLine = lines.find((l) => l.gateId === gate.id);
+                if (!gateLine) return null;
+
+                const rect = getSlidingReturnRect(gate, gateLine, lines);
+                if (!rect) return null;
+
+                return (
+                  <Rect
+                    key={gate.id}
+                    x={rect.x}
+                    y={rect.y}
+                    width={rect.width}
+                    height={rect.height}
+                    stroke="#ef4444"
+                    strokeWidth={2 / scale}
+                    dash={[8 / scale, 4 / scale]}
+                    fill="rgba(239, 68, 68, 0.1)"
+                  />
+                );
+              })}
+          </Layer>
+        </Stage>
+      </div>
     </div>
   );
 }
