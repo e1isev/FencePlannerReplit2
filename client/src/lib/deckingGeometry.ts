@@ -7,6 +7,7 @@ export const MAX_BOARD_LENGTH_MM = 5400; // 5.4 meters
 export const GRID_SIZE_MM = 100;
 export const SNAP_TOLERANCE_PX = 8;
 export const BOARD_OVERFLOW_ALLOWANCE_MM = 50;
+export const MAX_OVERHANG_MM = BOARD_OVERFLOW_ALLOWANCE_MM;
 
 export interface Point {
   x: number;
