@@ -170,10 +170,13 @@ export const useDeckingStore = create<DeckingState>()(
           y: snapToGrid(position.y, GRID_SIZE_MM),
         };
 
+        const normalizedWidth = snapToGrid(Math.max(10, width), GRID_SIZE_MM);
+        const normalizedHeight = snapToGrid(Math.max(10, height), GRID_SIZE_MM);
+
         const tempShape = {
           position: finalPosition,
-          width,
-          height,
+          width: normalizedWidth,
+          height: normalizedHeight,
         };
 
         const snapPos = findSnapPosition(
@@ -190,10 +193,7 @@ export const useDeckingStore = create<DeckingState>()(
         const newShape: DeckShape = {
           id: generateId("shape"),
           type: selectedShapeType,
-          position: {
-            x: snapToGrid(position.x, GRID_SIZE_MM),
-            y: snapToGrid(position.y, GRID_SIZE_MM),
-          },
+          position: finalPosition,
           width: normalizedWidth,
           height: normalizedHeight,
           rotation: 0,
