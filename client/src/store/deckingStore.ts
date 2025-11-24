@@ -177,11 +177,14 @@ export const useDeckingStore = create<DeckingState>()(
         };
 
         const snapPos = findSnapPosition(
-          shapeToRect(tempShape),
-          shapes.map(shapeToRect)
+          shapeToRect(newShape),
+          shapes.map(shapeToRect),
+          SNAP_TOLERANCE_PX,
+          GRID_SIZE_MM
         );
+
         if (snapPos) {
-          finalPosition = snapPos;
+          newShape.position = snapPos;
         }
 
         const newShape: DeckShape = {
