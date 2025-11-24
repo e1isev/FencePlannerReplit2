@@ -89,6 +89,7 @@ interface DeckingState {
   setPolygon: (points: Point[]) => void;
   calculateBoards: () => void;
   getCuttingList: () => DeckingCuttingList;
+  updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
   clear: () => void;
   undo: () => void;
   redo: () => void;
@@ -118,6 +119,40 @@ export const useDeckingStore = create<DeckingState>()(
 
       setPolygon: (points) => {
         set({ polygon: points });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
+      updateEdgeLength: (edgeIndex, lengthMm) => {
+        if (lengthMm <= 0) return;
+
+        const { polygon } = get();
+        if (polygon.length < 2) return;
+
+        const startIndex = ((edgeIndex % polygon.length) + polygon.length) % polygon.length;
+        const endIndex = (startIndex + 1) % polygon.length;
+
+        const start = polygon[startIndex];
+        const end = polygon[endIndex];
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const currentLength = Math.sqrt(dx * dx + dy * dy);
+        if (currentLength === 0) return;
+
+        const scale = lengthMm / currentLength;
+        const newEnd = {
+          x: start.x + dx * scale,
+          y: start.y + dy * scale,
+        };
+
+        const newPolygon = polygon.map((point, idx) => {
+          if (idx === endIndex) return newEnd;
+          if (endIndex === 0 && idx === 0) return newEnd;
+          return point;
+        });
+
+        set({ polygon: newPolygon });
         get().calculateBoards();
         get().saveHistory();
       },
