@@ -167,10 +167,6 @@ export const useDeckingStore = create<DeckingState>()(
           normalizedUpdates.height = snapToGrid(Math.max(10, updates.height), GRID_SIZE_MM);
         }
 
-        const updatedShapes = get().shapes.map((shape) =>
-          shape.id === id ? { ...shape, ...normalizedUpdates } : shape
-        );
-
         const mode: "move" | "resize" =
           typeof updates.width === "number" || typeof updates.height === "number"
             ? "resize"
