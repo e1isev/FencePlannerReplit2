@@ -203,26 +203,23 @@ export interface BoardRunPlan {
 
 export function planBoardsForRun(runLengthMm: number): BoardRunPlan {
   const boardLengths: number[] = [];
-  let remaining = runLengthMm;
-  let wasteMm = 0;
-  let overflowMm = 0;
 
-  while (remaining > 0) {
-    if (remaining <= MAX_BOARD_LENGTH_MM) {
-      const overhang = MAX_BOARD_LENGTH_MM - remaining;
-      if (overhang <= MAX_OVERHANG_MM) {
-        boardLengths.push(MAX_BOARD_LENGTH_MM);
-        overflowMm += overhang;
-      } else {
-        boardLengths.push(remaining);
-        wasteMm += overhang;
-      }
-      remaining = 0;
-    } else {
-      boardLengths.push(MAX_BOARD_LENGTH_MM);
-      remaining -= MAX_BOARD_LENGTH_MM;
-    }
+  if (runLengthMm <= 0) {
+    return { boardLengths, overflowMm: 0, wasteMm: 0 };
   }
 
-  return { boardLengths, overflowMm, wasteMm };
+  const fullBoards = Math.floor(runLengthMm / MAX_BOARD_LENGTH_MM);
+  const remainder = runLengthMm % MAX_BOARD_LENGTH_MM;
+
+  if (fullBoards > 0) {
+    boardLengths.push(...Array(fullBoards).fill(MAX_BOARD_LENGTH_MM));
+  }
+
+  if (remainder > 0) {
+    boardLengths.push(remainder);
+  }
+
+  const wasteMm = remainder > 0 ? MAX_BOARD_LENGTH_MM - remainder : 0;
+
+  return { boardLengths, overflowMm: 0, wasteMm };
 }

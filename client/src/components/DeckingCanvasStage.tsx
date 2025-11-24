@@ -29,8 +29,11 @@ export function DeckingCanvasStage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
+  const [editingEdgeIndex, setEditingEdgeIndex] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
 
-  const { boards, polygon, selectedColor, setPolygon, boardDirection } = useDeckingStore();
+  const { boards, polygon, selectedColor, setPolygon, boardDirection, updateEdgeLength } =
+    useDeckingStore();
 
   useEffect(() => {
     const updateSize = () => {
@@ -205,12 +208,63 @@ export function DeckingCanvasStage() {
   const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
 
+  const handleLabelClick = (edgeIndex: number, lengthMm: number, e: any) => {
+    e.cancelBubble = true;
+    setEditingEdgeIndex(edgeIndex);
+    setEditValue((lengthMm / 1000).toFixed(2));
+  };
+
+  const handleLabelSubmit = () => {
+    if (editingEdgeIndex !== null && editValue) {
+      const metres = parseFloat(editValue);
+      if (!isNaN(metres) && metres > 0) {
+        updateEdgeLength(editingEdgeIndex, metres * 1000);
+      }
+    }
+    setEditingEdgeIndex(null);
+    setEditValue("");
+  };
+
   return (
     <div
       ref={containerRef}
       className="flex-1 bg-slate-50 overflow-hidden relative"
       onContextMenu={(e) => e.preventDefault()}
     >
+      {editingEdgeIndex !== null && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white p-4 rounded-lg shadow-lg border border-slate-200">
+          <input
+            type="number"
+            step="0.1"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleLabelSubmit();
+              if (e.key === "Escape") {
+                setEditingEdgeIndex(null);
+                setEditValue("");
+              }
+            }}
+            className="px-3 py-2 border border-slate-300 rounded-md text-sm font-mono w-24"
+            autoFocus
+          />
+          <div className="flex gap-2 mt-2">
+            <button onClick={handleLabelSubmit} className="px-3 py-1 bg-blue-600 text-white rounded text-xs">
+              Apply
+            </button>
+            <button
+              onClick={() => {
+                setEditingEdgeIndex(null);
+                setEditValue("");
+              }}
+              className="px-3 py-1 bg-slate-200 rounded text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white px-4 py-2 rounded shadow text-xs text-slate-600">
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
@@ -262,6 +316,51 @@ export function DeckingCanvasStage() {
               closed={false}
             />
           )}
+
+          {hasPolygon &&
+            polygon.map((point, index) => {
+              const nextPoint = polygon[(index + 1) % polygon.length];
+
+              const startPx = { x: mmToPx(point.x), y: mmToPx(point.y) };
+              const endPx = { x: mmToPx(nextPoint.x), y: mmToPx(nextPoint.y) };
+
+              const dxPx = endPx.x - startPx.x;
+              const dyPx = endPx.y - startPx.y;
+              const lengthPx = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+              const lengthMm = Math.sqrt(
+                Math.pow(nextPoint.x - point.x, 2) + Math.pow(nextPoint.y - point.y, 2)
+              );
+
+              if (lengthPx === 0 || lengthMm === 0) return null;
+
+              const midPoint = {
+                x: (startPx.x + endPx.x) / 2,
+                y: (startPx.y + endPx.y) / 2,
+              };
+
+              const perpX = -dyPx / lengthPx;
+              const perpY = dxPx / lengthPx;
+              const labelOffset = 12;
+
+              const labelPoint = {
+                x: midPoint.x + perpX * labelOffset,
+                y: midPoint.y + perpY * labelOffset,
+              };
+
+              return (
+                <Text
+                  key={`edge-label-${index}`}
+                  x={labelPoint.x - 30}
+                  y={labelPoint.y - 10}
+                  text={`${(lengthMm / 1000).toFixed(2)}m`}
+                  fontSize={12}
+                  fill="#1e293b"
+                  padding={4}
+                  onClick={(e) => handleLabelClick(index, lengthMm, e)}
+                  listening
+                />
+              );
+            })}
 
           {boards.map((board) => (
             <Line
