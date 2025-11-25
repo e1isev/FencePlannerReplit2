@@ -16,6 +16,9 @@ interface SearchResult {
 
 interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
+  isLocked: boolean;
+  onLockChange: (locked: boolean) => void;
+  mapZoom: number;
 }
 
 const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
@@ -49,12 +52,11 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
   };
 }
 
-export function MapOverlay({ onZoomChange }: MapOverlayProps) {
+export function MapOverlay({ onZoomChange, isLocked, onLockChange, mapZoom }: MapOverlayProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const [query, setQuery] = useState("");
-  const [isLocked, setIsLocked] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export function MapOverlay({ onZoomChange }: MapOverlayProps) {
       container: mapContainerRef.current,
       style: buildMapStyle(mapMode),
       center: DEFAULT_CENTER,
-      zoom: 15,
+      zoom: mapZoom,
       attributionControl: false,
     });
 
@@ -93,6 +95,16 @@ export function MapOverlay({ onZoomChange }: MapOverlayProps) {
       map.off("zoom", handleZoom);
     };
   }, [onZoomChange]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentZoom = map.getZoom();
+    if (Math.abs(currentZoom - mapZoom) < 0.001) return;
+
+    map.easeTo({ zoom: mapZoom, duration: 0 });
+  }, [mapZoom]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -203,7 +215,7 @@ export function MapOverlay({ onZoomChange }: MapOverlayProps) {
               <Label htmlFor="map-lock" className="text-xs text-slate-600 whitespace-nowrap">
                 Lock for drawing
               </Label>
-              <Switch id="map-lock" checked={isLocked} onCheckedChange={setIsLocked} />
+              <Switch id="map-lock" checked={isLocked} onCheckedChange={onLockChange} />
             </div>
           </div>
 
