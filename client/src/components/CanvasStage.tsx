@@ -50,17 +50,15 @@ export function CanvasStage() {
   }, []);
 
   const handleScaleChange = useCallback(
-    (metersPerPixel: number, zoom?: number) => {
+    (metersPerPixel: number) => {
       if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
 
-      const zoomValue = zoom ?? mapZoom;
-      const zoomScale = Math.pow(2, zoomValue - BASE_MAP_ZOOM);
-      const nextMmPerPixel = (metersPerPixel * 1000) / zoomScale;
+      const nextMmPerPixel = metersPerPixel * 1000;
       if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
       setMmPerPixel(nextMmPerPixel);
     },
-    [mapZoom, mmPerPixel, setMmPerPixel]
+    [mmPerPixel, setMmPerPixel]
   );
 
   useEffect(() => {
