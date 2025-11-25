@@ -16,7 +16,6 @@ import { generateId } from "@/lib/ids";
 import { generatePosts } from "@/geometry/posts";
 import { fitPanels } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
-import { snapTo90Degrees, isOrthogonal } from "@/geometry/snapping";
 
 interface AppState {
   productKind: ProductKind;
@@ -96,25 +95,13 @@ export const useAppStore = create<AppState>()(
       
       setPreviewLine: (line) => set({ previewLine: line }),
       
-addLine: (a, b) => {
-        const snapped = snapTo90Degrees(a, b);
-        
-if (!isOrthogonal(a, snapped, 0.5)) {
-          const warning: WarningMsg = {
-            id: generateId("warn"),
-            text: "Non-orthogonal fence lines require custom fabrication. Please contact sales.",
-            timestamp: Date.now(),
-          };
-          set({ warnings: [...get().warnings, warning] });
-          return;
-        }
-        
-        const dx = snapped.x - a.x;
-        const dy = snapped.y - a.y;
-        const length_px = Math.sqrt(dx * dx + dy * dy);
+      addLine: (a, b) => {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const length_px = Math.hypot(dx, dy);
         const length_mm = length_px * SCALE_FACTOR;
-        
-if (length_mm < 300) {
+
+        if (length_mm < 300) {
           const warning: WarningMsg = {
             id: generateId("warn"),
             text: `Line too short (${(length_mm / 1000).toFixed(2)}m). Minimum length is 0.3m.`,
@@ -123,13 +110,15 @@ if (length_mm < 300) {
           set({ warnings: [...get().warnings, warning] });
           return;
         }
-        
+
+        const isOrthogonal = Math.abs(dx) < 0.01 || Math.abs(dy) < 0.01;
+
         const newLine: FenceLine = {
           id: generateId("line"),
           a,
-          b: snapped,
+          b,
           length_mm,
-          locked_90: true,
+          locked_90: isOrthogonal,
           even_spacing: false,
         };
         
