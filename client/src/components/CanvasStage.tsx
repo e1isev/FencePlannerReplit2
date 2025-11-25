@@ -39,7 +39,6 @@ export function CanvasStage() {
     selectedGateType,
     addGate,
     updateLine,
-    panelPositionsMap,
     mmPerPixel,
     setMmPerPixel,
   } = useAppStore();
@@ -51,7 +50,7 @@ export function CanvasStage() {
   }, []);
 
   const handleScaleChange = useCallback(
-    (metersPerPixel: number) => {
+    (metersPerPixel: number, zoom?: number) => {
       if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
 
       const nextMmPerPixel = metersPerPixel * 1000;
@@ -520,7 +519,6 @@ export function CanvasStage() {
             {lines.map((line) => {
               const isGate = !!line.gateId;
               const isSelected = line.id === selectedLineId;
-              const panelPositions = panelPositionsMap.get(line.id) || [];
 
               const dx = line.b.x - line.a.x;
               const dy = line.b.y - line.a.y;
@@ -541,56 +539,16 @@ export function CanvasStage() {
                     listening={!isGate}
                   />
 
-                  {!isGate &&
-                    panelPositions.length > 1 &&
-                    panelPositions.map((pos_mm, idx) => {
-                      if (idx === panelPositions.length - 1) return null;
-
-                      const nextPos_mm = panelPositions[idx + 1];
-                      const segmentLength_mm = nextPos_mm - pos_mm;
-
-                      const startPos_px = pos_mm / mmPerPixel;
-                      const endPos_px = nextPos_mm / mmPerPixel;
-                      const midPos_px = (startPos_px + endPos_px) / 2;
-
-                      const midPoint = {
-                        x: line.a.x + unitX * midPos_px,
-                        y: line.a.y + unitY * midPos_px,
-                      };
-
-                      const labelOffset = 15 / combinedScale;
-                      const labelPoint = {
-                        x: midPoint.x + perpX * labelOffset,
-                        y: midPoint.y + perpY * labelOffset,
-                      };
-
-                      return (
-                        <Text
-                          key={`seg-${line.id}-${idx}`}
-                          x={labelPoint.x - 20 / combinedScale}
-                          y={labelPoint.y - 8 / combinedScale}
-                          text={`${(segmentLength_mm / 1000).toFixed(2)}m`}
-                          fontSize={11 / combinedScale}
-                          fill="#1e293b"
-                          padding={3 / combinedScale}
-                          onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
-                          listening={true}
-                        />
-                      );
-                    })}
-
-                  {(isGate || panelPositions.length <= 1) && (
-                    <Text
-                      x={(line.a.x + line.b.x) / 2 - 30 / combinedScale}
-                      y={(line.a.y + line.b.y) / 2 - 15 / combinedScale}
-                      text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                      fontSize={12 / combinedScale}
-                      fill={isGate ? "#f59e0b" : "#1e293b"}
-                      padding={4 / combinedScale}
-                      onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
-                      listening={!isGate}
-                    />
-                  )}
+                  <Text
+                    x={(line.a.x + line.b.x) / 2 - 30 / combinedScale}
+                    y={(line.a.y + line.b.y) / 2 - 15 / combinedScale}
+                    text={`${(line.length_mm / 1000).toFixed(2)}m`}
+                    fontSize={12 / combinedScale}
+                    fill={isGate ? "#f59e0b" : "#1e293b"}
+                    padding={4 / combinedScale}
+                    onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+                    listening={!isGate}
+                  />
                 </Group>
               );
             })}
