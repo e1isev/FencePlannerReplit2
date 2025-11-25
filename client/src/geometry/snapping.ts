@@ -2,11 +2,6 @@ import { Point } from "@/types/models";
 
 const SNAP_TOLERANCE_PX = 40;
 
-export function snapAngleTo45Degrees(angle: number): number {
-  const step = Math.PI / 4;
-  return Math.round(angle / step) * step;
-}
-
 export function snapTo90Degrees(start: Point, end: Point): Point {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -34,10 +29,6 @@ export function findSnapPoint(point: Point, existingPoints: Point[]): Point | nu
     }
   }
   return null;
-}
-
-export function getAngle(start: Point, end: Point): number {
-  return Math.atan2(end.y - start.y, end.x - start.x);
 }
 
 export function getDistance(start: Point, end: Point): number {
