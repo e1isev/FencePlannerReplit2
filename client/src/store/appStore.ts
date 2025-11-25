@@ -16,6 +16,7 @@ import { generateId } from "@/lib/ids";
 import { generatePosts } from "@/geometry/posts";
 import { fitPanels } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
+import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 
 interface AppState {
   productKind: ProductKind;
@@ -104,7 +105,7 @@ export const useAppStore = create<AppState>()(
         const length_px = Math.hypot(dx, dy);
         const length_mm = length_px * get().mmPerPixel;
 
-        if (length_mm < 300) {
+        if (length_mm < MIN_LINE_LENGTH_MM) {
           const warning: WarningMsg = {
             id: generateId("warn"),
             text: `Line too short (${(length_mm / 1000).toFixed(2)}m). Minimum length is 0.3m.`,
@@ -131,7 +132,7 @@ export const useAppStore = create<AppState>()(
       },
       
 updateLine: (id, length_mm) => {
-        if (length_mm < 300) {
+        if (length_mm < MIN_LINE_LENGTH_MM) {
           const warning: WarningMsg = {
             id: generateId("warn"),
             text: `Line too short (${(length_mm / 1000).toFixed(2)}m). Minimum length is 0.3m.`,
