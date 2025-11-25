@@ -8,7 +8,6 @@ import { LineControls } from "./LineControls";
 import MapOverlay from "./MapOverlay";
 
 const GRID_SIZE = 50;
-const SCALE_FACTOR = 10;
 const MIN_LINE_LENGTH_MM = 300;
 const BASE_MAP_ZOOM = 15;
 
@@ -32,8 +31,18 @@ export function CanvasStage() {
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
   const lastCombinedScaleRef = useRef(1);
 
-  const { lines, posts, gates, addLine, selectedGateType, addGate, updateLine, panelPositionsMap } =
-    useAppStore();
+  const {
+    lines,
+    posts,
+    gates,
+    addLine,
+    selectedGateType,
+    addGate,
+    updateLine,
+    panelPositionsMap,
+    mmPerPixel,
+    setMmPerPixel,
+  } = useAppStore();
 
   const combinedScale = scale * mapScale;
 
@@ -393,6 +402,10 @@ export function CanvasStage() {
         onZoomChange={(zoom) => {
           setMapZoom(zoom);
         }}
+        onScaleChange={(metersPerPixel) => {
+          if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
+          setMmPerPixel(metersPerPixel * 1000);
+        }}
         isLocked={isMapLocked}
         onLockChange={setIsMapLocked}
         mapZoom={mapZoom}
@@ -525,8 +538,8 @@ export function CanvasStage() {
                       const nextPos_mm = panelPositions[idx + 1];
                       const segmentLength_mm = nextPos_mm - pos_mm;
 
-                      const startPos_px = pos_mm / SCALE_FACTOR;
-                      const endPos_px = nextPos_mm / SCALE_FACTOR;
+                      const startPos_px = pos_mm / mmPerPixel;
+                      const endPos_px = nextPos_mm / mmPerPixel;
                       const midPos_px = (startPos_px + endPos_px) / 2;
 
                       const midPoint = {

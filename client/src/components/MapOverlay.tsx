@@ -16,6 +16,7 @@ interface SearchResult {
 
 interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
+  onScaleChange?: (metersPerPixel: number) => void;
   isLocked: boolean;
   onLockChange: (locked: boolean) => void;
   mapZoom: number;
@@ -24,6 +25,13 @@ interface MapOverlayProps {
 const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
 
 type MapStyleMode = "street" | "satellite";
+
+function calculateMetersPerPixel(zoom: number, latitude: number): number {
+  return (
+    (156543.03392 * Math.cos((latitude * Math.PI) / 180)) /
+    Math.pow(2, zoom)
+  );
+}
 
 function buildMapStyle(mode: MapStyleMode): StyleSpecification {
   const isSatellite = mode === "satellite";
@@ -52,7 +60,13 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
   };
 }
 
-export function MapOverlay({ onZoomChange, isLocked, onLockChange, mapZoom }: MapOverlayProps) {
+export function MapOverlay({
+  onZoomChange,
+  onScaleChange,
+  isLocked,
+  onLockChange,
+  mapZoom,
+}: MapOverlayProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
@@ -84,17 +98,23 @@ export function MapOverlay({ onZoomChange, isLocked, onLockChange, mapZoom }: Ma
     const map = mapRef.current;
     if (!map) return;
 
-    const handleZoom = () => {
-      onZoomChange?.(map.getZoom());
+    const handleViewChange = () => {
+      const zoom = map.getZoom();
+      const center = map.getCenter();
+      onZoomChange?.(zoom);
+      const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
+      onScaleChange?.(metersPerPixel);
     };
 
-    handleZoom();
-    map.on("zoom", handleZoom);
+    handleViewChange();
+    map.on("zoom", handleViewChange);
+    map.on("move", handleViewChange);
 
     return () => {
-      map.off("zoom", handleZoom);
+      map.off("zoom", handleViewChange);
+      map.off("move", handleViewChange);
     };
-  }, [onZoomChange]);
+  }, [onScaleChange, onZoomChange]);
 
   useEffect(() => {
     const map = mapRef.current;
