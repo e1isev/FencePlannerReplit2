@@ -77,12 +77,7 @@ export function CanvasStage() {
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
-    if (isMapLocked) {
-      const zoomStep = 0.25;
-      const nextZoom = e.evt.deltaY > 0 ? mapZoom - zoomStep : mapZoom + zoomStep;
-      setMapZoom(Math.max(0, Math.min(22, nextZoom)));
-      return;
-    }
+    if (isMapLocked) return;
 
     const scaleBy = 1.1;
     const stage = e.target.getStage();
@@ -112,6 +107,7 @@ export function CanvasStage() {
     const pointer = stage.getPointerPosition();
     
     if (e.evt.button === 2) {
+      if (isMapLocked) return;
       setIsPanning(true);
       setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
@@ -149,6 +145,7 @@ export function CanvasStage() {
     const pointer = stage.getPointerPosition();
     
     if (isPanning && lastPanPos) {
+      if (isMapLocked) return;
       const deltaX = pointer.x - lastPanPos.x;
       const deltaY = pointer.y - lastPanPos.y;
       setStagePos({
@@ -207,6 +204,7 @@ export function CanvasStage() {
     const touches = e.evt.touches;
     
     if (touches.length === 2) {
+      if (isMapLocked) return;
       e.evt.preventDefault();
       const distance = getTouchDistance(touches[0], touches[1]);
       const center = getTouchCenter(touches[0], touches[1]);
@@ -276,29 +274,24 @@ export function CanvasStage() {
       );
 
       if (distanceChange > centerMovement * 0.5) {
-        if (isMapLocked) {
-          const scaleChange = distance / lastTouchDistance;
-          const zoomDelta = Math.log2(scaleChange);
-          const nextZoom = Math.max(0, Math.min(22, mapZoom + zoomDelta));
-          setMapZoom(nextZoom);
-        } else {
-          const oldScale = scale;
-          const scaleChange = distance / lastTouchDistance;
-          const newScale = oldScale * scaleChange;
-          const clampedScale = Math.max(0.5, Math.min(3, newScale));
-          const newCombinedScale = clampedScale * mapScale;
+        if (isMapLocked) return;
 
-          const mousePointTo = {
-            x: (pointer.x - stagePos.x) / combinedScale,
-            y: (pointer.y - stagePos.y) / combinedScale,
-          };
+        const oldScale = scale;
+        const scaleChange = distance / lastTouchDistance;
+        const newScale = oldScale * scaleChange;
+        const clampedScale = Math.max(0.5, Math.min(3, newScale));
+        const newCombinedScale = clampedScale * mapScale;
 
-          setScale(clampedScale);
-          setStagePos({
-            x: pointer.x - mousePointTo.x * newCombinedScale,
-            y: pointer.y - mousePointTo.y * newCombinedScale,
-          });
-        }
+        const mousePointTo = {
+          x: (pointer.x - stagePos.x) / combinedScale,
+          y: (pointer.y - stagePos.y) / combinedScale,
+        };
+
+        setScale(clampedScale);
+        setStagePos({
+          x: pointer.x - mousePointTo.x * newCombinedScale,
+          y: pointer.y - mousePointTo.y * newCombinedScale,
+        });
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
         const deltaY = pointer.y - lastTouchCenter.y;
