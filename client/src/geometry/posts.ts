@@ -50,7 +50,8 @@ export function categorizePost(
 export function generatePosts(
   lines: FenceLine[],
   gates: Gate[],
-  panelPositionsMap: Map<string, number[]> = new Map()
+  panelPositionsMap: Map<string, number[]> = new Map(),
+  mmPerPixel: number
 ): Post[] {
   const postMap = new Map<string, Post>();
   
@@ -71,7 +72,7 @@ export function generatePosts(
     });
     
     const panelPositions = panelPositionsMap.get(line.id) || [];
-    const linePosts = getLinePosts(line, panelPositions);
+    const linePosts = getLinePosts(line, panelPositions, mmPerPixel);
     linePosts.forEach((point) => {
       const key = `${Math.round(point.x)},${Math.round(point.y)}`;
       if (!postMap.has(key)) {
@@ -87,19 +88,18 @@ export function generatePosts(
   return Array.from(postMap.values());
 }
 
-const SCALE_FACTOR = 10;
-
 export function getLinePosts(
   line: FenceLine,
-  panelPositions: number[]
+  panelPositions: number[],
+  mmPerPixel: number
 ): Point[] {
   const posts: Point[] = [];
   const dx = line.b.x - line.a.x;
   const dy = line.b.y - line.a.y;
   const length_px = Math.sqrt(dx * dx + dy * dy);
-  
+
   panelPositions.forEach((pos_mm) => {
-    const pos_px = pos_mm / SCALE_FACTOR;
+    const pos_px = pos_mm / mmPerPixel;
     const t = pos_px / length_px;
     if (t > 0 && t < 1) {
       posts.push({

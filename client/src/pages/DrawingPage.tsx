@@ -9,11 +9,10 @@ import { getSlidingReturnRect } from "@/geometry/gates";
 import { calculateCosts } from "@/lib/pricing";
 import { fitPanels } from "@/geometry/panels";
 
-const SCALE_FACTOR = 10;
-
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
-  const { lines, posts, gates, warnings, panels, fenceStyleId, leftovers } = useAppStore();
+  const { lines, posts, gates, warnings, panels, fenceStyleId, leftovers, mmPerPixel } =
+    useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
@@ -139,8 +138,8 @@ export default function DrawingPage() {
                         const nextPos_mm = panelPositions[idx + 1];
                         const segmentLength_mm = nextPos_mm - pos_mm;
                         
-                        const startPos_px = pos_mm / SCALE_FACTOR;
-                        const endPos_px = nextPos_mm / SCALE_FACTOR;
+                        const startPos_px = pos_mm / mmPerPixel;
+                        const endPos_px = nextPos_mm / mmPerPixel;
                         const midPos_px = (startPos_px + endPos_px) / 2;
                         
                         const midPoint = {

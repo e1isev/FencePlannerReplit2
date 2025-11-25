@@ -30,7 +30,8 @@ interface AppState {
   drawingMode: boolean;
   previewLine: { start: Point; end: Point } | null;
   panelPositionsMap: Map<string, number[]>;
-  
+  mmPerPixel: number;
+
   history: {
     lines: FenceLine[];
     gates: Gate[];
@@ -44,7 +45,8 @@ interface AppState {
   setSelectedGateType: (type: GateType | null) => void;
   setDrawingMode: (mode: boolean) => void;
   setPreviewLine: (line: { start: Point; end: Point } | null) => void;
-  
+  setMmPerPixel: (mmPerPixel: number) => void;
+
   addLine: (a: Point, b: Point) => void;
   updateLine: (id: string, length_mm: number) => void;
   toggleEvenSpacing: (id: string) => void;
@@ -61,8 +63,6 @@ interface AppState {
   saveToHistory: () => void;
 }
 
-const SCALE_FACTOR = 10;
-
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -78,6 +78,7 @@ export const useAppStore = create<AppState>()(
       drawingMode: false,
       previewLine: null,
       panelPositionsMap: new Map(),
+      mmPerPixel: 10,
       
       history: [],
       historyIndex: -1,
@@ -92,14 +93,16 @@ export const useAppStore = create<AppState>()(
       setSelectedGateType: (type) => set({ selectedGateType: type }),
       
       setDrawingMode: (mode) => set({ drawingMode: mode }),
-      
+
       setPreviewLine: (line) => set({ previewLine: line }),
-      
+
+      setMmPerPixel: (mmPerPixel) => set({ mmPerPixel }),
+
       addLine: (a, b) => {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const length_px = Math.hypot(dx, dy);
-        const length_mm = length_px * SCALE_FACTOR;
+        const length_mm = length_px * get().mmPerPixel;
 
         if (length_mm < 300) {
           const warning: WarningMsg = {
@@ -144,7 +147,7 @@ updateLine: (id, length_mm) => {
         const dx = targetLine.b.x - targetLine.a.x;
         const dy = targetLine.b.y - targetLine.a.y;
         const currentLength = Math.sqrt(dx * dx + dy * dy);
-        const scale = (length_mm / SCALE_FACTOR) / currentLength;
+        const scale = (length_mm / get().mmPerPixel) / currentLength;
         
         const oldEndpoint = targetLine.b;
         const newEndpoint = {
@@ -199,12 +202,12 @@ updateLine: (id, length_mm) => {
                 const dx = newB.x - newA.x;
                 const dy = newB.y - newA.y;
                 const length_px = Math.sqrt(dx * dx + dy * dy);
-                
+
                 newLine = {
                   ...line,
                   a: newA,
                   b: newB,
-                  length_mm: length_px * SCALE_FACTOR,
+                  length_mm: length_px * get().mmPerPixel,
                 };
                 processedLines.add(line.id);
                 foundMatch = true;
@@ -220,12 +223,12 @@ updateLine: (id, length_mm) => {
                 const dx = newB.x - newA.x;
                 const dy = newB.y - newA.y;
                 const length_px = Math.sqrt(dx * dx + dy * dy);
-                
+
                 newLine = {
                   ...line,
                   a: newA,
                   b: newB,
-                  length_mm: length_px * SCALE_FACTOR,
+                  length_mm: length_px * get().mmPerPixel,
                 };
                 processedLines.add(line.id);
                 foundMatch = true;
@@ -297,7 +300,7 @@ addGate: (runId) => {
         const dx = line.b.x - line.a.x;
         const dy = line.b.y - line.a.y;
         const totalLength_px = Math.sqrt(dx * dx + dy * dy);
-        const totalLength_mm = totalLength_px * SCALE_FACTOR;
+        const totalLength_mm = totalLength_px * get().mmPerPixel;
         
 const remainingLength_mm = totalLength_mm - opening_mm;
         if (remainingLength_mm < 0) {
@@ -354,8 +357,8 @@ const remainingLength_mm = totalLength_mm - opening_mm;
         const unitX = dx / totalLength_px;
         const unitY = dy / totalLength_px;
         
-        const beforeEnd_px = beforeLength_mm / SCALE_FACTOR;
-        const gateEnd_px = beforeEnd_px + (opening_mm / SCALE_FACTOR);
+        const beforeEnd_px = beforeLength_mm / get().mmPerPixel;
+        const gateEnd_px = beforeEnd_px + opening_mm / get().mmPerPixel;
         
         const beforeEndPoint = {
           x: line.a.x + unitX * beforeEnd_px,
@@ -469,7 +472,7 @@ const warning = validateSlidingReturn(gate, line, lines);
           }
         });
         
-        const posts = generatePosts(lines, gates, panelPositionsMap);
+        const posts = generatePosts(lines, gates, panelPositionsMap, get().mmPerPixel);
         
         const tJunctions = posts.filter((post) => {
           const connectingLines = lines.filter(
