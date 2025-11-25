@@ -2,13 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
-import {
-  snapAngleTo45Degrees,
-  getAngle,
-  getDistance,
-  findSnapPoint,
-  getAllLineEndpoints,
-} from "@/geometry/snapping";
+import { findSnapPoint } from "@/geometry/snapping";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay from "./MapOverlay";
@@ -178,16 +172,7 @@ export function CanvasStage() {
     ];
     const snapped = findSnapPoint(point, allPoints) || point;
 
-    const angle = getAngle(startPoint, snapped);
-    const snappedAngle = snapAngleTo45Degrees(angle);
-    const distance = getDistance(startPoint, snapped);
-
-    const previewPoint = {
-      x: startPoint.x + Math.cos(snappedAngle) * distance,
-      y: startPoint.y + Math.sin(snappedAngle) * distance,
-    };
-
-    setCurrentPoint(previewPoint);
+    setCurrentPoint(snapped);
   };
 
   const handleMouseUp = () => {
@@ -335,27 +320,18 @@ export function CanvasStage() {
       const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
       
       if (isDrawing && startPoint) {
-        const point = {
-          x: (pointer.x - stagePos.x) / combinedScale,
-          y: (pointer.y - stagePos.y) / combinedScale,
-        };
-        
-        const allPoints = [
-          ...lines.flatMap((l) => [l.a, l.b]),
-          ...posts.map((p) => p.pos),
-        ];
-        const snapped = findSnapPoint(point, allPoints) || point;
-        
-        const angle = getAngle(startPoint, snapped);
-        const snappedAngle = snapAngleTo45Degrees(angle);
-        const distance = getDistance(startPoint, snapped);
-        
-        const previewPoint = {
-          x: startPoint.x + Math.cos(snappedAngle) * distance,
-          y: startPoint.y + Math.sin(snappedAngle) * distance,
-        };
-        
-        setCurrentPoint(previewPoint);
+      const point = {
+        x: (pointer.x - stagePos.x) / combinedScale,
+        y: (pointer.y - stagePos.y) / combinedScale,
+      };
+
+      const allPoints = [
+        ...lines.flatMap((l) => [l.a, l.b]),
+        ...posts.map((p) => p.pos),
+      ];
+      const snapped = findSnapPoint(point, allPoints) || point;
+
+      setCurrentPoint(snapped);
       }
     }
   };

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Text, Line } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
 import { GRID_SIZE_MM, mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
-import { getAngle, getDistance, snapAngleTo45Degrees, findSnapPoint } from "@/geometry/snapping";
+import { findSnapPoint, getDistance } from "@/geometry/snapping";
 
 const GRID_SIZE = mmToPx(GRID_SIZE_MM);
 const GRID_COLOR = "#e0e0e0";
@@ -107,15 +107,7 @@ export function DeckingCanvasStage() {
     const snapped = findSnapPoint(worldPosMm, allPoints) || worldPosMm;
 
     const lastPoint = points[points.length - 1];
-    const angle = getAngle(lastPoint, snapped);
-    const snappedAngle = snapAngleTo45Degrees(angle);
-    const distance = getDistance(lastPoint, snapped);
-
-    const preview = {
-      x: lastPoint.x + Math.cos(snappedAngle) * distance,
-      y: lastPoint.y + Math.sin(snappedAngle) * distance,
-    };
-    setPreviewPoint(preview);
+    setPreviewPoint(snapped);
   };
 
   const handleMouseUp = () => {
@@ -164,16 +156,8 @@ export function DeckingCanvasStage() {
     }
 
     const lastPoint = points[points.length - 1];
-    const angle = getAngle(lastPoint, snapped);
-    const snappedAngle = snapAngleTo45Degrees(angle);
-    const distance = getDistance(lastPoint, snapped);
-    const nextPoint = {
-      x: lastPoint.x + Math.cos(snappedAngle) * distance,
-      y: lastPoint.y + Math.sin(snappedAngle) * distance,
-    };
-
-    setPoints([...points, nextPoint]);
-    setPreviewPoint(nextPoint);
+    setPoints([...points, snapped]);
+    setPreviewPoint(snapped);
   };
 
   const gridLines: JSX.Element[] = [];
