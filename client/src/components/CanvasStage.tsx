@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
@@ -45,6 +45,22 @@ export function CanvasStage() {
   } = useAppStore();
 
   const combinedScale = scale * mapScale;
+
+  const handleZoomChange = useCallback((zoom: number) => {
+    setMapZoom(zoom);
+  }, []);
+
+  const handleScaleChange = useCallback(
+    (metersPerPixel: number) => {
+      if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
+
+      const nextMmPerPixel = metersPerPixel * 1000;
+      if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
+
+      setMmPerPixel(nextMmPerPixel);
+    },
+    [mmPerPixel, setMmPerPixel]
+  );
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -399,13 +415,8 @@ export function CanvasStage() {
   return (
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
       <MapOverlay
-        onZoomChange={(zoom) => {
-          setMapZoom(zoom);
-        }}
-        onScaleChange={(metersPerPixel) => {
-          if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
-          setMmPerPixel(metersPerPixel * 1000);
-        }}
+        onZoomChange={handleZoomChange}
+        onScaleChange={handleScaleChange}
         isLocked={isMapLocked}
         onLockChange={setIsMapLocked}
         mapZoom={mapZoom}
