@@ -470,7 +470,7 @@ export function CanvasStage() {
         </div>
       )}
 
-      <div className="absolute inset-0 z-10">
+      <div className={`absolute inset-0 z-10 ${isMapLocked ? "" : "pointer-events-none"}`}>
         <Stage
           width={dimensions.width}
           height={dimensions.height}
