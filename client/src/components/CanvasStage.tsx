@@ -22,6 +22,7 @@ export function CanvasStage() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
+  const [mapScale, setMapScale] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
@@ -32,9 +33,12 @@ export function CanvasStage() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
+  const lastCombinedScaleRef = useRef(1);
 
   const { lines, posts, gates, addLine, selectedGateType, addGate, updateLine, panelPositionsMap } =
     useAppStore();
+
+  const combinedScale = scale * mapScale;
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -51,6 +55,24 @@ export function CanvasStage() {
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
+  useEffect(() => {
+    const prevCombined = lastCombinedScaleRef.current;
+    const nextCombined = combinedScale;
+    if (prevCombined === nextCombined) return;
+
+    const center = {
+      x: dimensions.width / 2,
+      y: dimensions.height / 2,
+    };
+
+    setStagePos((pos) => ({
+      x: center.x - ((center.x - pos.x) / prevCombined) * nextCombined,
+      y: center.y - ((center.y - pos.y) / prevCombined) * nextCombined,
+    }));
+
+    lastCombinedScaleRef.current = nextCombined;
+  }, [combinedScale, dimensions.width, dimensions.height]);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     const scaleBy = 1.1;
@@ -59,17 +81,18 @@ export function CanvasStage() {
     const pointer = stage.getPointerPosition();
 
     const mousePointTo = {
-      x: (pointer.x - stagePos.x) / oldScale,
-      y: (pointer.y - stagePos.y) / oldScale,
+      x: (pointer.x - stagePos.x) / combinedScale,
+      y: (pointer.y - stagePos.y) / combinedScale,
     };
 
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
     const clampedScale = Math.max(0.5, Math.min(3, newScale));
+    const newCombinedScale = clampedScale * mapScale;
 
     setScale(clampedScale);
     setStagePos({
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
+      x: pointer.x - mousePointTo.x * newCombinedScale,
+      y: pointer.y - mousePointTo.y * newCombinedScale,
     });
   };
 
@@ -86,8 +109,8 @@ export function CanvasStage() {
     }
 
     const point = {
-      x: (pointer.x - stagePos.x) / scale,
-      y: (pointer.y - stagePos.y) / scale,
+      x: (pointer.x - stagePos.x) / combinedScale,
+      y: (pointer.y - stagePos.y) / combinedScale,
     };
 
     const allPoints = [
@@ -99,7 +122,7 @@ export function CanvasStage() {
     if (selectedGateType) {
       const clickedLine = lines.find((line) => {
         const dist = pointToLineDistance(snapped, line.a, line.b);
-        return dist < 10 / scale;
+        return dist < 10 / combinedScale;
       });
 
       if (clickedLine && !clickedLine.gateId) {
@@ -130,8 +153,8 @@ export function CanvasStage() {
     if (!isDrawing || !startPoint) return;
 
     const point = {
-      x: (pointer.x - stagePos.x) / scale,
-      y: (pointer.y - stagePos.y) / scale,
+      x: (pointer.x - stagePos.x) / combinedScale,
+      y: (pointer.y - stagePos.y) / combinedScale,
     };
 
     const allPoints = [
@@ -206,10 +229,10 @@ export function CanvasStage() {
       const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
       
       if (e.target !== e.target.getStage()) return;
-      
+
       const point = {
-        x: (pointer.x - stagePos.x) / scale,
-        y: (pointer.y - stagePos.y) / scale,
+        x: (pointer.x - stagePos.x) / combinedScale,
+        y: (pointer.y - stagePos.y) / combinedScale,
       };
       
       const allPoints = [
@@ -221,7 +244,7 @@ export function CanvasStage() {
       if (selectedGateType) {
         const clickedLine = lines.find((line) => {
           const dist = pointToLineDistance(snapped, line.a, line.b);
-          return dist < 20 / scale;
+          return dist < 20 / combinedScale;
         });
         
         if (clickedLine && !clickedLine.gateId) {
@@ -257,16 +280,17 @@ export function CanvasStage() {
         const scaleChange = distance / lastTouchDistance;
         const newScale = oldScale * scaleChange;
         const clampedScale = Math.max(0.5, Math.min(3, newScale));
-        
+        const newCombinedScale = clampedScale * mapScale;
+
         const mousePointTo = {
-          x: (pointer.x - stagePos.x) / oldScale,
-          y: (pointer.y - stagePos.y) / oldScale,
+          x: (pointer.x - stagePos.x) / combinedScale,
+          y: (pointer.y - stagePos.y) / combinedScale,
         };
-        
+
         setScale(clampedScale);
         setStagePos({
-          x: pointer.x - mousePointTo.x * clampedScale,
-          y: pointer.y - mousePointTo.y * clampedScale,
+          x: pointer.x - mousePointTo.x * newCombinedScale,
+          y: pointer.y - mousePointTo.y * newCombinedScale,
         });
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
@@ -290,8 +314,8 @@ export function CanvasStage() {
       
       if (isDrawing && startPoint) {
         const point = {
-          x: (pointer.x - stagePos.x) / scale,
-          y: (pointer.y - stagePos.y) / scale,
+          x: (pointer.x - stagePos.x) / combinedScale,
+          y: (pointer.y - stagePos.y) / combinedScale,
         };
         
         const allPoints = [
@@ -374,7 +398,13 @@ export function CanvasStage() {
 
   return (
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
-      <MapOverlay />
+      <MapOverlay
+        onZoomChange={(zoom) => {
+          const baseZoom = 15;
+          const nextMapScale = Math.pow(2, zoom - baseZoom);
+          setMapScale(nextMapScale);
+        }}
+      />
 
       {selectedLineId && (
         <LineControls
@@ -427,8 +457,8 @@ export function CanvasStage() {
         <Stage
           width={dimensions.width}
           height={dimensions.height}
-          scaleX={scale}
-          scaleY={scale}
+          scaleX={combinedScale}
+          scaleY={combinedScale}
           x={stagePos.x}
           y={stagePos.y}
           onWheel={handleWheel}
@@ -452,7 +482,7 @@ export function CanvasStage() {
                   dimensions.height + GRID_SIZE * 5,
                 ]}
                 stroke="#e2e8f0"
-                strokeWidth={0.5 / scale}
+                strokeWidth={0.5 / combinedScale}
               />
             ))}
             {Array.from({ length: Math.ceil(dimensions.height / GRID_SIZE) + 10 }).map((_, i) => (
@@ -465,7 +495,7 @@ export function CanvasStage() {
                   i * GRID_SIZE - GRID_SIZE * 5,
                 ]}
                 stroke="#e2e8f0"
-                strokeWidth={0.5 / scale}
+                strokeWidth={0.5 / combinedScale}
               />
             ))}
           </Layer>
@@ -489,7 +519,7 @@ export function CanvasStage() {
                   <Line
                     points={[line.a.x, line.a.y, line.b.x, line.b.y]}
                     stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
-                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / scale}
+                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / combinedScale}
                     opacity={isGate ? 0.8 : 1}
                     onClick={(e) => handleLineClick(line.id, e)}
                     listening={!isGate}
@@ -512,7 +542,7 @@ export function CanvasStage() {
                         y: line.a.y + unitY * midPos_px,
                       };
 
-                      const labelOffset = 15 / scale;
+                      const labelOffset = 15 / combinedScale;
                       const labelPoint = {
                         x: midPoint.x + perpX * labelOffset,
                         y: midPoint.y + perpY * labelOffset,
@@ -521,12 +551,12 @@ export function CanvasStage() {
                       return (
                         <Text
                           key={`seg-${line.id}-${idx}`}
-                          x={labelPoint.x - 20 / scale}
-                          y={labelPoint.y - 8 / scale}
+                          x={labelPoint.x - 20 / combinedScale}
+                          y={labelPoint.y - 8 / combinedScale}
                           text={`${(segmentLength_mm / 1000).toFixed(2)}m`}
-                          fontSize={11 / scale}
+                          fontSize={11 / combinedScale}
                           fill="#1e293b"
-                          padding={3 / scale}
+                          padding={3 / combinedScale}
                           onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
                           listening={true}
                         />
@@ -535,12 +565,12 @@ export function CanvasStage() {
 
                   {(isGate || panelPositions.length <= 1) && (
                     <Text
-                      x={(line.a.x + line.b.x) / 2 - 30 / scale}
-                      y={(line.a.y + line.b.y) / 2 - 15 / scale}
+                      x={(line.a.x + line.b.x) / 2 - 30 / combinedScale}
+                      y={(line.a.y + line.b.y) / 2 - 15 / combinedScale}
                       text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                      fontSize={12 / scale}
+                      fontSize={12 / combinedScale}
                       fill={isGate ? "#f59e0b" : "#1e293b"}
-                      padding={4 / scale}
+                      padding={4 / combinedScale}
                       onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
                       listening={!isGate}
                     />
@@ -553,8 +583,8 @@ export function CanvasStage() {
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke="#94a3b8"
-                strokeWidth={3 / scale}
-                dash={[5 / scale, 5 / scale]}
+                strokeWidth={3 / combinedScale}
+                dash={[5 / combinedScale, 5 / combinedScale]}
               />
             )}
 
@@ -569,10 +599,10 @@ export function CanvasStage() {
                   key={post.id}
                   x={post.pos.x}
                   y={post.pos.y}
-                  radius={6 / scale}
+                  radius={6 / combinedScale}
                   fill={colors[post.category]}
                   stroke={colors[post.category]}
-                  strokeWidth={2 / scale}
+                  strokeWidth={2 / combinedScale}
                 />
               );
             })}
@@ -594,8 +624,8 @@ export function CanvasStage() {
                     width={rect.width}
                     height={rect.height}
                     stroke="#ef4444"
-                    strokeWidth={2 / scale}
-                    dash={[8 / scale, 4 / scale]}
+                    strokeWidth={2 / combinedScale}
+                    dash={[8 / combinedScale, 4 / combinedScale]}
                     fill="rgba(239, 68, 68, 0.1)"
                   />
                 );
