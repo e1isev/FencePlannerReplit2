@@ -16,6 +16,7 @@ import MapOverlay from "./MapOverlay";
 const GRID_SIZE = 50;
 const SCALE_FACTOR = 10;
 const MIN_LINE_LENGTH_MM = 300;
+const BASE_MAP_ZOOM = 15;
 
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +24,8 @@ export function CanvasStage() {
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
+  const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
+  const [isMapLocked, setIsMapLocked] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
@@ -73,8 +76,20 @@ export function CanvasStage() {
     lastCombinedScaleRef.current = nextCombined;
   }, [combinedScale, dimensions.width, dimensions.height]);
 
+  useEffect(() => {
+    const nextMapScale = Math.pow(2, mapZoom - BASE_MAP_ZOOM);
+    setMapScale(nextMapScale);
+  }, [mapZoom]);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
+    if (isMapLocked) {
+      const zoomStep = 0.25;
+      const nextZoom = e.evt.deltaY > 0 ? mapZoom - zoomStep : mapZoom + zoomStep;
+      setMapZoom(Math.max(0, Math.min(22, nextZoom)));
+      return;
+    }
+
     const scaleBy = 1.1;
     const stage = e.target.getStage();
     const oldScale = scale;
@@ -274,24 +289,31 @@ export function CanvasStage() {
         Math.pow(pointer.x - lastTouchCenter.x, 2) +
         Math.pow(pointer.y - lastTouchCenter.y, 2)
       );
-      
+
       if (distanceChange > centerMovement * 0.5) {
-        const oldScale = scale;
-        const scaleChange = distance / lastTouchDistance;
-        const newScale = oldScale * scaleChange;
-        const clampedScale = Math.max(0.5, Math.min(3, newScale));
-        const newCombinedScale = clampedScale * mapScale;
+        if (isMapLocked) {
+          const scaleChange = distance / lastTouchDistance;
+          const zoomDelta = Math.log2(scaleChange);
+          const nextZoom = Math.max(0, Math.min(22, mapZoom + zoomDelta));
+          setMapZoom(nextZoom);
+        } else {
+          const oldScale = scale;
+          const scaleChange = distance / lastTouchDistance;
+          const newScale = oldScale * scaleChange;
+          const clampedScale = Math.max(0.5, Math.min(3, newScale));
+          const newCombinedScale = clampedScale * mapScale;
 
-        const mousePointTo = {
-          x: (pointer.x - stagePos.x) / combinedScale,
-          y: (pointer.y - stagePos.y) / combinedScale,
-        };
+          const mousePointTo = {
+            x: (pointer.x - stagePos.x) / combinedScale,
+            y: (pointer.y - stagePos.y) / combinedScale,
+          };
 
-        setScale(clampedScale);
-        setStagePos({
-          x: pointer.x - mousePointTo.x * newCombinedScale,
-          y: pointer.y - mousePointTo.y * newCombinedScale,
-        });
+          setScale(clampedScale);
+          setStagePos({
+            x: pointer.x - mousePointTo.x * newCombinedScale,
+            y: pointer.y - mousePointTo.y * newCombinedScale,
+          });
+        }
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
         const deltaY = pointer.y - lastTouchCenter.y;
@@ -400,10 +422,11 @@ export function CanvasStage() {
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
       <MapOverlay
         onZoomChange={(zoom) => {
-          const baseZoom = 15;
-          const nextMapScale = Math.pow(2, zoom - baseZoom);
-          setMapScale(nextMapScale);
+          setMapZoom(zoom);
         }}
+        isLocked={isMapLocked}
+        onLockChange={setIsMapLocked}
+        mapZoom={mapZoom}
       />
 
       {selectedLineId && (
