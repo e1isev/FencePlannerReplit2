@@ -34,6 +34,8 @@ export function calculateCosts(
   lines: any[]
 ): CostBreakdown {
   const pricing = getPricing(styleId);
+
+  const toCurrency = (value: number) => Math.round(value * 100) / 100;
   
   const numPanels = panels.filter((p) => {
     if (p.uses_leftover_id) return false;
@@ -58,26 +60,37 @@ export function calculateCosts(
     0
   ) + endPosts * END_POST_EXTRA_MM;
   
-  const panelCost = numPanels * pricing.panel_unit_price;
-  const endPostCost = endPosts * pricing.post_unit_price;
-  const cornerPostCost = cornerPosts * pricing.post_unit_price;
-  const linePostCost = linePosts * pricing.post_unit_price;
-  
+  const panelCost = toCurrency(numPanels * pricing.panel_unit_price);
+  const endPostCost = toCurrency(endPosts * pricing.post_unit_price);
+  const cornerPostCost = toCurrency(cornerPosts * pricing.post_unit_price);
+  const linePostCost = toCurrency(linePosts * pricing.post_unit_price);
+
   const gateCosts = {
-    single_900: gatesByType.single_900 * pricing.gate_prices.single_900,
-    single_1800: gatesByType.single_1800 * pricing.gate_prices.single_1800,
-    double_900: gatesByType.double_900 * pricing.gate_prices.double_900,
-    double_1800: gatesByType.double_1800 * pricing.gate_prices.double_1800,
-    sliding_4800: gatesByType.sliding_4800 * pricing.gate_prices.sliding_4800,
-    opening_custom: gatesByType.opening_custom * 500,
+    single_900: toCurrency(
+      gatesByType.single_900 * pricing.gate_prices.single_900
+    ),
+    single_1800: toCurrency(
+      gatesByType.single_1800 * pricing.gate_prices.single_1800
+    ),
+    double_900: toCurrency(
+      gatesByType.double_900 * pricing.gate_prices.double_900
+    ),
+    double_1800: toCurrency(
+      gatesByType.double_1800 * pricing.gate_prices.double_1800
+    ),
+    sliding_4800: toCurrency(
+      gatesByType.sliding_4800 * pricing.gate_prices.sliding_4800
+    ),
+    opening_custom: toCurrency(gatesByType.opening_custom * 500),
   };
-  
-  const grandTotal =
+
+  const grandTotal = toCurrency(
     panelCost +
-    endPostCost +
-    cornerPostCost +
-    linePostCost +
-    Object.values(gateCosts).reduce((sum, cost) => sum + cost, 0);
+      endPostCost +
+      cornerPostCost +
+      linePostCost +
+      Object.values(gateCosts).reduce((sum, cost) => sum + cost, 0)
+  );
   
   return {
     panels: { quantity: numPanels, unitPrice: pricing.panel_unit_price, total: panelCost },
