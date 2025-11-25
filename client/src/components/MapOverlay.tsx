@@ -14,30 +14,42 @@ interface SearchResult {
   lon: string;
 }
 
+interface MapOverlayProps {
+  onZoomChange?: (zoom: number) => void;
+}
+
 const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
 
-function buildMapStyle(): StyleSpecification {
+type MapStyleMode = "street" | "satellite";
+
+function buildMapStyle(mode: MapStyleMode): StyleSpecification {
+  const isSatellite = mode === "satellite";
+
   return {
     version: 8,
     sources: {
-      osm: {
+      [isSatellite ? "satellite" : "osm"]: {
         type: "raster" as const,
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tiles: isSatellite
+          ? ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+          : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
         tileSize: 256,
-        attribution: "© OpenStreetMap contributors",
+        attribution: isSatellite
+          ? "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
+          : "© OpenStreetMap contributors",
       },
     },
     layers: [
       {
-        id: "osm",
+        id: isSatellite ? "satellite" : "osm",
         type: "raster" as const,
-        source: "osm",
+        source: isSatellite ? "satellite" : "osm",
       },
     ],
   };
 }
 
-export function MapOverlay() {
+export function MapOverlay({ onZoomChange }: MapOverlayProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
@@ -46,25 +58,48 @@ export function MapOverlay() {
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [mapMode, setMapMode] = useState<MapStyleMode>("street");
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: buildMapStyle(),
+      style: buildMapStyle(mapMode),
       center: DEFAULT_CENTER,
       zoom: 15,
       attributionControl: false,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
 
     return () => {
       map.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleZoom = () => {
+      onZoomChange?.(map.getZoom());
+    };
+
+    handleZoom();
+    map.on("zoom", handleZoom);
+
+    return () => {
+      map.off("zoom", handleZoom);
+    };
+  }, [onZoomChange]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.setStyle(buildMapStyle(mapMode));
+  }, [mapMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -135,6 +170,18 @@ export function MapOverlay() {
       .addTo(map);
   };
 
+  const handleZoomIn = () => {
+    mapRef.current?.zoomIn();
+  };
+
+  const handleZoomOut = () => {
+    mapRef.current?.zoomOut();
+  };
+
+  const toggleMapMode = () => {
+    setMapMode((mode) => (mode === "street" ? "satellite" : "street"));
+  };
+
   return (
     <div className="absolute inset-0">
       <div
@@ -194,6 +241,21 @@ export function MapOverlay() {
             fence lines without the map capturing clicks.
           </p>
         </Card>
+      </div>
+
+      <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
+        <div className="flex flex-col rounded-md border border-slate-200 bg-white shadow-md overflow-hidden">
+          <Button variant="ghost" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
+            +
+          </Button>
+          <div className="border-t border-slate-200" />
+          <Button variant="ghost" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
+            -
+          </Button>
+        </div>
+        <Button variant="secondary" size="sm" className="shadow-md" onClick={toggleMapMode}>
+          {mapMode === "street" ? "Satellite view" : "Street view"}
+        </Button>
       </div>
     </div>
   );
