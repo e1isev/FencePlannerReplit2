@@ -16,7 +16,7 @@ interface SearchResult {
 
 interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
-  onScaleChange?: (metersPerPixel: number) => void;
+  onScaleChange?: (metersPerPixel: number, zoom: number) => void;
   isLocked: boolean;
   onLockChange: (locked: boolean) => void;
   mapZoom: number;
@@ -103,7 +103,7 @@ export function MapOverlay({
       const center = map.getCenter();
       onZoomChange?.(zoom);
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
-      onScaleChange?.(metersPerPixel);
+      onScaleChange?.(metersPerPixel, zoom);
     };
 
     handleViewChange();

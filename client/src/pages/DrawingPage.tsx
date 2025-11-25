@@ -7,12 +7,10 @@ import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { useLocation } from "wouter";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { calculateCosts } from "@/lib/pricing";
-import { fitPanels } from "@/geometry/panels";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
-  const { lines, posts, gates, warnings, panels, fenceStyleId, leftovers, mmPerPixel } =
-    useAppStore();
+  const { lines, posts, gates, warnings, panels, fenceStyleId } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
@@ -114,60 +112,9 @@ export default function DrawingPage() {
                   );
                 })}
 
-{lines.map((line) => {
+                {lines.map((line) => {
                   if (line.gateId) return null;
-                  
-                  const result = fitPanels(line.id, line.length_mm, line.even_spacing, leftovers);
-                  const panelPositions = result.panelPositions;
-                  
-                  const dx = line.b.x - line.a.x;
-                  const dy = line.b.y - line.a.y;
-                  const lineLength_px = Math.sqrt(dx * dx + dy * dy);
-                  const unitX = dx / lineLength_px;
-                  const unitY = dy / lineLength_px;
-                  
-                  const perpX = -unitY;
-                  const perpY = unitX;
-                  const labelOffset = 20;
-                  
-                  return (
-                    <Group key={`panels-${line.id}`}>
-                      {panelPositions.map((pos_mm, idx) => {
-                        if (idx === panelPositions.length - 1) return null;
-                        
-                        const nextPos_mm = panelPositions[idx + 1];
-                        const segmentLength_mm = nextPos_mm - pos_mm;
-                        
-                        const startPos_px = pos_mm / mmPerPixel;
-                        const endPos_px = nextPos_mm / mmPerPixel;
-                        const midPos_px = (startPos_px + endPos_px) / 2;
-                        
-                        const midPoint = {
-                          x: line.a.x + unitX * midPos_px,
-                          y: line.a.y + unitY * midPos_px,
-                        };
-                        
-                        const labelPoint = {
-                          x: midPoint.x + perpX * labelOffset,
-                          y: midPoint.y + perpY * labelOffset,
-                        };
-                        
-                        const transformedLabel = transform(labelPoint);
-                        
-                        return (
-                          <Text
-                            key={`seg-${line.id}-${idx}`}
-                            x={transformedLabel.x - 20}
-                            y={transformedLabel.y - 5}
-                            text={`${(segmentLength_mm / 1000).toFixed(2)}m`}
-                            fontSize={9}
-                            fill="#334155"
-                            fontFamily="JetBrains Mono"
-                          />
-                        );
-                      })}
-                    </Group>
-                  );
+                  return null;
                 })}
 
                 {posts.map((post) => {
