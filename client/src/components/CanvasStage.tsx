@@ -3,12 +3,12 @@ import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
+import { DEFAULT_SNAP_TOLERANCE, SNAP_RADIUS_MM } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay from "./MapOverlay";
 
 const GRID_SIZE = 50;
-const MIN_LINE_LENGTH_MM = 300;
 const BASE_MAP_ZOOM = 15;
 
 export function CanvasStage() {
@@ -124,6 +124,8 @@ export function CanvasStage() {
     });
   };
 
+  const snapTolerance = mmPerPixel > 0 ? SNAP_RADIUS_MM / mmPerPixel : DEFAULT_SNAP_TOLERANCE;
+
   const handleMouseDown = (e: any) => {
     if (e.target !== e.target.getStage()) return;
 
@@ -146,7 +148,7 @@ export function CanvasStage() {
       ...lines.flatMap((l) => [l.a, l.b]),
       ...posts.map((p) => p.pos),
     ];
-    const snapped = findSnapPoint(point, allPoints) || point;
+    const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
 
     if (selectedGateType) {
       const clickedLine = lines.find((line) => {
@@ -191,7 +193,7 @@ export function CanvasStage() {
       ...lines.flatMap((l) => [l.a, l.b]),
       ...posts.map((p) => p.pos),
     ];
-    const snapped = findSnapPoint(point, allPoints) || point;
+    const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
 
     setCurrentPoint(snapped);
   };
@@ -261,7 +263,7 @@ export function CanvasStage() {
         ...lines.flatMap((l) => [l.a, l.b]),
         ...posts.map((p) => p.pos),
       ];
-      const snapped = findSnapPoint(point, allPoints) || point;
+    const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
       
       if (selectedGateType) {
         const clickedLine = lines.find((line) => {
@@ -346,7 +348,7 @@ export function CanvasStage() {
         ...lines.flatMap((l) => [l.a, l.b]),
         ...posts.map((p) => p.pos),
       ];
-      const snapped = findSnapPoint(point, allPoints) || point;
+      const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
 
       setCurrentPoint(snapped);
       }
