@@ -24,26 +24,26 @@ export function categorizePost(
   if (isNextToGate || connectingLines.length === 1) {
     return "end";
   }
-  
+
   if (connectingLines.length >= 2) {
     const angles = connectingLines.map((line) => {
       const otherPoint = pointsEqual(line.a, pos) ? line.b : line.a;
-      return Math.atan2(otherPoint.y - pos.y, otherPoint.x - pos.x);
+      return (Math.atan2(otherPoint.y - pos.y, otherPoint.x - pos.x) + 2 * Math.PI) %
+        (2 * Math.PI);
     });
-    
-    for (let i = 0; i < angles.length; i++) {
-      for (let j = i + 1; j < angles.length; j++) {
-        let diff = Math.abs(angles[i] - angles[j]);
-        if (diff > Math.PI) diff = 2 * Math.PI - diff;
-        
-        const isRightAngle = Math.abs(diff - Math.PI / 2) < 0.1;
-        if (isRightAngle) {
-          return "corner";
-        }
-      }
+
+    if (connectingLines.length === 2) {
+      const diff = Math.abs(angles[0] - angles[1]);
+      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
+      const isStraight =
+        normalizedDiff < 0.1 || Math.abs(normalizedDiff - Math.PI) < 0.1;
+
+      return isStraight ? "line" : "corner";
     }
+
+    return "corner";
   }
-  
+
   return "line";
 }
 
