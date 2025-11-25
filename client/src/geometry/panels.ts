@@ -27,59 +27,59 @@ export function fitPanels(
   
   const numPanels = Math.floor(length_mm / PANEL_LENGTH_MM);
   let remainder = length_mm % PANEL_LENGTH_MM;
-  
+
   if (remainder < EPSILON_MM) {
     remainder = 0;
   }
-  
+
   if (evenSpacing) {
-    if (numPanels > 0) {
-      const spacing = length_mm / numPanels;
-      for (let i = 0; i < numPanels; i++) {
-        const actualLength = spacing;
-        const requiresCut = spacing < PANEL_LENGTH_MM;
-        
-        let materialLength = PANEL_LENGTH_MM;
-        let usedLeftover: string | undefined;
-        
-if (requiresCut) {
-          const leftover = findLeftoverForCut(actualLength, existingLeftovers);
-          if (leftover) {
-            usedLeftover = leftover.id;
-            materialLength = leftover.length_mm;
-            leftover.consumed = true;
-            const newLeftoverLength = leftover.length_mm - actualLength - CUT_BUFFER_MM;
-            if (newLeftoverLength >= MIN_LEFTOVER_MM) {
-              newLeftovers.push({
-                id: generateId("leftover"),
-                length_mm: newLeftoverLength,
-                consumed: false,
-              });
-            }
-          } else {
-            const newLeftoverLength = PANEL_LENGTH_MM - actualLength - CUT_BUFFER_MM;
-            if (newLeftoverLength >= MIN_LEFTOVER_MM) {
-              newLeftovers.push({
-                id: generateId("leftover"),
-                length_mm: newLeftoverLength,
-                consumed: false,
-              });
-            }
+    const panelCount = Math.max(1, Math.ceil(length_mm / PANEL_LENGTH_MM));
+    const spacing = length_mm / panelCount;
+
+    for (let i = 0; i < panelCount; i++) {
+      const actualLength = spacing;
+      const requiresCut = spacing < PANEL_LENGTH_MM;
+
+      let materialLength = PANEL_LENGTH_MM;
+      let usedLeftover: string | undefined;
+
+      if (requiresCut) {
+        const leftover = findLeftoverForCut(actualLength, existingLeftovers);
+        if (leftover) {
+          usedLeftover = leftover.id;
+          materialLength = leftover.length_mm;
+          leftover.consumed = true;
+          const newLeftoverLength = leftover.length_mm - actualLength - CUT_BUFFER_MM;
+          if (newLeftoverLength >= MIN_LEFTOVER_MM) {
+            newLeftovers.push({
+              id: generateId("leftover"),
+              length_mm: newLeftoverLength,
+              consumed: false,
+            });
+          }
+        } else {
+          const newLeftoverLength = PANEL_LENGTH_MM - actualLength - CUT_BUFFER_MM;
+          if (newLeftoverLength >= MIN_LEFTOVER_MM) {
+            newLeftovers.push({
+              id: generateId("leftover"),
+              length_mm: newLeftoverLength,
+              consumed: false,
+            });
           }
         }
-        
-        segments.push({
-          id: generateId("seg"),
-          runId,
-          start_mm: i * spacing,
-          end_mm: (i + 1) * spacing,
-          length_mm: actualLength,
-          uses_leftover_id: usedLeftover,
-        });
-        
-        if (i > 0) {
-          panelPositions.push(i * spacing);
-        }
+      }
+
+      segments.push({
+        id: generateId("seg"),
+        runId,
+        start_mm: i * spacing,
+        end_mm: (i + 1) * spacing,
+        length_mm: actualLength,
+        uses_leftover_id: usedLeftover,
+      });
+
+      if (i > 0) {
+        panelPositions.push(i * spacing);
       }
     }
   } else {
