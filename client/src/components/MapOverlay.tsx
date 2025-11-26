@@ -17,6 +17,7 @@ interface SearchResult {
 interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
   onScaleChange?: (metersPerPixel: number, zoom: number) => void;
+  onPanOffsetChange?: (offset: { x: number; y: number }) => void;
   isLocked: boolean;
   onLockChange: (locked: boolean) => void;
   mapZoom: number;
@@ -63,6 +64,7 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
 export function MapOverlay({
   onZoomChange,
   onScaleChange,
+  onPanOffsetChange,
   isLocked,
   onLockChange,
   mapZoom,
@@ -75,6 +77,7 @@ export function MapOverlay({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
+  const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -85,7 +88,14 @@ export function MapOverlay({
       center: DEFAULT_CENTER,
       zoom: mapZoom,
       attributionControl: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      bearing: 0,
+      pitch: 0,
+      maxPitch: 0,
     });
+
+    map.touchZoomRotate.disableRotation();
 
     mapRef.current = map;
 
@@ -104,6 +114,18 @@ export function MapOverlay({
       onZoomChange?.(zoom);
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
       onScaleChange?.(metersPerPixel, zoom);
+
+      if (!initialCenterRef.current) {
+        initialCenterRef.current = center;
+      }
+
+      const referenceCenter = initialCenterRef.current;
+      const referencePoint = map.project(referenceCenter);
+      const currentPoint = map.project(center);
+      onPanOffsetChange?.({
+        x: referencePoint.x - currentPoint.x,
+        y: referencePoint.y - currentPoint.y,
+      });
     };
 
     handleViewChange();
@@ -114,7 +136,7 @@ export function MapOverlay({
       map.off("zoom", handleViewChange);
       map.off("move", handleViewChange);
     };
-  }, [onScaleChange, onZoomChange]);
+  }, [onPanOffsetChange, onScaleChange, onZoomChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -140,7 +162,6 @@ export function MapOverlay({
     if (isLocked) {
       map.scrollZoom.disable();
       map.boxZoom.disable();
-      map.dragRotate.disable();
       map.dragPan.disable();
       map.keyboard.disable();
       map.doubleClickZoom.disable();
@@ -148,12 +169,16 @@ export function MapOverlay({
     } else {
       map.scrollZoom.enable();
       map.boxZoom.enable();
-      map.dragRotate.enable();
       map.dragPan.enable();
       map.keyboard.enable();
       map.doubleClickZoom.enable();
       map.touchZoomRotate.enable();
+      map.touchZoomRotate.disableRotation();
     }
+
+    map.dragRotate.disable();
+    map.setPitch(0);
+    map.setBearing(0);
   }, [isLocked]);
 
   const handleSearch = async (e: React.FormEvent) => {
