@@ -128,8 +128,8 @@ export function MapOverlay({
       const currentPoint = map.project(center);
       const pixelRatio = map.getCanvas()?.ownerDocument?.defaultView?.devicePixelRatio || 1;
       onPanOffsetChange?.({
-        x: (referencePoint.x - currentPoint.x) / pixelRatio,
-        y: (referencePoint.y - currentPoint.y) / pixelRatio,
+        x: (currentPoint.x - referencePoint.x) / pixelRatio,
+        y: (currentPoint.y - referencePoint.y) / pixelRatio,
       });
     };
 
