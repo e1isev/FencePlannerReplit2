@@ -149,7 +149,10 @@ export function LeftPanel() {
                     Qty
                   </th>
                   <th className="px-3 py-2 text-right font-semibold text-slate-700">
-                    Price
+                    Unit Price
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                    Total
                   </th>
                 </tr>
               </thead>
@@ -159,6 +162,9 @@ export function LeftPanel() {
                     <td className="px-3 py-2">Panels</td>
                     <td className="px-3 py-2 text-right">{costs.panels.quantity}</td>
                     <td className="px-3 py-2 text-right">
+                      ${costs.panels.unitPrice.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
                       ${costs.panels.total.toFixed(2)}
                     </td>
                   </tr>
@@ -167,6 +173,9 @@ export function LeftPanel() {
                   <tr className="border-b border-slate-100" data-testid="row-posts-end">
                     <td className="px-3 py-2">End Posts</td>
                     <td className="px-3 py-2 text-right">{costs.posts.end.quantity}</td>
+                    <td className="px-3 py-2 text-right">
+                      ${costs.posts.end.unitPrice.toFixed(2)}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       ${costs.posts.end.total.toFixed(2)}
                     </td>
@@ -179,6 +188,9 @@ export function LeftPanel() {
                       {costs.posts.corner.quantity}
                     </td>
                     <td className="px-3 py-2 text-right">
+                      ${costs.posts.corner.unitPrice.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
                       ${costs.posts.corner.total.toFixed(2)}
                     </td>
                   </tr>
@@ -187,6 +199,9 @@ export function LeftPanel() {
                   <tr className="border-b border-slate-100" data-testid="row-posts-line">
                     <td className="px-3 py-2">Line Posts</td>
                     <td className="px-3 py-2 text-right">{costs.posts.line.quantity}</td>
+                    <td className="px-3 py-2 text-right">
+                      ${costs.posts.line.unitPrice.toFixed(2)}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       ${costs.posts.line.total.toFixed(2)}
                     </td>
@@ -205,13 +220,16 @@ export function LeftPanel() {
                         </td>
                         <td className="px-3 py-2 text-right">{data.quantity}</td>
                         <td className="px-3 py-2 text-right">
+                          ${data.unitPrice.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
                           ${data.total.toFixed(2)}
                         </td>
                       </tr>
                     )
                 )}
                 <tr className="bg-slate-100 border-t-2 border-slate-300">
-                  <td className="px-3 py-2 font-semibold" colSpan={2} data-testid="text-total-label">
+                  <td className="px-3 py-2 font-semibold" colSpan={3} data-testid="text-total-label">
                     Total
                   </td>
                   <td className="px-3 py-2 text-right font-semibold" data-testid="text-total-price">
