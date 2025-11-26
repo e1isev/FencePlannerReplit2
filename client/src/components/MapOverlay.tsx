@@ -212,9 +212,13 @@ export function MapOverlay({
 
     const lat = Number(result.lat);
     const lon = Number(result.lon);
+    const newCenter = new maplibregl.LngLat(lon, lat);
 
     setQuery(result.display_name);
     setResults([]);
+
+    initialCenterRef.current = newCenter;
+    onPanOffsetChange?.({ x: 0, y: 0 });
 
     map.flyTo({ center: [lon, lat], zoom: 18 });
 
