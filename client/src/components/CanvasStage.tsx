@@ -45,9 +45,13 @@ export function CanvasStage() {
   } = useAppStore();
 
   const combinedScale = scale * mapScale;
+  const normalizedMapPanOffset = {
+    x: mapPanOffset.x / mapScale,
+    y: mapPanOffset.y / mapScale,
+  };
   const renderedStagePos = {
-    x: stagePos.x + mapPanOffset.x,
-    y: stagePos.y + mapPanOffset.y,
+    x: stagePos.x + normalizedMapPanOffset.x,
+    y: stagePos.y + normalizedMapPanOffset.y,
   };
 
   const handleZoomChange = useCallback((zoom: number) => {
@@ -109,8 +113,8 @@ export function CanvasStage() {
     };
 
     setStagePos({
-      x: newRenderedPos.x - mapPanOffset.x,
-      y: newRenderedPos.y - mapPanOffset.y,
+      x: newRenderedPos.x - normalizedMapPanOffset.x,
+      y: newRenderedPos.y - normalizedMapPanOffset.y,
     });
 
     lastCombinedScaleRef.current = nextCombined;
@@ -118,8 +122,8 @@ export function CanvasStage() {
     combinedScale,
     dimensions.width,
     dimensions.height,
-    mapPanOffset.x,
-    mapPanOffset.y,
+    normalizedMapPanOffset.x,
+    normalizedMapPanOffset.y,
     renderedStagePos.x,
     renderedStagePos.y,
   ]);
@@ -154,8 +158,8 @@ export function CanvasStage() {
     };
 
     setStagePos({
-      x: newRenderedPos.x - mapPanOffset.x,
-      y: newRenderedPos.y - mapPanOffset.y,
+      x: newRenderedPos.x - normalizedMapPanOffset.x,
+      y: newRenderedPos.y - normalizedMapPanOffset.y,
     });
   };
 
@@ -355,8 +359,8 @@ export function CanvasStage() {
         };
 
         setStagePos({
-          x: newRenderedPos.x - mapPanOffset.x,
-          y: newRenderedPos.y - mapPanOffset.y,
+          x: newRenderedPos.x - normalizedMapPanOffset.x,
+          y: newRenderedPos.y - normalizedMapPanOffset.y,
         });
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
