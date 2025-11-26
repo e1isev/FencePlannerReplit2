@@ -223,8 +223,8 @@ export function MapOverlay({
     setResults([]);
 
     onPanReferenceReset?.();
-    initialCenterRef.current = null;
-    isRecenteringRef.current = true;
+    initialCenterRef.current = newCenter;
+    onPanOffsetChange?.({ x: 0, y: 0 });
 
     const handleMoveEnd = () => {
       const settledCenter = map.getCenter();
