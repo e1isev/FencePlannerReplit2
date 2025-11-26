@@ -18,6 +18,7 @@ interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
   onScaleChange?: (metersPerPixel: number, zoom: number) => void;
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
+  onPanReferenceReset?: () => void;
   isLocked: boolean;
   onLockChange: (locked: boolean) => void;
   mapZoom: number;
@@ -65,6 +66,7 @@ export function MapOverlay({
   onZoomChange,
   onScaleChange,
   onPanOffsetChange,
+  onPanReferenceReset,
   isLocked,
   onLockChange,
   mapZoom,
@@ -212,9 +214,14 @@ export function MapOverlay({
 
     const lat = Number(result.lat);
     const lon = Number(result.lon);
+    const newCenter = new maplibregl.LngLat(lon, lat);
 
     setQuery(result.display_name);
     setResults([]);
+
+    onPanReferenceReset?.();
+    initialCenterRef.current = newCenter;
+    onPanOffsetChange?.({ x: 0, y: 0 });
 
     map.flyTo({ center: [lon, lat], zoom: 18 });
 

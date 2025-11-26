@@ -70,6 +70,14 @@ export function CanvasStage() {
     setMapPanOffset(offset);
   }, []);
 
+  const handlePanReferenceReset = useCallback(() => {
+    setStagePos((pos) => ({
+      x: pos.x + mapPanOffset.x,
+      y: pos.y + mapPanOffset.y,
+    }));
+    setMapPanOffset({ x: 0, y: 0 });
+  }, [mapPanOffset.x, mapPanOffset.y]);
+
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
@@ -451,6 +459,7 @@ export function CanvasStage() {
         onZoomChange={handleZoomChange}
         onScaleChange={handleScaleChange}
         onPanOffsetChange={handleMapPanOffsetChange}
+        onPanReferenceReset={handlePanReferenceReset}
         isLocked={isMapLocked}
         onLockChange={setIsMapLocked}
         mapZoom={mapZoom}
