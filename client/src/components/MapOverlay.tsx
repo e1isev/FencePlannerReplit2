@@ -18,6 +18,7 @@ interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
   onScaleChange?: (metersPerPixel: number, zoom: number) => void;
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
+  onPanReferenceReset?: () => void;
   isLocked: boolean;
   onLockChange: (locked: boolean) => void;
   mapZoom: number;
@@ -65,6 +66,7 @@ export function MapOverlay({
   onZoomChange,
   onScaleChange,
   onPanOffsetChange,
+  onPanReferenceReset,
   isLocked,
   onLockChange,
   mapZoom,
