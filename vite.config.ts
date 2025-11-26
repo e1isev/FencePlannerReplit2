@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+const publicFieldBanner =
+  "var __publicField = typeof __publicField === 'function' ? __publicField : " +
+  "((obj, key, value) => { Object.defineProperty(obj, typeof key !== 'symbol' ? String(key) : key, { enumerable: true, configurable: true, writable: true, value }); return value; });";
 
 export default defineConfig({
   plugins: [
@@ -30,6 +33,16 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+  },
+  esbuild: {
+    banner: publicFieldBanner,
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      banner: {
+        js: publicFieldBanner,
+      },
+    },
   },
   server: {
     fs: {
