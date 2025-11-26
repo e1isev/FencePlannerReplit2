@@ -80,6 +80,7 @@ export function MapOverlay({
   const [error, setError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
+  const isRecenteringRef = useRef(false);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -118,6 +119,7 @@ export function MapOverlay({
       onScaleChange?.(metersPerPixel, zoom);
 
       if (!initialCenterRef.current) {
+        if (isRecenteringRef.current) return;
         initialCenterRef.current = center;
       }
 
@@ -220,9 +222,19 @@ export function MapOverlay({
     setQuery(result.display_name);
     setResults([]);
 
-    initialCenterRef.current = newCenter;
-    onPanOffsetChange?.({ x: 0, y: 0 });
+    onPanReferenceReset?.();
+    initialCenterRef.current = null;
+    isRecenteringRef.current = true;
 
+    const handleMoveEnd = () => {
+      const settledCenter = map.getCenter();
+      initialCenterRef.current = settledCenter;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      isRecenteringRef.current = false;
+      map.off("moveend", handleMoveEnd);
+    };
+
+    map.on("moveend", handleMoveEnd);
     map.flyTo({ center: [lon, lat], zoom: 18 });
 
     if (markerRef.current) {
