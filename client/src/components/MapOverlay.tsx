@@ -220,6 +220,7 @@ export function MapOverlay({
     setQuery(result.display_name);
     setResults([]);
 
+    onPanReferenceReset?.();
     initialCenterRef.current = newCenter;
     onPanOffsetChange?.({ x: 0, y: 0 });
 
