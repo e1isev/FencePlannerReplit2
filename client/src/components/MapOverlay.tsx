@@ -128,8 +128,8 @@ export function MapOverlay({
       const currentPoint = map.project(center);
       const pixelRatio = map.getCanvas()?.ownerDocument?.defaultView?.devicePixelRatio || 1;
       onPanOffsetChange?.({
-        x: (referencePoint.x - currentPoint.x) / pixelRatio,
-        y: (referencePoint.y - currentPoint.y) / pixelRatio,
+        x: (currentPoint.x - referencePoint.x) / pixelRatio,
+        y: (currentPoint.y - referencePoint.y) / pixelRatio,
       });
     };
 
@@ -163,6 +163,13 @@ export function MapOverlay({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    if (isLocked) {
+      const center = map.getCenter();
+      initialCenterRef.current = center;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      onPanReferenceReset?.();
+    }
 
     if (isLocked) {
       map.scrollZoom.disable();
