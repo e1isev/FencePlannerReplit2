@@ -54,6 +54,21 @@ export function CanvasStage() {
     y: stagePos.y + normalizedMapPanOffset.y,
   };
 
+  useEffect(() => {
+    if (!isMapLocked) return;
+
+    setStagePos({
+      x: dimensions.width / 2 - normalizedMapPanOffset.x,
+      y: dimensions.height / 2 - normalizedMapPanOffset.y,
+    });
+  }, [
+    dimensions.height,
+    dimensions.width,
+    isMapLocked,
+    normalizedMapPanOffset.x,
+    normalizedMapPanOffset.y,
+  ]);
+
   const handleZoomChange = useCallback((zoom: number) => {
     setMapZoom(zoom);
   }, []);
