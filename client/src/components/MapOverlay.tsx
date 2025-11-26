@@ -165,6 +165,13 @@ export function MapOverlay({
     if (!map) return;
 
     if (isLocked) {
+      const center = map.getCenter();
+      initialCenterRef.current = center;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      onPanReferenceReset?.();
+    }
+
+    if (isLocked) {
       map.scrollZoom.disable();
       map.boxZoom.disable();
       map.dragPan.disable();
