@@ -45,28 +45,24 @@ export function CanvasStage() {
   } = useAppStore();
 
   const combinedScale = scale * mapScale;
-  const normalizedMapPanOffset = {
-    x: mapPanOffset.x / mapScale,
-    y: mapPanOffset.y / mapScale,
-  };
   const renderedStagePos = {
-    x: stagePos.x + normalizedMapPanOffset.x,
-    y: stagePos.y + normalizedMapPanOffset.y,
+    x: stagePos.x + mapPanOffset.x,
+    y: stagePos.y + mapPanOffset.y,
   };
 
   useEffect(() => {
     if (!isMapLocked) return;
 
     setStagePos({
-      x: dimensions.width / 2 - normalizedMapPanOffset.x,
-      y: dimensions.height / 2 - normalizedMapPanOffset.y,
+      x: dimensions.width / 2 - mapPanOffset.x,
+      y: dimensions.height / 2 - mapPanOffset.y,
     });
   }, [
     dimensions.height,
     dimensions.width,
     isMapLocked,
-    normalizedMapPanOffset.x,
-    normalizedMapPanOffset.y,
+    mapPanOffset.x,
+    mapPanOffset.y,
   ]);
 
   const handleZoomChange = useCallback((zoom: number) => {
@@ -128,8 +124,8 @@ export function CanvasStage() {
     };
 
     setStagePos({
-      x: newRenderedPos.x - normalizedMapPanOffset.x,
-      y: newRenderedPos.y - normalizedMapPanOffset.y,
+      x: newRenderedPos.x - mapPanOffset.x,
+      y: newRenderedPos.y - mapPanOffset.y,
     });
 
     lastCombinedScaleRef.current = nextCombined;
@@ -137,8 +133,8 @@ export function CanvasStage() {
     combinedScale,
     dimensions.width,
     dimensions.height,
-    normalizedMapPanOffset.x,
-    normalizedMapPanOffset.y,
+    mapPanOffset.x,
+    mapPanOffset.y,
     renderedStagePos.x,
     renderedStagePos.y,
   ]);
@@ -173,8 +169,8 @@ export function CanvasStage() {
     };
 
     setStagePos({
-      x: newRenderedPos.x - normalizedMapPanOffset.x,
-      y: newRenderedPos.y - normalizedMapPanOffset.y,
+      x: newRenderedPos.x - mapPanOffset.x,
+      y: newRenderedPos.y - mapPanOffset.y,
     });
   };
 
@@ -374,8 +370,8 @@ export function CanvasStage() {
         };
 
         setStagePos({
-          x: newRenderedPos.x - normalizedMapPanOffset.x,
-          y: newRenderedPos.y - normalizedMapPanOffset.y,
+          x: newRenderedPos.x - mapPanOffset.x,
+          y: newRenderedPos.y - mapPanOffset.y,
         });
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
