@@ -8,13 +8,14 @@ import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay from "./MapOverlay";
 
-const GRID_SIZE = 50;
+const GRID_SIZE = 25;
 const BASE_MAP_ZOOM = 15;
 
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  const [mapPanOffset, setMapPanOffset] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
@@ -44,6 +45,10 @@ export function CanvasStage() {
   } = useAppStore();
 
   const combinedScale = scale * mapScale;
+  const renderedStagePos = {
+    x: stagePos.x + mapPanOffset.x,
+    y: stagePos.y + mapPanOffset.y,
+  };
 
   const handleZoomChange = useCallback((zoom: number) => {
     setMapZoom(zoom);
@@ -60,6 +65,10 @@ export function CanvasStage() {
     },
     [mmPerPixel, setMmPerPixel]
   );
+
+  const handleMapPanOffsetChange = useCallback((offset: { x: number; y: number }) => {
+    setMapPanOffset(offset);
+  }, []);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -86,13 +95,26 @@ export function CanvasStage() {
       y: dimensions.height / 2,
     };
 
-    setStagePos((pos) => ({
-      x: center.x - ((center.x - pos.x) / prevCombined) * nextCombined,
-      y: center.y - ((center.y - pos.y) / prevCombined) * nextCombined,
-    }));
+    const newRenderedPos = {
+      x: center.x - ((center.x - renderedStagePos.x) / prevCombined) * nextCombined,
+      y: center.y - ((center.y - renderedStagePos.y) / prevCombined) * nextCombined,
+    };
+
+    setStagePos({
+      x: newRenderedPos.x - mapPanOffset.x,
+      y: newRenderedPos.y - mapPanOffset.y,
+    });
 
     lastCombinedScaleRef.current = nextCombined;
-  }, [combinedScale, dimensions.width, dimensions.height]);
+  }, [
+    combinedScale,
+    dimensions.width,
+    dimensions.height,
+    mapPanOffset.x,
+    mapPanOffset.y,
+    renderedStagePos.x,
+    renderedStagePos.y,
+  ]);
 
   useEffect(() => {
     const nextMapScale = Math.pow(2, mapZoom - BASE_MAP_ZOOM);
@@ -109,8 +131,8 @@ export function CanvasStage() {
     const pointer = stage.getPointerPosition();
 
     const mousePointTo = {
-      x: (pointer.x - stagePos.x) / combinedScale,
-      y: (pointer.y - stagePos.y) / combinedScale,
+      x: (pointer.x - renderedStagePos.x) / combinedScale,
+      y: (pointer.y - renderedStagePos.y) / combinedScale,
     };
 
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
@@ -118,9 +140,14 @@ export function CanvasStage() {
     const newCombinedScale = clampedScale * mapScale;
 
     setScale(clampedScale);
-    setStagePos({
+    const newRenderedPos = {
       x: pointer.x - mousePointTo.x * newCombinedScale,
       y: pointer.y - mousePointTo.y * newCombinedScale,
+    };
+
+    setStagePos({
+      x: newRenderedPos.x - mapPanOffset.x,
+      y: newRenderedPos.y - mapPanOffset.y,
     });
   };
 
@@ -140,8 +167,8 @@ export function CanvasStage() {
     }
 
     const point = {
-      x: (pointer.x - stagePos.x) / combinedScale,
-      y: (pointer.y - stagePos.y) / combinedScale,
+      x: (pointer.x - renderedStagePos.x) / combinedScale,
+      y: (pointer.y - renderedStagePos.y) / combinedScale,
     };
 
     const allPoints = [
@@ -185,8 +212,8 @@ export function CanvasStage() {
     if (!isDrawing || !startPoint) return;
 
     const point = {
-      x: (pointer.x - stagePos.x) / combinedScale,
-      y: (pointer.y - stagePos.y) / combinedScale,
+      x: (pointer.x - renderedStagePos.x) / combinedScale,
+      y: (pointer.y - renderedStagePos.y) / combinedScale,
     };
 
     const allPoints = [
@@ -255,8 +282,8 @@ export function CanvasStage() {
       if (e.target !== e.target.getStage()) return;
 
       const point = {
-        x: (pointer.x - stagePos.x) / combinedScale,
-        y: (pointer.y - stagePos.y) / combinedScale,
+        x: (pointer.x - renderedStagePos.x) / combinedScale,
+        y: (pointer.y - renderedStagePos.y) / combinedScale,
       };
       
       const allPoints = [
@@ -309,14 +336,19 @@ export function CanvasStage() {
         const newCombinedScale = clampedScale * mapScale;
 
         const mousePointTo = {
-          x: (pointer.x - stagePos.x) / combinedScale,
-          y: (pointer.y - stagePos.y) / combinedScale,
+          x: (pointer.x - renderedStagePos.x) / combinedScale,
+          y: (pointer.y - renderedStagePos.y) / combinedScale,
         };
 
         setScale(clampedScale);
-        setStagePos({
+        const newRenderedPos = {
           x: pointer.x - mousePointTo.x * newCombinedScale,
           y: pointer.y - mousePointTo.y * newCombinedScale,
+        };
+
+        setStagePos({
+          x: newRenderedPos.x - mapPanOffset.x,
+          y: newRenderedPos.y - mapPanOffset.y,
         });
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
@@ -337,20 +369,20 @@ export function CanvasStage() {
       const stage = e.target.getStage();
       const rect = stage.container().getBoundingClientRect();
       const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-      
+
       if (isDrawing && startPoint) {
-      const point = {
-        x: (pointer.x - stagePos.x) / combinedScale,
-        y: (pointer.y - stagePos.y) / combinedScale,
-      };
+        const point = {
+          x: (pointer.x - renderedStagePos.x) / combinedScale,
+          y: (pointer.y - renderedStagePos.y) / combinedScale,
+        };
 
-      const allPoints = [
-        ...lines.flatMap((l) => [l.a, l.b]),
-        ...posts.map((p) => p.pos),
-      ];
-      const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
+        const allPoints = [
+          ...lines.flatMap((l) => [l.a, l.b]),
+          ...posts.map((p) => p.pos),
+        ];
+        const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
 
-      setCurrentPoint(snapped);
+        setCurrentPoint(snapped);
       }
     }
   };
@@ -418,6 +450,7 @@ export function CanvasStage() {
       <MapOverlay
         onZoomChange={handleZoomChange}
         onScaleChange={handleScaleChange}
+        onPanOffsetChange={handleMapPanOffsetChange}
         isLocked={isMapLocked}
         onLockChange={setIsMapLocked}
         mapZoom={mapZoom}
@@ -476,8 +509,8 @@ export function CanvasStage() {
           height={dimensions.height}
           scaleX={combinedScale}
           scaleY={combinedScale}
-          x={stagePos.x}
-          y={stagePos.y}
+          x={renderedStagePos.x}
+          y={renderedStagePos.y}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
