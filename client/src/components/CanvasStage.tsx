@@ -31,6 +31,7 @@ export function CanvasStage() {
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
   const lastCombinedScaleRef = useRef(1);
+  const baseMetersPerPixelRef = useRef<number | null>(null);
 
   const {
     lines,
@@ -72,6 +73,17 @@ export function CanvasStage() {
   const handleScaleChange = useCallback(
     (metersPerPixel: number) => {
       if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
+
+      if (baseMetersPerPixelRef.current === null) {
+        baseMetersPerPixelRef.current = metersPerPixel;
+      }
+
+      const scaleFromMap =
+        baseMetersPerPixelRef.current !== null
+          ? baseMetersPerPixelRef.current / metersPerPixel
+          : 1;
+
+      setMapScale(scaleFromMap);
 
       const nextMmPerPixel = metersPerPixel * 1000;
       if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
@@ -140,9 +152,18 @@ export function CanvasStage() {
   ]);
 
   useEffect(() => {
+    if (baseMetersPerPixelRef.current !== null) return;
+
     const nextMapScale = Math.pow(2, mapZoom - BASE_MAP_ZOOM);
     setMapScale(nextMapScale);
   }, [mapZoom]);
+
+  useEffect(() => {
+    if (isMapLocked) return;
+
+    baseMetersPerPixelRef.current = null;
+    lastCombinedScaleRef.current = scale * mapScale;
+  }, [isMapLocked, mapScale, scale]);
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
