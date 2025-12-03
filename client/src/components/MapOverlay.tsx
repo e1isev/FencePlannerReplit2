@@ -126,10 +126,9 @@ export function MapOverlay({
       const referenceCenter = initialCenterRef.current;
       const referencePoint = map.project(referenceCenter);
       const currentPoint = map.project(center);
-      const pixelRatio = map.getCanvas()?.ownerDocument?.defaultView?.devicePixelRatio || 1;
       onPanOffsetChange?.({
-        x: (currentPoint.x - referencePoint.x) / pixelRatio,
-        y: (currentPoint.y - referencePoint.y) / pixelRatio,
+        x: currentPoint.x - referencePoint.x,
+        y: currentPoint.y - referencePoint.y,
       });
     };
 
