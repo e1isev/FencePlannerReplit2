@@ -6,7 +6,8 @@ import { findSnapPoint } from "@/geometry/snapping";
 import { DEFAULT_SNAP_TOLERANCE, SNAP_RADIUS_MM } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
-import MapOverlay from "./MapOverlay";
+import MapOverlay, { DEFAULT_CENTER } from "./MapOverlay";
+import { calculateMetersPerPixel } from "@/lib/mapScale";
 
 const GRID_SIZE = 25;
 const BASE_MAP_ZOOM = 15;
@@ -154,8 +155,12 @@ export function CanvasStage() {
   useEffect(() => {
     if (baseMetersPerPixelRef.current !== null) return;
 
-    const nextMapScale = Math.pow(2, mapZoom - BASE_MAP_ZOOM);
-    setMapScale(nextMapScale);
+    const baseMetersPerPixel = calculateMetersPerPixel(BASE_MAP_ZOOM, DEFAULT_CENTER[1]);
+    const currentMetersPerPixel = calculateMetersPerPixel(mapZoom, DEFAULT_CENTER[1]);
+
+    if (!isFinite(baseMetersPerPixel) || !isFinite(currentMetersPerPixel)) return;
+
+    setMapScale(baseMetersPerPixel / currentMetersPerPixel);
   }, [mapZoom]);
 
   useEffect(() => {
