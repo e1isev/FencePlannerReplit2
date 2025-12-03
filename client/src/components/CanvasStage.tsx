@@ -98,7 +98,9 @@ export function CanvasStage() {
 
       setMapScale(scaleFromMap);
 
-      const adjustedMetersPerPixel = metersPerPixel * calibrationFactorRef.current;
+      const adjustedMetersPerPixel =
+        (baseMetersPerPixelRef.current || metersPerPixel) *
+        calibrationFactorRef.current;
       const nextMmPerPixel = adjustedMetersPerPixel * 1000;
       if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
@@ -188,9 +190,11 @@ export function CanvasStage() {
   }, [calibrationFactor]);
 
   useEffect(() => {
-    if (mapMetersPerPixelRef.current === null) return;
+    const metersPerPixel =
+      baseMetersPerPixelRef.current ?? mapMetersPerPixelRef.current ?? null;
+    if (!metersPerPixel) return;
 
-    const adjustedMetersPerPixel = mapMetersPerPixelRef.current * calibrationFactor;
+    const adjustedMetersPerPixel = metersPerPixel * calibrationFactor;
     const nextMmPerPixel = adjustedMetersPerPixel * 1000;
     if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
