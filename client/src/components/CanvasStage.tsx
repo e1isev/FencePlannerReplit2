@@ -158,6 +158,13 @@ export function CanvasStage() {
     setMapScale(nextMapScale);
   }, [mapZoom]);
 
+  useEffect(() => {
+    if (isMapLocked) return;
+
+    baseMetersPerPixelRef.current = null;
+    lastCombinedScaleRef.current = scale * mapScale;
+  }, [isMapLocked, mapScale, scale]);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     if (isMapLocked) return;
