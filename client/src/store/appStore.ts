@@ -97,7 +97,24 @@ export const useAppStore = create<AppState>()(
 
       setPreviewLine: (line) => set({ previewLine: line }),
 
-      setMmPerPixel: (mmPerPixel) => set({ mmPerPixel }),
+      setMmPerPixel: (mmPerPixel) => {
+        const previousMmPerPixel = get().mmPerPixel;
+        if (Math.abs(previousMmPerPixel - mmPerPixel) < 0.0001) return;
+
+        set((state) => {
+          const ratio = previousMmPerPixel > 0 ? mmPerPixel / previousMmPerPixel : 1;
+
+          return {
+            mmPerPixel,
+            lines: state.lines.map((line) => ({
+              ...line,
+              length_mm: line.length_mm * ratio,
+            })),
+          };
+        });
+
+        get().recalculate();
+      },
 
       addLine: (a, b) => {
         const dx = b.x - a.x;
