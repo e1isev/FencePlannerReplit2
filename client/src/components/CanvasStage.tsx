@@ -8,9 +8,12 @@ import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay, { DEFAULT_CENTER } from "./MapOverlay";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 const GRID_SIZE = 25;
 const BASE_MAP_ZOOM = 15;
+const TEN_YARDS_METERS = 9.144;
 
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -22,6 +25,9 @@ export function CanvasStage() {
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
   const [isMapLocked, setIsMapLocked] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
+  const [calibrationFactor, setCalibrationFactor] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
@@ -33,6 +39,8 @@ export function CanvasStage() {
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
   const lastCombinedScaleRef = useRef(1);
   const baseMetersPerPixelRef = useRef<number | null>(null);
+  const mapMetersPerPixelRef = useRef<number | null>(null);
+  const calibrationFactorRef = useRef(1);
 
   const {
     lines,
@@ -75,6 +83,8 @@ export function CanvasStage() {
     (metersPerPixel: number) => {
       if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
 
+      mapMetersPerPixelRef.current = metersPerPixel;
+
       if (baseMetersPerPixelRef.current === null) {
         baseMetersPerPixelRef.current = metersPerPixel;
       }
@@ -86,7 +96,8 @@ export function CanvasStage() {
 
       setMapScale(scaleFromMap);
 
-      const nextMmPerPixel = metersPerPixel * 1000;
+      const adjustedMetersPerPixel = metersPerPixel * calibrationFactorRef.current;
+      const nextMmPerPixel = adjustedMetersPerPixel * 1000;
       if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
       setMmPerPixel(nextMmPerPixel);
@@ -170,6 +181,20 @@ export function CanvasStage() {
     lastCombinedScaleRef.current = scale * mapScale;
   }, [isMapLocked, mapScale, scale]);
 
+  useEffect(() => {
+    calibrationFactorRef.current = calibrationFactor;
+  }, [calibrationFactor]);
+
+  useEffect(() => {
+    if (mapMetersPerPixelRef.current === null) return;
+
+    const adjustedMetersPerPixel = mapMetersPerPixelRef.current * calibrationFactor;
+    const nextMmPerPixel = adjustedMetersPerPixel * 1000;
+    if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
+
+    setMmPerPixel(nextMmPerPixel);
+  }, [calibrationFactor, mmPerPixel, setMmPerPixel]);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     if (isMapLocked) return;
@@ -202,6 +227,44 @@ export function CanvasStage() {
 
   const snapTolerance = mmPerPixel > 0 ? SNAP_RADIUS_MM / mmPerPixel : DEFAULT_SNAP_TOLERANCE;
 
+  const handleCalibrationComplete = useCallback(
+    (a: Point, b: Point) => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distancePx = Math.hypot(dx, dy);
+
+      const baseMetersPerPixel = mapMetersPerPixelRef.current;
+      if (!baseMetersPerPixel || distancePx === 0) {
+        setCalibrationPoints([]);
+        setIsCalibrating(false);
+        return;
+      }
+
+      const calibratedMetersPerPixel = TEN_YARDS_METERS / distancePx;
+      const nextFactor = calibratedMetersPerPixel / baseMetersPerPixel;
+
+      setCalibrationFactor(nextFactor);
+      setCalibrationPoints([]);
+      setIsCalibrating(false);
+      setMmPerPixel(calibratedMetersPerPixel * 1000);
+    },
+    [setMmPerPixel]
+  );
+
+  const registerCalibrationPoint = useCallback(
+    (point: Point) => {
+      setCalibrationPoints((prev) => {
+        const next = [...prev, point];
+        if (next.length === 2) {
+          handleCalibrationComplete(next[0], next[1]);
+          return [];
+        }
+        return next;
+      });
+    },
+    [handleCalibrationComplete]
+  );
+
   const handleMouseDown = (e: any) => {
     if (e.target !== e.target.getStage()) return;
 
@@ -219,6 +282,14 @@ export function CanvasStage() {
       x: (pointer.x - renderedStagePos.x) / combinedScale,
       y: (pointer.y - renderedStagePos.y) / combinedScale,
     };
+
+    if (isCalibrating) {
+      registerCalibrationPoint(point);
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+      return;
+    }
 
     const allPoints = [
       ...lines.flatMap((l) => [l.a, l.b]),
@@ -334,7 +405,15 @@ export function CanvasStage() {
         x: (pointer.x - renderedStagePos.x) / combinedScale,
         y: (pointer.y - renderedStagePos.y) / combinedScale,
       };
-      
+
+      if (isCalibrating) {
+        registerCalibrationPoint(point);
+        setIsDrawing(false);
+        setStartPoint(null);
+        setCurrentPoint(null);
+        return;
+      }
+
       const allPoints = [
         ...lines.flatMap((l) => [l.a, l.b]),
         ...posts.map((p) => p.pos),
@@ -505,6 +584,41 @@ export function CanvasStage() {
         onLockChange={setIsMapLocked}
         mapZoom={mapZoom}
       />
+
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+        <Card className="px-4 py-3 shadow-lg flex items-center gap-3">
+          <div className="text-sm">
+            <p className="font-semibold">Calibration</p>
+            <p className="text-xs text-slate-500">
+              {isCalibrating
+                ? (() => {
+                    const remaining = 2 - calibrationPoints.length;
+                    return `Select ${remaining} point${remaining === 1 ? "" : "s"} 10 yards apart`;
+                  })()
+                : `Scale: ${(mmPerPixel / 1000).toFixed(3)} m/px${
+                    calibrationFactor !== 1 ? " (calibrated)" : ""
+                  }`}
+            </p>
+          </div>
+          <Button
+            variant={isCalibrating ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              if (isCalibrating) {
+                setIsCalibrating(false);
+                setCalibrationPoints([]);
+              } else {
+                setIsCalibrating(true);
+                setCalibrationPoints([]);
+                setIsDrawing(false);
+              }
+            }}
+            data-testid="button-calibrate-scale"
+          >
+            {isCalibrating ? "Cancel" : "Calibrate"}
+          </Button>
+        </Card>
+      </div>
 
       {selectedLineId && (
         <LineControls
