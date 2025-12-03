@@ -59,8 +59,8 @@ export function CanvasStage() {
     x: stagePos.x + mapPanOffset.x,
     y: stagePos.y + mapPanOffset.y,
   };
-  const stageScale = combinedScale;
-  const stagePosition = renderedStagePos;
+  const stageScale = isMapLocked ? combinedScale : scale;
+  const stagePosition = isMapLocked ? renderedStagePos : stagePos;
 
   useEffect(() => {
     if (!isMapLocked) return;
