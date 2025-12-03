@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { calculateMetersPerPixel } from "@/lib/mapScale";
 
 interface SearchResult {
   display_name: string;
@@ -14,7 +15,7 @@ interface SearchResult {
   lon: string;
 }
 
-interface MapOverlayProps {
+export interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
   onScaleChange?: (metersPerPixel: number, zoom: number) => void;
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
@@ -24,16 +25,9 @@ interface MapOverlayProps {
   mapZoom: number;
 }
 
-const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
+export const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
 
 type MapStyleMode = "street" | "satellite";
-
-function calculateMetersPerPixel(zoom: number, latitude: number): number {
-  return (
-    (156543.03392 * Math.cos((latitude * Math.PI) / 180)) /
-    Math.pow(2, zoom)
-  );
-}
 
 function buildMapStyle(mode: MapStyleMode): StyleSpecification {
   const isSatellite = mode === "satellite";
