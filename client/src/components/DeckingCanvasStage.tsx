@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import Konva from "konva";
 import { Stage, Layer, Text, Line } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
 import { GRID_SIZE_MM, mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
 import { findSnapPoint, getDistance } from "@/geometry/snapping";
 
-const GRID_SIZE = 40;
 const CLOSE_TOLERANCE_MM = 150;
 
 const COLOR_MAP: Record<string, string> = {
@@ -54,9 +54,10 @@ export function DeckingCanvasStage() {
     y: pxToMm((point.y - stagePos.y) / scale),
   });
 
-  const handleWheel = (e: any) => {
+  const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = e.target.getStage();
+    if (!stage) return;
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
@@ -73,11 +74,7 @@ export function DeckingCanvasStage() {
     });
   };
 
-  const handleMouseDown = (e: any) => {
-    const stage = e.target.getStage();
-    const pointer = stage?.getPointerPosition();
-    if (!pointer) return;
-
+  const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 2) {
       setPanStart({
         client: { x: e.evt.clientX, y: e.evt.clientY },
@@ -85,13 +82,10 @@ export function DeckingCanvasStage() {
       });
       return;
     }
+
   };
 
-  const handleMouseMove = (e: any) => {
-    const stage = e.target.getStage();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
+  const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (panStart) {
       const { clientX, clientY } = e.evt;
       const deltaX = clientX - panStart.client.x;
@@ -102,6 +96,10 @@ export function DeckingCanvasStage() {
       });
       return;
     }
+
+    const stage = e.target.getStage();
+    const pointer = stage?.getPointerPosition();
+    if (!pointer) return;
 
     if (!isDrawing || points.length === 0) return;
 
@@ -166,17 +164,46 @@ export function DeckingCanvasStage() {
     setPreviewPoint(snapped);
   };
 
-  const gridStyle = {
-    backgroundImage:
-      "linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)",
-    backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-  } as const;
-
   const fillColor = COLOR_MAP[selectedColor] || "#92400e";
   const hasPolygon = polygon.length >= 3;
   const drawingPoints = previewPoint ? [...points, previewPoint] : points;
   const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+
+  const gridSpacingPx = mmToPx(GRID_SIZE_MM);
+
+  const worldMinX = (0 - stagePos.x) / scale;
+  const worldMaxX = (stageSize.width - stagePos.x) / scale;
+  const worldMinY = (0 - stagePos.y) / scale;
+  const worldMaxY = (stageSize.height - stagePos.y) / scale;
+
+  const gridLines: JSX.Element[] = [];
+
+  const startX = Math.floor(worldMinX / gridSpacingPx) * gridSpacingPx;
+  for (let x = startX; x <= worldMaxX; x += gridSpacingPx) {
+    gridLines.push(
+      <Line
+        key={`grid-v-${x}`}
+        points={[x, worldMinY, x, worldMaxY]}
+        stroke="#e0e0e0"
+        strokeWidth={1 / scale}
+        listening={false}
+      />
+    );
+  }
+
+  const startY = Math.floor(worldMinY / gridSpacingPx) * gridSpacingPx;
+  for (let y = startY; y <= worldMaxY; y += gridSpacingPx) {
+    gridLines.push(
+      <Line
+        key={`grid-h-${y}`}
+        points={[worldMinX, y, worldMaxX, y]}
+        stroke="#e0e0e0"
+        strokeWidth={1 / scale}
+        listening={false}
+      />
+    );
+  }
 
   const handleLabelClick = (edgeIndex: number, lengthMm: number, e: any) => {
     e.cancelBubble = true;
@@ -239,8 +266,6 @@ export function DeckingCanvasStage() {
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
 
-      <div className="absolute inset-0 pointer-events-none" style={gridStyle} />
-
       <Stage
         className="absolute inset-0"
         width={stageSize.width}
@@ -256,6 +281,8 @@ export function DeckingCanvasStage() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        <Layer listening={false}>{gridLines}</Layer>
+
         <Layer>
           {!hasPolygon && !isDrawing && (
             <Text
