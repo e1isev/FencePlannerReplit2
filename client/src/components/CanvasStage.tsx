@@ -285,8 +285,6 @@ export function CanvasStage() {
   );
 
   const handleMouseDown = (e: any) => {
-    if (e.target !== e.target.getStage()) return;
-
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
@@ -296,6 +294,8 @@ export function CanvasStage() {
       setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
     }
+
+    if (e.target !== e.target.getStage()) return;
 
     const point = screenToWorld(pointer, cameraState);
 
