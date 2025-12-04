@@ -75,6 +75,10 @@ export function DeckingCanvasStage() {
   };
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    const pointer = stage?.getPointerPosition();
+    if (!pointer) return;
+
     if (e.evt.button === 2) {
       setPanStart({
         client: { x: e.evt.clientX, y: e.evt.clientY },
