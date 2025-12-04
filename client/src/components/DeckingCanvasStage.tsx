@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Stage, Layer, Rect, Text, Line } from "react-konva";
+import { Stage, Layer, Text, Line } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
 import { GRID_SIZE_MM, mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
 import { findSnapPoint, getDistance } from "@/geometry/snapping";
 
-const GRID_SIZE = mmToPx(GRID_SIZE_MM);
-const GRID_COLOR = "#e0e0e0";
+const GRID_SIZE = 40;
 const CLOSE_TOLERANCE_MM = 150;
 
 const COLOR_MAP: Record<string, string> = {
@@ -24,8 +23,9 @@ export function DeckingCanvasStage() {
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [scale, setScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
+  const [panStart, setPanStart] = useState<
+    { pointer: { x: number; y: number }; stage: { x: number; y: number } } | null
+  >(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
@@ -49,21 +49,27 @@ export function DeckingCanvasStage() {
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
+  const screenToWorld = (point: { x: number; y: number }) => ({
+    x: pxToMm((point.x - stagePos.x) / scale),
+    y: pxToMm((point.y - stagePos.y) / scale),
+  });
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     const stage = e.target.getStage();
-    const oldScale = scale;
     const pointer = stage.getPointerPosition();
-    const mousePointTo = {
-      x: (pointer.x - stagePos.x) / oldScale,
-      y: (pointer.y - stagePos.y) / oldScale,
-    };
-    const newScale = e.evt.deltaY > 0 ? oldScale * 0.9 : oldScale * 1.1;
-    const clampedScale = Math.max(0.5, Math.min(3, newScale));
-    setScale(clampedScale);
+    if (!pointer) return;
+
+    const worldBefore = screenToWorld(pointer);
+    const worldBeforePx = { x: mmToPx(worldBefore.x), y: mmToPx(worldBefore.y) };
+
+    const zoomFactor = e.evt.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(0.25, Math.min(8, scale * zoomFactor));
+
+    setScale(newScale);
     setStagePos({
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
+      x: pointer.x - worldBeforePx.x * newScale,
+      y: pointer.y - worldBeforePx.y * newScale,
     });
   };
 
@@ -73,8 +79,7 @@ export function DeckingCanvasStage() {
     if (!pointer) return;
 
     if (e.evt.button === 2) {
-      setIsPanning(true);
-      setLastPanPos({ x: pointer.x, y: pointer.y });
+      setPanStart({ pointer: { x: pointer.x, y: pointer.y }, stage: { ...stagePos } });
       return;
     }
   };
@@ -84,14 +89,13 @@ export function DeckingCanvasStage() {
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    if (isPanning && lastPanPos) {
-      const deltaX = pointer.x - lastPanPos.x;
-      const deltaY = pointer.y - lastPanPos.y;
+    if (panStart) {
+      const deltaX = pointer.x - panStart.pointer.x;
+      const deltaY = pointer.y - panStart.pointer.y;
       setStagePos({
-        x: stagePos.x + deltaX,
-        y: stagePos.y + deltaY,
+        x: panStart.stage.x + deltaX,
+        y: panStart.stage.y + deltaY,
       });
-      setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
     }
 
@@ -111,9 +115,8 @@ export function DeckingCanvasStage() {
   };
 
   const handleMouseUp = () => {
-    if (isPanning) {
-      setIsPanning(false);
-      setLastPanPos(null);
+    if (panStart) {
+      setPanStart(null);
     }
   };
 
@@ -160,31 +163,11 @@ export function DeckingCanvasStage() {
     setPreviewPoint(snapped);
   };
 
-  const gridLines: JSX.Element[] = [];
-  for (let i = 0; i < stageSize.width / GRID_SIZE; i++) {
-    gridLines.push(
-      <Rect
-        key={`v-${i}`}
-        x={i * GRID_SIZE}
-        y={0}
-        width={1}
-        height={stageSize.height}
-        fill={GRID_COLOR}
-      />
-    );
-  }
-  for (let i = 0; i < stageSize.height / GRID_SIZE; i++) {
-    gridLines.push(
-      <Rect
-        key={`h-${i}`}
-        x={0}
-        y={i * GRID_SIZE}
-        width={stageSize.width}
-        height={1}
-        fill={GRID_COLOR}
-      />
-    );
-  }
+  const gridStyle = {
+    backgroundImage:
+      "linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)",
+    backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+  } as const;
 
   const fillColor = COLOR_MAP[selectedColor] || "#92400e";
   const hasPolygon = polygon.length >= 3;
@@ -253,7 +236,10 @@ export function DeckingCanvasStage() {
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
 
+      <div className="absolute inset-0 pointer-events-none" style={gridStyle} />
+
       <Stage
+        className="absolute inset-0"
         width={stageSize.width}
         height={stageSize.height}
         scaleX={scale}
@@ -267,8 +253,6 @@ export function DeckingCanvasStage() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <Layer listening={false}>{gridLines}</Layer>
-
         <Layer>
           {!hasPolygon && !isDrawing && (
             <Text
