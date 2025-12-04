@@ -101,17 +101,19 @@ export const useAppStore = create<AppState>()(
         const previousMmPerPixel = get().mmPerPixel;
         if (Math.abs(previousMmPerPixel - mmPerPixel) < 0.0001) return;
 
-        set((state) => {
-          const ratio = previousMmPerPixel > 0 ? mmPerPixel / previousMmPerPixel : 1;
+        set((state) => ({
+          mmPerPixel,
+          lines: state.lines.map((line) => {
+            const dx = line.b.x - line.a.x;
+            const dy = line.b.y - line.a.y;
+            const length_px = Math.hypot(dx, dy);
 
-          return {
-            mmPerPixel,
-            lines: state.lines.map((line) => ({
+            return {
               ...line,
-              length_mm: line.length_mm * ratio,
-            })),
-          };
-        });
+              length_mm: length_px * mmPerPixel,
+            };
+          }),
+        }));
 
         get().recalculate();
       },

@@ -15,6 +15,23 @@ const GRID_SIZE = 25;
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 
+type ScreenPoint = { x: number; y: number };
+type CameraState = { scale: number; offsetX: number; offsetY: number };
+
+function worldToScreen(point: Point, camera: CameraState): ScreenPoint {
+  return {
+    x: (point.x - camera.offsetX) * camera.scale,
+    y: (point.y - camera.offsetY) * camera.scale,
+  };
+}
+
+function screenToWorld(point: ScreenPoint, camera: CameraState): Point {
+  return {
+    x: point.x / camera.scale + camera.offsetX,
+    y: point.y / camera.scale + camera.offsetY,
+  };
+}
+
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -24,6 +41,8 @@ export function CanvasStage() {
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
   const [isMapLocked, setIsMapLocked] = useState(true);
+  const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
+  const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
@@ -61,6 +80,11 @@ export function CanvasStage() {
   };
   const stageScale = isMapLocked ? combinedScale : scale;
   const stagePosition = isMapLocked ? renderedStagePos : stagePos;
+  const cameraState: CameraState = {
+    scale: stageScale,
+    offsetX: -stagePosition.x / stageScale,
+    offsetY: -stagePosition.y / stageScale,
+  };
 
   useEffect(() => {
     if (!isMapLocked) return;
@@ -87,21 +111,19 @@ export function CanvasStage() {
 
       mapMetersPerPixelRef.current = metersPerPixel;
 
+      setCurrentMetersPerPixel(metersPerPixel);
+
       if (baseMetersPerPixelRef.current === null) {
         baseMetersPerPixelRef.current = metersPerPixel;
+        setBaseMetersPerPixel(metersPerPixel);
       }
 
-      const scaleFromMap =
-        baseMetersPerPixelRef.current !== null
-          ? baseMetersPerPixelRef.current / metersPerPixel
-          : 1;
+      const referenceMetersPerPixel = baseMetersPerPixelRef.current ?? metersPerPixel;
+      const scaleFromMap = referenceMetersPerPixel / metersPerPixel;
 
       setMapScale(scaleFromMap);
 
-      const adjustedMetersPerPixel =
-        (baseMetersPerPixelRef.current || metersPerPixel) *
-        calibrationFactorRef.current;
-      const nextMmPerPixel = adjustedMetersPerPixel * 1000;
+      const nextMmPerPixel = referenceMetersPerPixel * calibrationFactorRef.current * 1000;
       if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
       setMmPerPixel(nextMmPerPixel);
@@ -175,13 +197,15 @@ export function CanvasStage() {
 
     if (!isFinite(baseMetersPerPixel) || !isFinite(currentMetersPerPixel)) return;
 
+    baseMetersPerPixelRef.current = baseMetersPerPixel;
+    setBaseMetersPerPixel(baseMetersPerPixel);
+    setCurrentMetersPerPixel(currentMetersPerPixel);
     setMapScale(baseMetersPerPixel / currentMetersPerPixel);
   }, [mapZoom]);
 
   useEffect(() => {
     if (isMapLocked) return;
 
-    baseMetersPerPixelRef.current = null;
     lastCombinedScaleRef.current = scale * mapScale;
   }, [isMapLocked, mapScale, scale]);
 
@@ -190,16 +214,20 @@ export function CanvasStage() {
   }, [calibrationFactor]);
 
   useEffect(() => {
-    const metersPerPixel =
-      baseMetersPerPixelRef.current ?? mapMetersPerPixelRef.current ?? null;
+    const metersPerPixel = baseMetersPerPixel ?? currentMetersPerPixel ?? null;
     if (!metersPerPixel) return;
 
-    const adjustedMetersPerPixel = metersPerPixel * calibrationFactor;
-    const nextMmPerPixel = adjustedMetersPerPixel * 1000;
+    const nextMmPerPixel = metersPerPixel * calibrationFactor * 1000;
     if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
     setMmPerPixel(nextMmPerPixel);
-  }, [calibrationFactor, mmPerPixel, setMmPerPixel]);
+  }, [
+    baseMetersPerPixel,
+    calibrationFactor,
+    currentMetersPerPixel,
+    mmPerPixel,
+    setMmPerPixel,
+  ]);
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
@@ -209,26 +237,21 @@ export function CanvasStage() {
     const stage = e.target.getStage();
     const oldScale = scale;
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
 
-    const mousePointTo = {
-      x: (pointer.x - renderedStagePos.x) / combinedScale,
-      y: (pointer.y - renderedStagePos.y) / combinedScale,
-    };
+    const focusPoint = screenToWorld(pointer, cameraState);
 
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
     const clampedScale = Math.max(0.5, Math.min(3, newScale));
-    const newCombinedScale = clampedScale * mapScale;
+    const newStageScale = clampedScale;
 
     setScale(clampedScale);
-    const newRenderedPos = {
-      x: pointer.x - mousePointTo.x * newCombinedScale,
-      y: pointer.y - mousePointTo.y * newCombinedScale,
+    const newStagePosition = {
+      x: pointer.x - focusPoint.x * newStageScale,
+      y: pointer.y - focusPoint.y * newStageScale,
     };
 
-    setStagePos({
-      x: newRenderedPos.x - mapPanOffset.x,
-      y: newRenderedPos.y - mapPanOffset.y,
-    });
+    setStagePos(newStagePosition);
   };
 
   const snapTolerance = mmPerPixel > 0 ? SNAP_RADIUS_MM / mmPerPixel : DEFAULT_SNAP_TOLERANCE;
@@ -239,22 +262,23 @@ export function CanvasStage() {
       const dy = b.y - a.y;
       const distancePx = Math.hypot(dx, dy);
 
-      const baseMetersPerPixel = mapMetersPerPixelRef.current;
-      if (!baseMetersPerPixel || distancePx === 0) {
+      const referenceMetersPerPixel =
+        baseMetersPerPixelRef.current ?? mapMetersPerPixelRef.current ?? currentMetersPerPixel;
+      if (!referenceMetersPerPixel || distancePx === 0) {
         setCalibrationPoints([]);
         setIsCalibrating(false);
         return;
       }
 
       const calibratedMetersPerPixel = TEN_YARDS_METERS / distancePx;
-      const nextFactor = calibratedMetersPerPixel / baseMetersPerPixel;
+      const nextFactor = calibratedMetersPerPixel / referenceMetersPerPixel;
 
       setCalibrationFactor(nextFactor);
       setCalibrationPoints([]);
       setIsCalibrating(false);
       setMmPerPixel(calibratedMetersPerPixel * 1000);
     },
-    [setMmPerPixel]
+    [currentMetersPerPixel, setMmPerPixel]
   );
 
   const registerCalibrationPoint = useCallback(
@@ -276,6 +300,7 @@ export function CanvasStage() {
 
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
     
     if (e.evt.button === 2) {
       if (isMapLocked) return;
@@ -284,10 +309,7 @@ export function CanvasStage() {
       return;
     }
 
-    const point = {
-      x: (pointer.x - renderedStagePos.x) / combinedScale,
-      y: (pointer.y - renderedStagePos.y) / combinedScale,
-    };
+    const point = screenToWorld(pointer, cameraState);
 
     if (isCalibrating) {
       registerCalibrationPoint(point);
@@ -306,7 +328,7 @@ export function CanvasStage() {
     if (selectedGateType) {
       const clickedLine = lines.find((line) => {
         const dist = pointToLineDistance(snapped, line.a, line.b);
-        return dist < 10 / combinedScale;
+        return dist < 10 / cameraState.scale;
       });
 
       if (clickedLine && !clickedLine.gateId) {
@@ -322,7 +344,8 @@ export function CanvasStage() {
   const handleMouseMove = (e: any) => {
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
-    
+    if (!pointer) return;
+
     if (isPanning && lastPanPos) {
       if (isMapLocked) return;
       const deltaX = pointer.x - lastPanPos.x;
@@ -334,13 +357,10 @@ export function CanvasStage() {
       setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
     }
-    
+
     if (!isDrawing || !startPoint) return;
 
-    const point = {
-      x: (pointer.x - renderedStagePos.x) / combinedScale,
-      y: (pointer.y - renderedStagePos.y) / combinedScale,
-    };
+    const point = screenToWorld(pointer, cameraState);
 
     const allPoints = [
       ...lines.flatMap((l) => [l.a, l.b]),
@@ -407,10 +427,7 @@ export function CanvasStage() {
       
       if (e.target !== e.target.getStage()) return;
 
-      const point = {
-        x: (pointer.x - renderedStagePos.x) / combinedScale,
-        y: (pointer.y - renderedStagePos.y) / combinedScale,
-      };
+      const point = screenToWorld(pointer, cameraState);
 
       if (isCalibrating) {
         registerCalibrationPoint(point);
@@ -424,12 +441,12 @@ export function CanvasStage() {
         ...lines.flatMap((l) => [l.a, l.b]),
         ...posts.map((p) => p.pos),
       ];
-    const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
-      
+      const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
+
       if (selectedGateType) {
         const clickedLine = lines.find((line) => {
           const dist = pointToLineDistance(snapped, line.a, line.b);
-          return dist < 20 / combinedScale;
+          return dist < 20 / cameraState.scale;
         });
         
         if (clickedLine && !clickedLine.gateId) {
@@ -467,23 +484,15 @@ export function CanvasStage() {
         const scaleChange = distance / lastTouchDistance;
         const newScale = oldScale * scaleChange;
         const clampedScale = Math.max(0.5, Math.min(3, newScale));
-        const newCombinedScale = clampedScale * mapScale;
-
-        const mousePointTo = {
-          x: (pointer.x - renderedStagePos.x) / combinedScale,
-          y: (pointer.y - renderedStagePos.y) / combinedScale,
-        };
+        const focusPoint = screenToWorld(pointer, cameraState);
 
         setScale(clampedScale);
-        const newRenderedPos = {
-          x: pointer.x - mousePointTo.x * newCombinedScale,
-          y: pointer.y - mousePointTo.y * newCombinedScale,
+        const newStagePosition = {
+          x: pointer.x - focusPoint.x * clampedScale,
+          y: pointer.y - focusPoint.y * clampedScale,
         };
 
-        setStagePos({
-          x: newRenderedPos.x - mapPanOffset.x,
-          y: newRenderedPos.y - mapPanOffset.y,
-        });
+        setStagePos(newStagePosition);
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
         const deltaY = pointer.y - lastTouchCenter.y;
@@ -505,10 +514,7 @@ export function CanvasStage() {
       const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
 
       if (isDrawing && startPoint) {
-        const point = {
-          x: (pointer.x - renderedStagePos.x) / combinedScale,
-          y: (pointer.y - renderedStagePos.y) / combinedScale,
-        };
+        const point = screenToWorld(pointer, cameraState);
 
         const allPoints = [
           ...lines.flatMap((l) => [l.a, l.b]),
