@@ -95,8 +95,10 @@ export function fitPanels(
         panelPositions.push(i * PANEL_LENGTH_MM);
       }
     }
-    
+
     if (remainder > 0) {
+      panelPositions.push(numPanels * PANEL_LENGTH_MM);
+
       if (remainder < MIN_LEFTOVER_MM) {
         warnings.push(
           `Short segment (${(remainder / 1000).toFixed(2)}m) detected. Consider enabling even spacing or extending the run.`
