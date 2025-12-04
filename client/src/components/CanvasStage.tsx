@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
+import { Stage, Layer, Line, Circle, Text, Group } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
@@ -40,7 +40,6 @@ export function CanvasStage() {
   const [scale, setScale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
-  const [isMapLocked, setIsMapLocked] = useState(true);
   const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
   const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -74,12 +73,11 @@ export function CanvasStage() {
   } = useAppStore();
 
   const combinedScale = scale * mapScale;
-  const renderedStagePos = {
+  const stagePosition = {
     x: stagePos.x + mapPanOffset.x,
     y: stagePos.y + mapPanOffset.y,
   };
-  const stageScale = isMapLocked ? combinedScale : scale;
-  const stagePosition = isMapLocked ? renderedStagePos : stagePos;
+  const stageScale = combinedScale;
   const cameraState: CameraState = {
     scale: stageScale,
     offsetX: -stagePosition.x / stageScale,
@@ -87,19 +85,11 @@ export function CanvasStage() {
   };
 
   useEffect(() => {
-    if (!isMapLocked) return;
-
     setStagePos({
       x: dimensions.width / 2 - mapPanOffset.x,
       y: dimensions.height / 2 - mapPanOffset.y,
     });
-  }, [
-    dimensions.height,
-    dimensions.width,
-    isMapLocked,
-    mapPanOffset.x,
-    mapPanOffset.y,
-  ]);
+  }, [dimensions.height, dimensions.width, mapPanOffset.x, mapPanOffset.y]);
 
   const handleZoomChange = useCallback((zoom: number) => {
     setMapZoom(zoom);
@@ -169,8 +159,8 @@ export function CanvasStage() {
     };
 
     const newRenderedPos = {
-      x: center.x - ((center.x - renderedStagePos.x) / prevCombined) * nextCombined,
-      y: center.y - ((center.y - renderedStagePos.y) / prevCombined) * nextCombined,
+      x: center.x - ((center.x - stagePosition.x) / prevCombined) * nextCombined,
+      y: center.y - ((center.y - stagePosition.y) / prevCombined) * nextCombined,
     };
 
     setStagePos({
@@ -185,8 +175,8 @@ export function CanvasStage() {
     dimensions.height,
     mapPanOffset.x,
     mapPanOffset.y,
-    renderedStagePos.x,
-    renderedStagePos.y,
+    stagePosition.x,
+    stagePosition.y,
   ]);
 
   useEffect(() => {
@@ -204,10 +194,8 @@ export function CanvasStage() {
   }, [mapZoom]);
 
   useEffect(() => {
-    if (isMapLocked) return;
-
-    lastCombinedScaleRef.current = scale * mapScale;
-  }, [isMapLocked, mapScale, scale]);
+    lastCombinedScaleRef.current = combinedScale;
+  }, [combinedScale]);
 
   useEffect(() => {
     calibrationFactorRef.current = calibrationFactor;
@@ -231,8 +219,6 @@ export function CanvasStage() {
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
-    if (isMapLocked) return;
-
     const scaleBy = 1.1;
     const stage = e.target.getStage();
     const oldScale = scale;
@@ -242,7 +228,7 @@ export function CanvasStage() {
     const focusPoint = screenToWorld(pointer, cameraState);
 
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    const clampedScale = Math.max(0.5, Math.min(3, newScale));
+    const clampedScale = Math.max(0.25, Math.min(8, newScale));
     const newStageScale = clampedScale;
 
     setScale(clampedScale);
@@ -251,7 +237,10 @@ export function CanvasStage() {
       y: pointer.y - focusPoint.y * newStageScale,
     };
 
-    setStagePos(newStagePosition);
+    setStagePos({
+      x: newStagePosition.x - mapPanOffset.x,
+      y: newStagePosition.y - mapPanOffset.y,
+    });
   };
 
   const snapTolerance = mmPerPixel > 0 ? SNAP_RADIUS_MM / mmPerPixel : DEFAULT_SNAP_TOLERANCE;
@@ -296,18 +285,17 @@ export function CanvasStage() {
   );
 
   const handleMouseDown = (e: any) => {
-    if (e.target !== e.target.getStage()) return;
-
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
-    
+
     if (e.evt.button === 2) {
-      if (isMapLocked) return;
       setIsPanning(true);
       setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
     }
+
+    if (e.target !== e.target.getStage()) return;
 
     const point = screenToWorld(pointer, cameraState);
 
@@ -347,7 +335,6 @@ export function CanvasStage() {
     if (!pointer) return;
 
     if (isPanning && lastPanPos) {
-      if (isMapLocked) return;
       const deltaX = pointer.x - lastPanPos.x;
       const deltaY = pointer.y - lastPanPos.y;
       setStagePos({
@@ -403,7 +390,6 @@ export function CanvasStage() {
     const touches = e.evt.touches;
     
     if (touches.length === 2) {
-      if (isMapLocked) return;
       e.evt.preventDefault();
       const distance = getTouchDistance(touches[0], touches[1]);
       const center = getTouchCenter(touches[0], touches[1]);
@@ -477,25 +463,26 @@ export function CanvasStage() {
         Math.pow(pointer.y - lastTouchCenter.y, 2)
       );
 
-      if (distanceChange > centerMovement * 0.5) {
-        if (isMapLocked) return;
+        if (distanceChange > centerMovement * 0.5) {
+          const oldScale = scale;
+          const scaleChange = distance / lastTouchDistance;
+          const newScale = oldScale * scaleChange;
+          const clampedScale = Math.max(0.25, Math.min(8, newScale));
+          const focusPoint = screenToWorld(pointer, cameraState);
 
-        const oldScale = scale;
-        const scaleChange = distance / lastTouchDistance;
-        const newScale = oldScale * scaleChange;
-        const clampedScale = Math.max(0.5, Math.min(3, newScale));
-        const focusPoint = screenToWorld(pointer, cameraState);
+          setScale(clampedScale);
+          const newStagePosition = {
+            x: pointer.x - focusPoint.x * clampedScale,
+            y: pointer.y - focusPoint.y * clampedScale,
+          };
 
-        setScale(clampedScale);
-        const newStagePosition = {
-          x: pointer.x - focusPoint.x * clampedScale,
-          y: pointer.y - focusPoint.y * clampedScale,
-        };
-
-        setStagePos(newStagePosition);
-      } else {
-        const deltaX = pointer.x - lastTouchCenter.x;
-        const deltaY = pointer.y - lastTouchCenter.y;
+          setStagePos({
+            x: newStagePosition.x - mapPanOffset.x,
+            y: newStagePosition.y - mapPanOffset.y,
+          });
+        } else {
+          const deltaX = pointer.x - lastTouchCenter.x;
+          const deltaY = pointer.y - lastTouchCenter.y;
         setStagePos({
           x: stagePos.x + deltaX,
           y: stagePos.y + deltaY,
@@ -585,6 +572,12 @@ export function CanvasStage() {
     setEditValue("");
   };
 
+  const gridStyle = {
+    backgroundImage:
+      "linear-gradient(to right, #e2e8f0 1px, transparent 1px), linear-gradient(to bottom, #e2e8f0 1px, transparent 1px)",
+    backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+  } as const;
+
   return (
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
       <MapOverlay
@@ -592,8 +585,6 @@ export function CanvasStage() {
         onScaleChange={handleScaleChange}
         onPanOffsetChange={handleMapPanOffsetChange}
         onPanReferenceReset={handlePanReferenceReset}
-        isLocked={isMapLocked}
-        onLockChange={setIsMapLocked}
         mapZoom={mapZoom}
       />
 
@@ -679,8 +670,11 @@ export function CanvasStage() {
         </div>
       )}
 
-      <div className={`absolute inset-0 z-10 ${isMapLocked ? "" : "pointer-events-none"}`}>
+      <div className="absolute inset-0 z-10">
+        <div className="absolute inset-0 pointer-events-none" style={gridStyle} />
+
         <Stage
+          className="absolute inset-0"
           width={dimensions.width}
           height={dimensions.height}
           scaleX={stageScale}
@@ -697,35 +691,6 @@ export function CanvasStage() {
           onContextMenu={(e) => e.evt.preventDefault()}
           data-testid="canvas-stage"
         >
-          <Layer>
-            {Array.from({ length: Math.ceil(dimensions.width / GRID_SIZE) + 10 }).map((_, i) => (
-              <Line
-                key={`v-${i}`}
-                points={[
-                  i * GRID_SIZE - GRID_SIZE * 5,
-                  -GRID_SIZE * 5,
-                  i * GRID_SIZE - GRID_SIZE * 5,
-                  dimensions.height + GRID_SIZE * 5,
-                ]}
-                stroke="#e2e8f0"
-                strokeWidth={0.5 / stageScale}
-              />
-            ))}
-            {Array.from({ length: Math.ceil(dimensions.height / GRID_SIZE) + 10 }).map((_, i) => (
-              <Line
-                key={`h-${i}`}
-                points={[
-                  -GRID_SIZE * 5,
-                  i * GRID_SIZE - GRID_SIZE * 5,
-                  dimensions.width + GRID_SIZE * 5,
-                  i * GRID_SIZE - GRID_SIZE * 5,
-                ]}
-                stroke="#e2e8f0"
-                strokeWidth={0.5 / stageScale}
-              />
-            ))}
-          </Layer>
-
           <Layer>
             {lines.map((line) => {
               const isGate = !!line.gateId;

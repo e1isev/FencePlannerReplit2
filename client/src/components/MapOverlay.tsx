@@ -3,8 +3,6 @@ import maplibregl, { Map, Marker, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
@@ -20,8 +18,6 @@ export interface MapOverlayProps {
   onScaleChange?: (metersPerPixel: number, zoom: number) => void;
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
   onPanReferenceReset?: () => void;
-  isLocked: boolean;
-  onLockChange: (locked: boolean) => void;
   mapZoom: number;
 }
 
@@ -61,8 +57,6 @@ export function MapOverlay({
   onScaleChange,
   onPanOffsetChange,
   onPanReferenceReset,
-  isLocked,
-  onLockChange,
   mapZoom,
 }: MapOverlayProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -157,34 +151,22 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
-    if (isLocked) {
-      const center = map.getCenter();
-      initialCenterRef.current = center;
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      onPanReferenceReset?.();
-    }
+    const center = map.getCenter();
+    initialCenterRef.current = center;
+    onPanOffsetChange?.({ x: 0, y: 0 });
+    onPanReferenceReset?.();
 
-    if (isLocked) {
-      map.scrollZoom.disable();
-      map.boxZoom.disable();
-      map.dragPan.disable();
-      map.keyboard.disable();
-      map.doubleClickZoom.disable();
-      map.touchZoomRotate.disable();
-    } else {
-      map.scrollZoom.enable();
-      map.boxZoom.enable();
-      map.dragPan.enable();
-      map.keyboard.enable();
-      map.doubleClickZoom.enable();
-      map.touchZoomRotate.enable();
-      map.touchZoomRotate.disableRotation();
-    }
-
+    map.scrollZoom.disable();
+    map.boxZoom.disable();
+    map.dragPan.disable();
+    map.keyboard.disable();
+    map.doubleClickZoom.disable();
+    map.touchZoomRotate.disable();
+    map.touchZoomRotate.disableRotation();
     map.dragRotate.disable();
     map.setPitch(0);
     map.setBearing(0);
-  }, [isLocked]);
+  }, [onPanOffsetChange, onPanReferenceReset]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,10 +244,7 @@ export function MapOverlay({
     <div className="absolute inset-0">
       <div
         ref={mapContainerRef}
-        className={cn(
-          "absolute inset-0 transition-opacity",
-          isLocked ? "pointer-events-none opacity-90" : "pointer-events-auto"
-        )}
+        className={cn("absolute inset-0 transition-opacity pointer-events-none opacity-90")}
       />
 
       <div className="absolute top-4 left-4 z-20 max-w-md space-y-3">
@@ -275,12 +254,7 @@ export function MapOverlay({
               <p className="text-sm font-semibold">Map Overlay</p>
               <p className="text-xs text-slate-500">Search an address and draw on top of the map.</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="map-lock" className="text-xs text-slate-600 whitespace-nowrap">
-                Lock for drawing
-              </Label>
-              <Switch id="map-lock" checked={isLocked} onCheckedChange={onLockChange} />
-            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-600">Map locked for drawing</div>
           </div>
 
           <form onSubmit={handleSearch} className="flex gap-2">
@@ -313,8 +287,8 @@ export function MapOverlay({
           )}
 
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-            Toggle off locking when you want to pan or zoom the map. Turn it back on to draw
-            fence lines without the map capturing clicks.
+            Right click and drag on the canvas to pan. Use the mouse wheel to zoom while keeping your
+            place on the map.
           </p>
         </Card>
       </div>
