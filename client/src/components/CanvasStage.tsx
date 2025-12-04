@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Line, Circle, Text, Group } from "react-konva";
+import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
