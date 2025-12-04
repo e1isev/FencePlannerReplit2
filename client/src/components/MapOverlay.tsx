@@ -19,6 +19,7 @@ export interface MapOverlayProps {
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
   onPanReferenceReset?: () => void;
   mapZoom: number;
+  panByDelta?: { x: number; y: number } | null;
 }
 
 export const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
@@ -58,6 +59,7 @@ export function MapOverlay({
   onPanOffsetChange,
   onPanReferenceReset,
   mapZoom,
+  panByDelta,
 }: MapOverlayProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -129,6 +131,13 @@ export function MapOverlay({
       map.off("move", handleViewChange);
     };
   }, [onPanOffsetChange, onScaleChange, onZoomChange]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !panByDelta) return;
+
+    map.panBy([panByDelta.x, panByDelta.y], { animate: false });
+  }, [panByDelta]);
 
   useEffect(() => {
     const map = mapRef.current;
