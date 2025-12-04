@@ -24,7 +24,7 @@ export function DeckingCanvasStage() {
   const [scale, setScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState<
-    { pointer: { x: number; y: number }; stage: { x: number; y: number } } | null
+    { client: { x: number; y: number }; stage: { x: number; y: number } } | null
   >(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
@@ -79,7 +79,10 @@ export function DeckingCanvasStage() {
     if (!pointer) return;
 
     if (e.evt.button === 2) {
-      setPanStart({ pointer: { x: pointer.x, y: pointer.y }, stage: { ...stagePos } });
+      setPanStart({
+        client: { x: e.evt.clientX, y: e.evt.clientY },
+        stage: { ...stagePos },
+      });
       return;
     }
   };
@@ -90,8 +93,9 @@ export function DeckingCanvasStage() {
     if (!pointer) return;
 
     if (panStart) {
-      const deltaX = pointer.x - panStart.pointer.x;
-      const deltaY = pointer.y - panStart.pointer.y;
+      const { clientX, clientY } = e.evt;
+      const deltaX = clientX - panStart.client.x;
+      const deltaY = clientY - panStart.client.y;
       setStagePos({
         x: panStart.stage.x + deltaX,
         y: panStart.stage.y + deltaY,
@@ -110,7 +114,6 @@ export function DeckingCanvasStage() {
     const allPoints = [...points, ...polygon, ...boardEndpoints];
     const snapped = findSnapPoint(worldPosMm, allPoints) || worldPosMm;
 
-    const lastPoint = points[points.length - 1];
     setPreviewPoint(snapped);
   };
 
