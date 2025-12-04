@@ -37,7 +37,7 @@ export function CanvasStage() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [mapPanOffset, setMapPanOffset] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
+  const [scale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
   const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
@@ -55,6 +55,7 @@ export function CanvasStage() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
+  const [panByDelta, setPanByDelta] = useState<{ x: number; y: number } | null>(null);
   const lastCombinedScaleRef = useRef(1);
   const baseMetersPerPixelRef = useRef<number | null>(null);
   const mapMetersPerPixelRef = useRef<number | null>(null);
@@ -219,27 +220,10 @@ export function CanvasStage() {
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
-    const scaleBy = 1.1;
-    const stage = e.target.getStage();
-    const oldScale = scale;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
-    const focusPoint = screenToWorld(pointer, cameraState);
-
-    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    const clampedScale = Math.max(0.25, Math.min(8, newScale));
-    const newStageScale = clampedScale;
-
-    setScale(clampedScale);
-    const newStagePosition = {
-      x: pointer.x - focusPoint.x * newStageScale,
-      y: pointer.y - focusPoint.y * newStageScale,
-    };
-
-    setStagePos({
-      x: newStagePosition.x - mapPanOffset.x,
-      y: newStagePosition.y - mapPanOffset.y,
+    const zoomStep = 0.25;
+    setMapZoom((currentZoom) => {
+      const nextZoom = currentZoom + (e.evt.deltaY > 0 ? -zoomStep : zoomStep);
+      return Math.max(1, Math.min(22, nextZoom));
     });
   };
 
@@ -337,10 +321,7 @@ export function CanvasStage() {
     if (isPanning && lastPanPos) {
       const deltaX = pointer.x - lastPanPos.x;
       const deltaY = pointer.y - lastPanPos.y;
-      setStagePos({
-        x: stagePos.x + deltaX,
-        y: stagePos.y + deltaY,
-      });
+      setPanByDelta({ x: deltaX, y: deltaY });
       setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
     }
@@ -362,6 +343,7 @@ export function CanvasStage() {
     if (isPanning) {
       setIsPanning(false);
       setLastPanPos(null);
+      setPanByDelta(null);
       return;
     }
     
@@ -456,39 +438,29 @@ export function CanvasStage() {
       const stage = e.target.getStage();
       const rect = stage.container().getBoundingClientRect();
       const pointer = { x: center.x - rect.left, y: center.y - rect.top };
-      
+
       const distanceChange = Math.abs(distance - lastTouchDistance);
       const centerMovement = Math.sqrt(
         Math.pow(pointer.x - lastTouchCenter.x, 2) +
         Math.pow(pointer.y - lastTouchCenter.y, 2)
       );
 
-        if (distanceChange > centerMovement * 0.5) {
-          const oldScale = scale;
-          const scaleChange = distance / lastTouchDistance;
-          const newScale = oldScale * scaleChange;
-          const clampedScale = Math.max(0.25, Math.min(8, newScale));
-          const focusPoint = screenToWorld(pointer, cameraState);
+      if (distanceChange > centerMovement * 0.5) {
+        const scaleChange = distance / lastTouchDistance;
+        const zoomDelta = Math.log2(scaleChange);
 
-          setScale(clampedScale);
-          const newStagePosition = {
-            x: pointer.x - focusPoint.x * clampedScale,
-            y: pointer.y - focusPoint.y * clampedScale,
-          };
-
-          setStagePos({
-            x: newStagePosition.x - mapPanOffset.x,
-            y: newStagePosition.y - mapPanOffset.y,
+        if (isFinite(zoomDelta)) {
+          setMapZoom((currentZoom) => {
+            const nextZoom = currentZoom + zoomDelta;
+            return Math.max(1, Math.min(22, nextZoom));
           });
-        } else {
-          const deltaX = pointer.x - lastTouchCenter.x;
-          const deltaY = pointer.y - lastTouchCenter.y;
-        setStagePos({
-          x: stagePos.x + deltaX,
-          y: stagePos.y + deltaY,
-        });
+        }
+      } else {
+        const deltaX = pointer.x - lastTouchCenter.x;
+        const deltaY = pointer.y - lastTouchCenter.y;
+        setPanByDelta({ x: deltaX, y: deltaY });
       }
-      
+
       setLastTouchDistance(distance);
       setLastTouchCenter(pointer);
       return;
@@ -525,6 +497,7 @@ export function CanvasStage() {
       setLastTouchCenter(null);
       setIsPanning(false);
       setLastPanPos(null);
+      setPanByDelta(null);
       setIsDrawing(false);
       setStartPoint(null);
       setCurrentPoint(null);
@@ -586,6 +559,7 @@ export function CanvasStage() {
         onPanOffsetChange={handleMapPanOffsetChange}
         onPanReferenceReset={handlePanReferenceReset}
         mapZoom={mapZoom}
+        panByDelta={panByDelta}
       />
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
