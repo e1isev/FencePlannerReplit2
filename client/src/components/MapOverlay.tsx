@@ -255,7 +255,7 @@ export function MapOverlay({
     <div className="absolute inset-0 pointer-events-none">
       <div
         ref={mapContainerRef}
-        className={cn("absolute inset-0 transition-opacity pointer-events-none opacity-90 -z-10")}
+        className={cn("absolute inset-0 transition-opacity pointer-events-none opacity-90")}
       />
 
       <div className="absolute top-4 left-4 z-20 max-w-md space-y-3 pointer-events-auto">
