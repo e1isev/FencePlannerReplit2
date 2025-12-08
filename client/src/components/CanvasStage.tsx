@@ -553,6 +553,120 @@ export function CanvasStage() {
 
   return (
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 pointer-events-none" style={gridStyle} />
+
+        <Stage
+          className="absolute inset-0"
+          width={dimensions.width}
+          height={dimensions.height}
+          scaleX={stageScale}
+          scaleY={stageScale}
+          x={stagePosition.x}
+          y={stagePosition.y}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onContextMenu={(e) => e.evt.preventDefault()}
+          data-testid="canvas-stage"
+        >
+          <Layer>
+            {lines.map((line) => {
+              const isGate = !!line.gateId;
+              const isSelected = line.id === selectedLineId;
+
+              const dx = line.b.x - line.a.x;
+              const dy = line.b.y - line.a.y;
+              const lineLength_px = Math.sqrt(dx * dx + dy * dy);
+              const unitX = dx / lineLength_px;
+              const unitY = dy / lineLength_px;
+              const perpX = -unitY;
+              const perpY = unitX;
+
+              return (
+                <Group key={line.id}>
+                  <Line
+                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
+                    stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
+                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / stageScale}
+                    opacity={isGate ? 0.8 : 1}
+                    onClick={(e) => handleLineClick(line.id, e)}
+                    listening={!isGate}
+                  />
+
+                  <Text
+                    x={(line.a.x + line.b.x) / 2 - 30 / stageScale}
+                    y={(line.a.y + line.b.y) / 2 - 15 / stageScale}
+                    text={`${(line.length_mm / 1000).toFixed(2)}m`}
+                    fontSize={12 / stageScale}
+                    fill={isGate ? "#f59e0b" : "#1e293b"}
+                    padding={4 / stageScale}
+                    onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+                    listening={!isGate}
+                  />
+                </Group>
+              );
+            })}
+
+            {isDrawing && startPoint && currentPoint && (
+                <Line
+                  points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
+                  stroke="#94a3b8"
+                  strokeWidth={3 / stageScale}
+                  dash={[5 / stageScale, 5 / stageScale]}
+                />
+              )}
+
+            {posts.map((post) => {
+              const colors = {
+                end: "#10b981",
+                corner: "#ef4444",
+                line: "#06b6d4",
+              };
+              return (
+                <Circle
+                  key={post.id}
+                  x={post.pos.x}
+                  y={post.pos.y}
+                  radius={6 / stageScale}
+                  fill={colors[post.category]}
+                  stroke={colors[post.category]}
+                  strokeWidth={2 / stageScale}
+                />
+              );
+            })}
+
+            {gates
+              .filter((g) => g.type.startsWith("sliding"))
+              .map((gate) => {
+                const gateLine = lines.find((l) => l.gateId === gate.id);
+                if (!gateLine) return null;
+
+                const rect = getSlidingReturnRect(gate, gateLine, lines);
+                if (!rect) return null;
+
+                return (
+                  <Rect
+                    key={gate.id}
+                    x={rect.x}
+                    y={rect.y}
+                    width={rect.width}
+                    height={rect.height}
+                    stroke="#ef4444"
+                    strokeWidth={2 / stageScale}
+                    dash={[8 / stageScale, 4 / stageScale]}
+                    fill="rgba(239, 68, 68, 0.1)"
+                  />
+                );
+              })}
+          </Layer>
+        </Stage>
+      </div>
+
       <MapOverlay
         onZoomChange={handleZoomChange}
         onScaleChange={handleScaleChange}
