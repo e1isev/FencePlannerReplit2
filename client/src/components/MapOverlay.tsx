@@ -15,7 +15,7 @@ interface SearchResult {
 
 export interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
-  onScaleChange?: (metersPerPixel: number, zoom: number) => void;
+  onScaleChange?: (metersPerPixel: number, zoom?: number) => void;
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
   onPanReferenceReset?: () => void;
   mapZoom: number;
@@ -217,6 +217,8 @@ export function MapOverlay({
     initialCenterRef.current = newCenter;
     onPanOffsetChange?.({ x: 0, y: 0 });
 
+    isRecenteringRef.current = true;
+
     const handleMoveEnd = () => {
       const settledCenter = map.getCenter();
       initialCenterRef.current = settledCenter;
@@ -250,13 +252,13 @@ export function MapOverlay({
   };
 
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 pointer-events-none">
       <div
         ref={mapContainerRef}
-        className={cn("absolute inset-0 transition-opacity pointer-events-none opacity-90")}
+        className={cn("absolute inset-0 transition-opacity pointer-events-none opacity-90 -z-10")}
       />
 
-      <div className="absolute top-4 left-4 z-20 max-w-md space-y-3">
+      <div className="absolute top-4 left-4 z-20 max-w-md space-y-3 pointer-events-auto">
         <Card className="p-3 shadow-lg">
           <div className="flex items-center justify-between gap-3 mb-2">
             <div className="space-y-1">
@@ -302,7 +304,7 @@ export function MapOverlay({
         </Card>
       </div>
 
-      <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
+      <div className="absolute top-4 right-4 z-30 flex flex-col gap-2 pointer-events-auto">
         <div className="flex flex-col rounded-md border border-slate-200 bg-white shadow-md overflow-hidden">
           <Button variant="ghost" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
             +
