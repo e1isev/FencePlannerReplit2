@@ -108,6 +108,10 @@ export function MapOverlay({
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
       onScaleChange?.(metersPerPixel, zoom);
 
+      if (isRecenteringRef.current && initialCenterRef.current) {
+        return;
+      }
+
       if (!initialCenterRef.current) {
         if (isRecenteringRef.current) return;
         initialCenterRef.current = center;
@@ -177,6 +181,43 @@ export function MapOverlay({
     map.setBearing(0);
   }, [onPanOffsetChange, onPanReferenceReset]);
 
+  const recenterToResult = (
+    result: SearchResult,
+    options: { preserveResults?: boolean } = {}
+  ) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    setQuery(result.display_name);
+    if (!options.preserveResults) {
+      setResults([]);
+    }
+
+    isRecenteringRef.current = true;
+
+    const handleMoveEnd = () => {
+      const settledCenter = map.getCenter();
+      initialCenterRef.current = settledCenter;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      onPanReferenceReset?.();
+      isRecenteringRef.current = false;
+      map.off("moveend", handleMoveEnd);
+    };
+
+    map.on("moveend", handleMoveEnd);
+    map.flyTo({ center: [lon, lat], zoom: 18 });
+
+    if (markerRef.current) {
+      markerRef.current.remove();
+    }
+
+    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
+      .setLngLat([lon, lat])
+      .addTo(map);
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -195,6 +236,12 @@ export function MapOverlay({
 
       const data = (await res.json()) as SearchResult[];
       setResults(data);
+
+      if (data.length > 0) {
+        recenterToResult(data[0], { preserveResults: true });
+      } else {
+        setError("No matching locations found. Try a more specific address.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to search right now.");
     } finally {
@@ -203,40 +250,7 @@ export function MapOverlay({
   };
 
   const handleResultSelect = (result: SearchResult) => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const lat = Number(result.lat);
-    const lon = Number(result.lon);
-    const newCenter = new maplibregl.LngLat(lon, lat);
-
-    setQuery(result.display_name);
-    setResults([]);
-
-    onPanReferenceReset?.();
-    initialCenterRef.current = newCenter;
-    onPanOffsetChange?.({ x: 0, y: 0 });
-
-    isRecenteringRef.current = true;
-
-    const handleMoveEnd = () => {
-      const settledCenter = map.getCenter();
-      initialCenterRef.current = settledCenter;
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      isRecenteringRef.current = false;
-      map.off("moveend", handleMoveEnd);
-    };
-
-    map.on("moveend", handleMoveEnd);
-    map.flyTo({ center: [lon, lat], zoom: 18 });
-
-    if (markerRef.current) {
-      markerRef.current.remove();
-    }
-
-    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
-      .setLngLat([lon, lat])
-      .addTo(map);
+    recenterToResult(result);
   };
 
   const handleZoomIn = () => {
