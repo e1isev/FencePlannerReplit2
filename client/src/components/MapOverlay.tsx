@@ -195,6 +195,12 @@ export function MapOverlay({
 
       const data = (await res.json()) as SearchResult[];
       setResults(data);
+
+      if (data.length > 0) {
+        handleResultSelect(data[0]);
+      } else {
+        setError("No matching locations found. Try a more specific address.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to search right now.");
     } finally {
