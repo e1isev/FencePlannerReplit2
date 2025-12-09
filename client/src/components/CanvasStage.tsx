@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 const GRID_SIZE = 25;
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
+const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
@@ -705,7 +706,7 @@ export function CanvasStage() {
                     const remaining = 2 - calibrationPoints.length;
                     return `Select ${remaining} point${remaining === 1 ? "" : "s"} 10 yards apart`;
                   })()
-                : `Scale: ${(mmPerPixel / 1000).toFixed(3)} m/px${
+                : `Scale: ${FIXED_SCALE_METERS_PER_PIXEL.toFixed(3)} m/px${
                     calibrationFactor !== 1 ? " (calibrated)" : ""
                   }`}
             </p>
