@@ -75,8 +75,8 @@ export function CanvasStage() {
 
   const combinedScale = scale * mapScale;
   const stagePosition = {
-    x: stagePos.x + mapPanOffset.x,
-    y: stagePos.y + mapPanOffset.y,
+    x: stagePos.x - mapPanOffset.x,
+    y: stagePos.y - mapPanOffset.y,
   };
   const stageScale = combinedScale;
   const cameraState: CameraState = {
@@ -128,8 +128,8 @@ export function CanvasStage() {
 
   const handlePanReferenceReset = useCallback(() => {
     setStagePos((pos) => ({
-      x: pos.x + mapPanOffset.x,
-      y: pos.y + mapPanOffset.y,
+      x: pos.x - mapPanOffset.x,
+      y: pos.y - mapPanOffset.y,
     }));
     setMapPanOffset({ x: 0, y: 0 });
   }, [mapPanOffset.x, mapPanOffset.y]);
@@ -165,8 +165,8 @@ export function CanvasStage() {
     };
 
     setStagePos({
-      x: newRenderedPos.x - mapPanOffset.x,
-      y: newRenderedPos.y - mapPanOffset.y,
+      x: newRenderedPos.x + mapPanOffset.x,
+      y: newRenderedPos.y + mapPanOffset.y,
     });
 
     lastCombinedScaleRef.current = nextCombined;
@@ -674,6 +674,25 @@ export function CanvasStage() {
               })}
           </Layer>
         </Stage>
+      </div>
+
+      <div className="absolute top-2 right-2 z-30">
+        <div className="text-xs bg-white/80 backdrop-blur rounded-md shadow px-3 py-2">
+          {mmPerPixel ? (
+            <>
+              <span>
+                Scale: {(mmPerPixel / 1000).toFixed(3)} m/px
+              </span>
+              {calibrationFactor !== 1 && (
+                <span className="ml-1 text-[0.7rem] text-emerald-700">
+                  (calibrated)
+                </span>
+              )}
+            </>
+          ) : (
+            <span>Scale: —</span>
+          )}
+        </div>
       </div>
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
