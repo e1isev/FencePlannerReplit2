@@ -207,7 +207,7 @@ export function MapOverlay({
       setResults(data);
 
       if (data.length > 0) {
-        // Auto recentre on the first result
+        // Auto recentre map on the first result
         handleResultSelect(data[0]);
       } else {
         setError("No matching locations found. Try a more specific address.");
@@ -235,10 +235,11 @@ export function MapOverlay({
     const lon = Number(result.lon);
     const newCenter = new maplibregl.LngLat(lon, lat);
 
+    // Update the input and clear visible results
     setQuery(result.display_name);
     setResults([]);
 
-    // Reset the pan reference so the fence canvas stays aligned with the map
+    // Reset pan reference so the fence canvas stays aligned with the map
     onPanReferenceReset?.();
     initialCenterRef.current = newCenter;
     onPanOffsetChange?.({ x: 0, y: 0 });
