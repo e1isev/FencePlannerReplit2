@@ -72,43 +72,6 @@ export function MapOverlay({
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const isRecenteringRef = useRef(false);
 
-  // recenterToResult function (the missing one from your previous code)
-  const recenterToResult = (
-    result: SearchResult,
-    options: { preserveResults?: boolean } = {}
-  ) => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const lat = Number(result.lat);
-    const lon = Number(result.lon);
-    setQuery(result.display_name);
-    if (!options.preserveResults) {
-      setResults([]);
-    }
-    isRecenteringRef.current = true;
-
-    const handleMoveEnd = () => {
-      const settledCenter = map.getCenter();
-      initialCenterRef.current = settledCenter;
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      onPanReferenceReset?.();
-      isRecenteringRef.current = false;
-      map.off("moveend", handleMoveEnd);
-    };
-
-    map.on("moveend", handleMoveEnd);
-    map.flyTo({ center: [lon, lat], zoom: 18 });
-
-    if (markerRef.current) {
-      markerRef.current.remove();
-    }
-
-    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
-      .setLngLat([lon, lat])
-      .addTo(map);
-  };
-
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -230,7 +193,9 @@ export function MapOverlay({
 
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query
+        )}&addressdetails=1&limit=5`
       );
 
       if (!res.ok) {
@@ -238,22 +203,66 @@ export function MapOverlay({
       }
 
       const data = (await res.json()) as SearchResult[];
+      console.log("[MapOverlay] search results:", data);
       setResults(data);
 
       if (data.length > 0) {
-        recenterToResult(data[0], { preserveResults: true });
+        // Auto recentre on the first result
+        handleResultSelect(data[0]);
       } else {
         setError("No matching locations found. Try a more specific address.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to search right now.");
+      console.error("[MapOverlay] search error:", err);
+      setError(
+        err instanceof Error ? err.message : "Unable to search right now."
+      );
     } finally {
       setIsSearching(false);
     }
   };
 
   const handleResultSelect = (result: SearchResult) => {
-    recenterToResult(result);
+    const map = mapRef.current;
+    if (!map) {
+      console.warn("[MapOverlay] handleResultSelect: mapRef is null");
+      return;
+    }
+
+    console.log("[MapOverlay] recentering to:", result);
+
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    const newCenter = new maplibregl.LngLat(lon, lat);
+
+    setQuery(result.display_name);
+    setResults([]);
+
+    // Reset the pan reference so the fence canvas stays aligned with the map
+    onPanReferenceReset?.();
+    initialCenterRef.current = newCenter;
+    onPanOffsetChange?.({ x: 0, y: 0 });
+
+    isRecenteringRef.current = true;
+
+    const handleMoveEnd = () => {
+      const settledCenter = map.getCenter();
+      initialCenterRef.current = settledCenter;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      isRecenteringRef.current = false;
+      map.off("moveend", handleMoveEnd);
+    };
+
+    map.on("moveend", handleMoveEnd);
+    map.flyTo({ center: [lon, lat], zoom: 18 });
+
+    if (markerRef.current) {
+      markerRef.current.remove();
+    }
+
+    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
+      .setLngLat([lon, lat])
+      .addTo(map);
   };
 
   const handleZoomIn = () => {
@@ -269,10 +278,12 @@ export function MapOverlay({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none">
+    <div className="absolute inset-0 z-0 pointer-events-none">
       <div
         ref={mapContainerRef}
-        className={cn("absolute inset-0 transition-opacity pointer-events-none opacity-90")}
+        className={cn(
+          "absolute inset-0 transition-opacity pointer-events-none opacity-90"
+        )}
       />
 
       <div className="absolute top-4 left-4 z-20 max-w-md space-y-3 pointer-events-auto">
