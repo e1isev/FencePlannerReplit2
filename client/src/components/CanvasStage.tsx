@@ -35,7 +35,6 @@ function screenToWorld(point: ScreenPoint, camera: CameraState): Point {
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [mapPanOffset, setMapPanOffset] = useState({ x: 0, y: 0 });
   const [scale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
@@ -56,7 +55,6 @@ export function CanvasStage() {
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
   const [panByDelta, setPanByDelta] = useState<{ x: number; y: number } | null>(null);
-  const lastCombinedScaleRef = useRef(1);
   const baseMetersPerPixelRef = useRef<number | null>(null);
   const mapMetersPerPixelRef = useRef<number | null>(null);
   const calibrationFactorRef = useRef(1);
@@ -74,23 +72,22 @@ export function CanvasStage() {
   } = useAppStore();
 
   const combinedScale = scale * mapScale;
+
+  // Stage is always centred in the viewport.
+  // The only thing that moves the world relative to the screen
+  // is mapPanOffset coming from MapOverlay.
   const stagePosition = {
-    x: stagePos.x - mapPanOffset.x,
-    y: stagePos.y - mapPanOffset.y,
+    x: dimensions.width / 2 - mapPanOffset.x,
+    y: dimensions.height / 2 - mapPanOffset.y,
   };
+
   const stageScale = combinedScale;
+
   const cameraState: CameraState = {
     scale: stageScale,
     offsetX: -stagePosition.x / stageScale,
     offsetY: -stagePosition.y / stageScale,
   };
-
-  useEffect(() => {
-    setStagePos({
-      x: dimensions.width / 2,
-      y: dimensions.height / 2,
-    });
-  }, [dimensions.height, dimensions.width]);
 
   const handleZoomChange = useCallback((zoom: number) => {
     setMapZoom(zoom);
@@ -127,12 +124,8 @@ export function CanvasStage() {
   }, []);
 
   const handlePanReferenceReset = useCallback(() => {
-    setStagePos((pos) => ({
-      x: pos.x - mapPanOffset.x,
-      y: pos.y - mapPanOffset.y,
-    }));
     setMapPanOffset({ x: 0, y: 0 });
-  }, [mapPanOffset.x, mapPanOffset.y]);
+  }, []);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -150,37 +143,6 @@ export function CanvasStage() {
   }, []);
 
   useEffect(() => {
-    const prevCombined = lastCombinedScaleRef.current;
-    const nextCombined = combinedScale;
-    if (prevCombined === nextCombined) return;
-
-    const center = {
-      x: dimensions.width / 2,
-      y: dimensions.height / 2,
-    };
-
-    const newRenderedPos = {
-      x: center.x - ((center.x - stagePosition.x) / prevCombined) * nextCombined,
-      y: center.y - ((center.y - stagePosition.y) / prevCombined) * nextCombined,
-    };
-
-    setStagePos({
-      x: newRenderedPos.x + mapPanOffset.x,
-      y: newRenderedPos.y + mapPanOffset.y,
-    });
-
-    lastCombinedScaleRef.current = nextCombined;
-  }, [
-    combinedScale,
-    dimensions.width,
-    dimensions.height,
-    mapPanOffset.x,
-    mapPanOffset.y,
-    stagePosition.x,
-    stagePosition.y,
-  ]);
-
-  useEffect(() => {
     if (baseMetersPerPixelRef.current !== null) return;
 
     const baseMetersPerPixel = calculateMetersPerPixel(BASE_MAP_ZOOM, DEFAULT_CENTER[1]);
@@ -193,11 +155,6 @@ export function CanvasStage() {
     setCurrentMetersPerPixel(currentMetersPerPixel);
     setMapScale(baseMetersPerPixel / currentMetersPerPixel);
   }, [mapZoom]);
-
-  useEffect(() => {
-    lastCombinedScaleRef.current = combinedScale;
-  }, [combinedScale]);
-
   useEffect(() => {
     calibrationFactorRef.current = calibrationFactor;
   }, [calibrationFactor]);
