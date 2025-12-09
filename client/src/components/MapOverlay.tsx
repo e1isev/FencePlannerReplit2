@@ -35,8 +35,8 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
       [isSatellite ? "satellite" : "osm"]: {
         type: "raster" as const,
         tiles: isSatellite
-          ? ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
-          : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+          ? [ "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" ]
+          : [ "https://tile.openstreetmap.org/{z}/{x}/{y}.png" ],
         tileSize: 256,
         attribution: isSatellite
           ? "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
@@ -72,6 +72,43 @@ export function MapOverlay({
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const isRecenteringRef = useRef(false);
 
+  // recenterToResult function (the missing one from your previous code)
+  const recenterToResult = (
+    result: SearchResult,
+    options: { preserveResults?: boolean } = {}
+  ) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    setQuery(result.display_name);
+    if (!options.preserveResults) {
+      setResults([]);
+    }
+    isRecenteringRef.current = true;
+
+    const handleMoveEnd = () => {
+      const settledCenter = map.getCenter();
+      initialCenterRef.current = settledCenter;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      onPanReferenceReset?.();
+      isRecenteringRef.current = false;
+      map.off("moveend", handleMoveEnd);
+    };
+
+    map.on("moveend", handleMoveEnd);
+    map.flyTo({ center: [lon, lat], zoom: 18 });
+
+    if (markerRef.current) {
+      markerRef.current.remove();
+    }
+
+    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
+      .setLngLat([lon, lat])
+      .addTo(map);
+  };
+
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -95,6 +132,8 @@ export function MapOverlay({
     return () => {
       map.remove();
     };
+    // Don't include mapMode, so only freshly creates on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -202,65 +241,6 @@ export function MapOverlay({
       setResults(data);
 
       if (data.length > 0) {
-        handleResultSelect(data[0]);
-      } else {
-        setError("No matching locations found. Try a more specific address.");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to search right now.");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-
-    const lat = Number(result.lat);
-    const lon = Number(result.lon);
-    setQuery(result.display_name);
-    if (!options.preserveResults) {
-      setResults([]);
-    }
-
-    isRecenteringRef.current = true;
-
-    const handleMoveEnd = () => {
-      const settledCenter = map.getCenter();
-      initialCenterRef.current = settledCenter;
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      onPanReferenceReset?.();
-      isRecenteringRef.current = false;
-      map.off("moveend", handleMoveEnd);
-    };
-
-    map.on("moveend", handleMoveEnd);
-    map.flyTo({ center: [lon, lat], zoom: 18 });
-
-    if (markerRef.current) {
-      markerRef.current.remove();
-    }
-
-    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
-      .setLngLat([lon, lat])
-      .addTo(map);
-  };
-
-
-    setIsSearching(true);
-    setError(null);
-
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`
-      );
-
-      if (!res.ok) {
-        throw new Error("Search failed. Please try again.");
-      }
-
-      const data = (await res.json()) as SearchResult[];
-      setResults(data);
-
-      if (data.length > 0) {
         recenterToResult(data[0], { preserveResults: true });
       } else {
         setError("No matching locations found. Try a more specific address.");
@@ -270,6 +250,7 @@ export function MapOverlay({
     } finally {
       setIsSearching(false);
     }
+  };
 
   const handleResultSelect = (result: SearchResult) => {
     recenterToResult(result);
