@@ -270,7 +270,6 @@ export function MapOverlay({
     } finally {
       setIsSearching(false);
     }
-  };
 
   const handleResultSelect = (result: SearchResult) => {
     recenterToResult(result);
