@@ -213,9 +213,6 @@ export function MapOverlay({
     }
   };
 
-  const handleResultSelect = (result: SearchResult) => {
-    const map = mapRef.current;
-    if (!map) return;
 
     const lat = Number(result.lat);
     const lon = Number(result.lon);
@@ -247,9 +244,6 @@ export function MapOverlay({
       .addTo(map);
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
 
     setIsSearching(true);
     setError(null);
