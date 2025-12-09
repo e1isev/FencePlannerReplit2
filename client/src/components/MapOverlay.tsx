@@ -182,10 +182,38 @@ export function MapOverlay({
     map.setBearing(0);
   }, [onPanOffsetChange, onPanReferenceReset]);
 
-  const recenterToResult = (
-    result: SearchResult,
-    options: { preserveResults?: boolean } = {}
-  ) => {
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setIsSearching(true);
+    setError(null);
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`
+      );
+
+      if (!res.ok) {
+        throw new Error("Search failed. Please try again.");
+      }
+
+      const data = (await res.json()) as SearchResult[];
+      setResults(data);
+
+      if (data.length > 0) {
+        handleResultSelect(data[0]);
+      } else {
+        setError("No matching locations found. Try a more specific address.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to search right now.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleResultSelect = (result: SearchResult) => {
     const map = mapRef.current;
     if (!map) return;
 
