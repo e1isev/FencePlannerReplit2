@@ -139,6 +139,7 @@ export function MapOverlay({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !panByDelta) return;
+    if (isRecenteringRef.current) return;
 
     map.panBy([panByDelta.x, panByDelta.y], { animate: false });
   }, [panByDelta]);
