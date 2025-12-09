@@ -679,11 +679,19 @@ export function CanvasStage() {
 
       <div className="absolute top-2 right-2 z-30">
         <div className="text-xs bg-white/80 backdrop-blur rounded-md shadow px-3 py-2">
-          <span>Scale: {FIXED_SCALE_METERS_PER_PIXEL.toFixed(3)} m/px</span>
-          {calibrationFactor !== 1 && (
-            <span className="ml-1 text-[0.7rem] text-emerald-700">
-              (calibrated)
-            </span>
+          {mmPerPixel ? (
+            <>
+              <span>
+                Scale: {(mmPerPixel / 1000).toFixed(3)} m/px
+              </span>
+              {calibrationFactor !== 1 && (
+                <span className="ml-1 text-[0.7rem] text-emerald-700">
+                  (calibrated)
+                </span>
+              )}
+            </>
+          ) : (
+            <span>Scale: —</span>
           )}
         </div>
       </div>
