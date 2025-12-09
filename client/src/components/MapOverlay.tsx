@@ -278,15 +278,17 @@ export function MapOverlay({
   };
 
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none">
+    <div className="absolute inset-0">
+      {/* Map tiles, visible but non interactive */}
       <div
         ref={mapContainerRef}
         className={cn(
-          "absolute inset-0 transition-opacity pointer-events-none opacity-90"
+          "absolute inset-0 transition-opacity opacity-90 pointer-events-none"
         )}
       />
 
-      <div className="absolute top-4 left-4 z-20 max-w-md space-y-3 pointer-events-auto">
+      {/* Search and controls, on top and clickable */}
+      <div className="absolute top-4 left-4 max-w-md space-y-3 z-30 pointer-events-auto">
         <Card className="p-3 shadow-lg">
           <div className="flex items-center justify-between gap-3 mb-2">
             <div className="space-y-1">
