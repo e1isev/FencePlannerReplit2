@@ -508,8 +508,7 @@ export function CanvasStage() {
     setEditValue("");
   };
 
-  const gridColor =
-    mapMode === "satellite" ? "rgba(71, 85, 105, 0.35)" : "rgba(226, 232, 240, 0.55)";
+  const gridColor = mapMode === "satellite" ? "#475569" : "#e2e8f0";
 
   const gridStyle = {
     backgroundImage:
