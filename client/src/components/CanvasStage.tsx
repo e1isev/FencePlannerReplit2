@@ -6,12 +6,12 @@ import { findSnapPoint } from "@/geometry/snapping";
 import { DEFAULT_SNAP_TOLERANCE, SNAP_RADIUS_MM } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
-import MapOverlay, { DEFAULT_CENTER } from "./MapOverlay";
+import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const GRID_SIZE = 25;
+const GRID_SIZE = 15;
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
@@ -40,6 +40,7 @@ export function CanvasStage() {
   const [scale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
+  const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
   const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -119,6 +120,10 @@ export function CanvasStage() {
     },
     [mmPerPixel, setMmPerPixel]
   );
+
+  const handleMapModeChange = useCallback((mode: MapStyleMode) => {
+    setMapMode(mode);
+  }, []);
 
   const handleMapPanOffsetChange = useCallback((offset: { x: number; y: number }) => {
     setMapPanOffset(offset);
@@ -503,9 +508,12 @@ export function CanvasStage() {
     setEditValue("");
   };
 
+  const gridColor =
+    mapMode === "satellite" ? "rgba(71, 85, 105, 0.35)" : "rgba(226, 232, 240, 0.55)";
+
   const gridStyle = {
     backgroundImage:
-      "linear-gradient(to right, #e2e8f0 1px, transparent 1px), linear-gradient(to bottom, #e2e8f0 1px, transparent 1px)",
+      `linear-gradient(to right, ${gridColor} 1px, transparent 1px), linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
     backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
   } as const;
 
@@ -516,6 +524,7 @@ export function CanvasStage() {
         onScaleChange={handleScaleChange}
         onPanOffsetChange={handleMapPanOffsetChange}
         onPanReferenceReset={handlePanReferenceReset}
+        onMapModeChange={handleMapModeChange}
         mapZoom={mapZoom}
         panByDelta={panByDelta}
       />
