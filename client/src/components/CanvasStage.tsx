@@ -11,7 +11,7 @@ import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const GRID_SIZE = 25;
+const GRID_SIZE = 15;
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
