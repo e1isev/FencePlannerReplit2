@@ -190,6 +190,81 @@ export function MapOverlay({
     map.setBearing(0);
   }, [onPanOffsetChange, onPanReferenceReset]);
 
+  const recenterToResult = (result: SearchResult) => {
+    const map = mapRef.current;
+    if (!map) {
+      console.warn("[MapOverlay] recenterToResult: mapRef is null");
+      return;
+    }
+
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    const targetCenter = new maplibregl.LngLat(lon, lat);
+    const currentCenter = map.getCenter();
+    const targetZoom = 18;
+
+    // Update search input and clear search results
+    setQuery(result.display_name);
+    setResults([]);
+
+    // Tell the canvas this is the new map reference center
+    onPanReferenceReset?.();
+    initialCenterRef.current = targetCenter;
+    onPanOffsetChange?.({ x: 0, y: 0 });
+
+    if (markerRef.current) {
+      markerRef.current.remove();
+    }
+
+    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
+      .setLngLat([lon, lat])
+      .addTo(map);
+
+    // If we are already effectively at this center/zoom, don't rely on moveend.
+    const closeEnough =
+      Math.abs(currentCenter.lat - targetCenter.lat) < 1e-6 &&
+      Math.abs(currentCenter.lng - targetCenter.lng) < 1e-6 &&
+      Math.abs(map.getZoom() - targetZoom) < 0.01;
+
+    if (closeEnough) {
+      // No visible animation needed, just ensure state is consistent
+      isRecenteringRef.current = false;
+      return;
+    }
+
+    // We are going to animate
+    isRecenteringRef.current = true;
+
+    // Cancel any previous animation so this one is not ignored
+    map.stop();
+
+    const handleMoveEnd = () => {
+      const settledCenter = map.getCenter();
+      initialCenterRef.current = settledCenter;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      isRecenteringRef.current = false;
+      map.off("moveend", handleMoveEnd);
+    };
+
+    map.on("moveend", handleMoveEnd);
+    map.flyTo({ center: targetCenter, zoom: targetZoom });
+
+    // Safety fallback: if moveend never fires, clear recentering after 1.5s
+    setTimeout(() => {
+      if (!isRecenteringRef.current) return;
+
+      console.warn(
+        "[MapOverlay] moveend did not fire, forcing recenter state reset"
+      );
+      isRecenteringRef.current = false;
+
+      const settledCenter = map.getCenter();
+      initialCenterRef.current = settledCenter;
+      onPanOffsetChange?.({ x: 0, y: 0 });
+      map.off("moveend", handleMoveEnd);
+    }, 1500);
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -213,8 +288,8 @@ export function MapOverlay({
       setResults(data);
 
       if (data.length > 0) {
-        // Auto recentre map on the first result
-        handleResultSelect(data[0]);
+        // Always recenter on the first result
+        recenterToResult(data[0]);
       } else {
         setError("No matching locations found. Try a more specific address.");
       }
@@ -229,47 +304,7 @@ export function MapOverlay({
   };
 
   const handleResultSelect = (result: SearchResult) => {
-    const map = mapRef.current;
-    if (!map) {
-      console.warn("[MapOverlay] handleResultSelect: mapRef is null");
-      return;
-    }
-
-    console.log("[MapOverlay] recentering to:", result);
-
-    const lat = Number(result.lat);
-    const lon = Number(result.lon);
-    const newCenter = new maplibregl.LngLat(lon, lat);
-
-    // Update the input and clear visible results
-    setQuery(result.display_name);
-    setResults([]);
-
-    // Reset pan reference so the fence canvas stays aligned with the map
-    onPanReferenceReset?.();
-    initialCenterRef.current = newCenter;
-    onPanOffsetChange?.({ x: 0, y: 0 });
-
-    isRecenteringRef.current = true;
-
-    const handleMoveEnd = () => {
-      const settledCenter = map.getCenter();
-      initialCenterRef.current = settledCenter;
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      isRecenteringRef.current = false;
-      map.off("moveend", handleMoveEnd);
-    };
-
-    map.on("moveend", handleMoveEnd);
-    map.flyTo({ center: [lon, lat], zoom: 18 });
-
-    if (markerRef.current) {
-      markerRef.current.remove();
-    }
-
-    markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
-      .setLngLat([lon, lat])
-      .addTo(map);
+    recenterToResult(result);
   };
 
   const handleZoomIn = () => {
