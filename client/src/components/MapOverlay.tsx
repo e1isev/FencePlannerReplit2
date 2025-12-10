@@ -18,13 +18,14 @@ export interface MapOverlayProps {
   onScaleChange?: (metersPerPixel: number, zoom?: number) => void;
   onPanOffsetChange?: (offset: { x: number; y: number }) => void;
   onPanReferenceReset?: () => void;
+  onMapModeChange?: (mode: MapStyleMode) => void;
   mapZoom: number;
   panByDelta?: { x: number; y: number } | null;
 }
 
 export const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
 
-type MapStyleMode = "street" | "satellite";
+export type MapStyleMode = "street" | "satellite";
 
 function buildMapStyle(mode: MapStyleMode): StyleSpecification {
   const isSatellite = mode === "satellite";
@@ -58,6 +59,7 @@ export function MapOverlay({
   onScaleChange,
   onPanOffsetChange,
   onPanReferenceReset,
+  onMapModeChange,
   mapZoom,
   panByDelta,
 }: MapOverlayProps) {
@@ -71,6 +73,10 @@ export function MapOverlay({
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const isRecenteringRef = useRef(false);
+
+  useEffect(() => {
+    onMapModeChange?.(mapMode);
+  }, [mapMode, onMapModeChange]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
