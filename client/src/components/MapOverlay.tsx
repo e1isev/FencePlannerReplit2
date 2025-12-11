@@ -23,7 +23,50 @@ export interface MapOverlayProps {
   panByDelta?: { x: number; y: number } | null;
 }
 
-export const DEFAULT_CENTER: [number, number] = [-79.3832, 43.6532];
+export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
+
+const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
+
+type StoredMapView = {
+  center: [number, number];
+  zoom: number;
+};
+
+function loadStoredView(): StoredMapView | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = localStorage.getItem(MAP_VIEW_STORAGE_KEY);
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as Partial<StoredMapView>;
+    if (
+      !parsed ||
+      !Array.isArray(parsed.center) ||
+      parsed.center.length !== 2 ||
+      typeof parsed.center[0] !== "number" ||
+      typeof parsed.center[1] !== "number" ||
+      typeof parsed.zoom !== "number"
+    ) {
+      return null;
+    }
+
+    return { center: parsed.center as [number, number], zoom: parsed.zoom };
+  } catch (error) {
+    console.warn("[MapOverlay] Failed to load stored map view", error);
+    return null;
+  }
+}
+
+function persistView(view: StoredMapView) {
+  if (typeof window === "undefined") return;
+
+  try {
+    localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify(view));
+  } catch (error) {
+    console.warn("[MapOverlay] Failed to persist map view", error);
+  }
+}
 
 export type MapStyleMode = "street" | "satellite";
 
@@ -81,11 +124,15 @@ export function MapOverlay({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
+    const storedView = loadStoredView();
+    const initialCenter = storedView?.center ?? DEFAULT_CENTER;
+    const initialZoom = storedView?.zoom ?? mapZoom;
+
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: buildMapStyle(mapMode),
-      center: DEFAULT_CENTER,
-      zoom: mapZoom,
+      center: initialCenter,
+      zoom: initialZoom,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -115,6 +162,8 @@ export function MapOverlay({
       onZoomChange?.(zoom);
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
       onScaleChange?.(metersPerPixel, zoom);
+
+      persistView({ center: [center.lng, center.lat], zoom });
 
       if (isRecenteringRef.current && initialCenterRef.current) {
         return;
