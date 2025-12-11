@@ -1,7 +1,6 @@
 import { FenceStyleId, PanelSegment, Post, Gate } from "@/types/models";
 import pricingData from "@/data/samplePricing.json";
-
-const END_POST_EXTRA_MM = 63.5;
+import { countBoardsPurchased } from "@/geometry/panels";
 
 export function getPricing(styleId: FenceStyleId) {
   return pricingData.styles.find((s) => s.id === styleId)!;
@@ -36,11 +35,8 @@ export function calculateCosts(
   const pricing = getPricing(styleId);
 
   const toCurrency = (value: number) => Math.round(value * 100) / 100;
-  
-  const numPanels = panels.filter((p) => {
-    if (p.uses_leftover_id) return false;
-    return true;
-  }).length;
+
+  const numPanels = countBoardsPurchased(panels);
   
   const endPosts = posts.filter((p) => p.category === "end").length;
   const cornerPosts = posts.filter((p) => p.category === "corner").length;
@@ -58,7 +54,7 @@ export function calculateCosts(
   const totalFenceLength = lines.reduce(
     (sum, line) => sum + line.length_mm,
     0
-  ) + endPosts * END_POST_EXTRA_MM;
+  );
   
   const panelCost = toCurrency(numPanels * pricing.panel_unit_price);
   const endPostCost = toCurrency(endPosts * pricing.post_unit_price);

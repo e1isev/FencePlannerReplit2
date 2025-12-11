@@ -492,7 +492,7 @@ const warning = validateSlidingReturn(gate, line, lines);
           }
         });
         
-        const posts = generatePosts(lines, gates, panelPositionsMap, get().mmPerPixel);
+        const posts = generatePosts(lines, gates, panelPositionsMap);
         
         const tJunctions = posts.filter((post) => {
           const connectingLines = lines.filter(

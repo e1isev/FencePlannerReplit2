@@ -139,8 +139,12 @@ const leftover = findLeftoverForCut(remainder, existingLeftovers);
       }
     }
   }
-  
+
   return { segments, panelPositions, newLeftovers, warnings };
+}
+
+export function countBoardsPurchased(segments: PanelSegment[]): number {
+  return segments.filter((seg) => !seg.uses_leftover_id).length;
 }
 
 function findLeftoverForCut(
