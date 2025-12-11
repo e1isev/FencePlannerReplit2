@@ -284,7 +284,7 @@ export function CanvasStage() {
     if (isPanning && lastPanPos) {
       const deltaX = pointer.x - lastPanPos.x;
       const deltaY = pointer.y - lastPanPos.y;
-      setPanByDelta({ x: deltaX, y: deltaY });
+      setPanByDelta({ x: -deltaX, y: -deltaY });
       setLastPanPos({ x: pointer.x, y: pointer.y });
       return;
     }
@@ -421,7 +421,7 @@ export function CanvasStage() {
       } else {
         const deltaX = pointer.x - lastTouchCenter.x;
         const deltaY = pointer.y - lastTouchCenter.y;
-        setPanByDelta({ x: deltaX, y: deltaY });
+        setPanByDelta({ x: -deltaX, y: -deltaY });
       }
 
       setLastTouchDistance(distance);
