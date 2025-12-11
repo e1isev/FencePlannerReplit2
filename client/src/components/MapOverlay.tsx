@@ -72,7 +72,7 @@ export function MapOverlay({
   const [error, setError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
-  const isRecenteringRef = useRef(false);
+  const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
 
   useEffect(() => {
     onMapModeChange?.(mapMode);
@@ -116,12 +116,7 @@ export function MapOverlay({
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
       onScaleChange?.(metersPerPixel, zoom);
 
-      if (isRecenteringRef.current && initialCenterRef.current) {
-        return;
-      }
-
       if (!initialCenterRef.current) {
-        if (isRecenteringRef.current) return;
         initialCenterRef.current = center;
       }
 
@@ -147,7 +142,6 @@ export function MapOverlay({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !panByDelta) return;
-    if (isRecenteringRef.current) return;
 
     map.panBy([panByDelta.x, panByDelta.y], { animate: false });
   }, [panByDelta]);
@@ -200,7 +194,6 @@ export function MapOverlay({
     const lat = Number(result.lat);
     const lon = Number(result.lon);
     const targetCenter = new maplibregl.LngLat(lon, lat);
-    const currentCenter = map.getCenter();
     const targetZoom = 18;
 
     // Update search input and clear search results
@@ -220,49 +213,38 @@ export function MapOverlay({
       .setLngLat([lon, lat])
       .addTo(map);
 
-    // If we are already effectively at this center/zoom, don't rely on moveend.
+    const currentCenter = map.getCenter();
     const closeEnough =
-      Math.abs(currentCenter.lat - targetCenter.lat) < 1e-6 &&
-      Math.abs(currentCenter.lng - targetCenter.lng) < 1e-6 &&
-      Math.abs(map.getZoom() - targetZoom) < 0.01;
+      Math.abs(currentCenter.lat - targetCenter.lat) < 1e-8 &&
+      Math.abs(currentCenter.lng - targetCenter.lng) < 1e-8 &&
+      Math.abs(map.getZoom() - targetZoom) < 0.001;
 
     if (closeEnough) {
-      // No visible animation needed, just ensure state is consistent
-      isRecenteringRef.current = false;
+      initialCenterRef.current = targetCenter;
+      onPanReferenceReset?.();
+      onPanOffsetChange?.({ x: 0, y: 0 });
       return;
     }
 
-    // We are going to animate
-    isRecenteringRef.current = true;
-
     // Cancel any previous animation so this one is not ignored
     map.stop();
+    if (moveEndHandlerRef.current) {
+      map.off("moveend", moveEndHandlerRef.current);
+      moveEndHandlerRef.current = null;
+    }
 
     const handleMoveEnd = () => {
       const settledCenter = map.getCenter();
       initialCenterRef.current = settledCenter;
+      onPanReferenceReset?.();
       onPanOffsetChange?.({ x: 0, y: 0 });
-      isRecenteringRef.current = false;
       map.off("moveend", handleMoveEnd);
+      moveEndHandlerRef.current = null;
     };
 
+    moveEndHandlerRef.current = handleMoveEnd;
     map.on("moveend", handleMoveEnd);
     map.flyTo({ center: targetCenter, zoom: targetZoom });
-
-    // Safety fallback: if moveend never fires, clear recentering after 1.5s
-    setTimeout(() => {
-      if (!isRecenteringRef.current) return;
-
-      console.warn(
-        "[MapOverlay] moveend did not fire, forcing recenter state reset"
-      );
-      isRecenteringRef.current = false;
-
-      const settledCenter = map.getCenter();
-      initialCenterRef.current = settledCenter;
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      map.off("moveend", handleMoveEnd);
-    }, 1500);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
