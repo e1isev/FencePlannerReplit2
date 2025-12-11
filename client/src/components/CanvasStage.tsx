@@ -83,13 +83,13 @@ export function CanvasStage() {
     y: dimensions.height / 2 - mapPanOffset.y,
   };
 
-  const stageScale = combinedScale;
-  const safeStageScale = Number.isFinite(stageScale) && stageScale > 0 ? stageScale : 1;
+  const stageScale =
+    Number.isFinite(combinedScale) && combinedScale > 0 ? combinedScale : 1;
 
   const cameraState: CameraState = {
-    scale: safeStageScale,
-    offsetX: -stagePosition.x / safeStageScale,
-    offsetY: -stagePosition.y / safeStageScale,
+    scale: stageScale,
+    offsetX: -stagePosition.x / stageScale,
+    offsetY: -stagePosition.y / stageScale,
   };
 
   const handleZoomChange = useCallback((zoom: number) => {
@@ -234,22 +234,26 @@ export function CanvasStage() {
 
   const handleMouseDown = (e: any) => {
     const stage = e.target.getStage();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
+    if (!stage) return;
 
-    // Konva's pointer position already accounts for stage transforms (scale/position),
-    // so we can treat it as world coordinates directly.
-    const worldPointer = pointer;
+    const container = stage.container();
+    const rect = container.getBoundingClientRect();
+    const { clientX, clientY, button } = e.evt;
 
-    if (e.evt.button === 2) {
+    const pointerScreen = {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+
+    if (button === 2) {
       setIsPanning(true);
-      setLastPanPos({ x: worldPointer.x, y: worldPointer.y });
+      setLastPanPos(pointerScreen);
       return;
     }
 
-    if (e.target !== e.target.getStage()) return;
+    if (e.target !== stage) return;
 
-    const point = worldPointer;
+    const point = screenToWorld(pointerScreen, cameraState);
 
     if (isCalibrating) {
       registerCalibrationPoint(point);
@@ -283,22 +287,28 @@ export function CanvasStage() {
 
   const handleMouseMove = (e: any) => {
     const stage = e.target.getStage();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
+    if (!stage) return;
 
-    const worldPointer = pointer;
+    const container = stage.container();
+    const rect = container.getBoundingClientRect();
+    const { clientX, clientY } = e.evt;
+
+    const pointerScreen = {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
 
     if (isPanning && lastPanPos) {
-      const deltaX = worldPointer.x - lastPanPos.x;
-      const deltaY = worldPointer.y - lastPanPos.y;
+      const deltaX = pointerScreen.x - lastPanPos.x;
+      const deltaY = pointerScreen.y - lastPanPos.y;
       setPanByDelta({ x: -deltaX, y: -deltaY });
-      setLastPanPos({ x: worldPointer.x, y: worldPointer.y });
+      setLastPanPos(pointerScreen);
       return;
     }
 
     if (!isDrawing || !startPoint) return;
 
-    const point = worldPointer;
+    const point = screenToWorld(pointerScreen, cameraState);
 
     const allPoints = [
       ...lines.flatMap((l) => [l.a, l.b]),
@@ -316,10 +326,18 @@ export function CanvasStage() {
       setPanByDelta(null);
       return;
     }
-    
-    if (isDrawing && startPoint && currentPoint) {
+
+    if (!isDrawing || !startPoint || !currentPoint) {
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+      return;
+    }
+
+    if (startPoint.x !== currentPoint.x || startPoint.y !== currentPoint.y) {
       addLine(startPoint, currentPoint);
     }
+
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
@@ -362,8 +380,8 @@ export function CanvasStage() {
       const stage = e.target.getStage();
       const rect = stage.container().getBoundingClientRect();
       const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-      
-      if (e.target !== e.target.getStage()) return;
+
+      if (e.target !== stage) return;
 
       const point = screenToWorld(pointer, cameraState);
 
@@ -460,7 +478,12 @@ export function CanvasStage() {
     const touches = e.evt.touches;
     
     if (touches.length === 0) {
-      if (isDrawing && startPoint && currentPoint) {
+      if (
+        isDrawing &&
+        startPoint &&
+        currentPoint &&
+        (startPoint.x !== currentPoint.x || startPoint.y !== currentPoint.y)
+      ) {
         addLine(startPoint, currentPoint);
       }
       setLastTouchDistance(null);
@@ -517,11 +540,47 @@ export function CanvasStage() {
 
   const gridColor = mapMode === "satellite" ? "#475569" : "#e2e8f0";
 
-  const gridStyle = {
-    backgroundImage:
-      `linear-gradient(to right, ${gridColor} 0.5px, transparent 0.5px), linear-gradient(to bottom, ${gridColor} 0.5px, transparent 0.5px)`,
-    backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-  } as const;
+  const topLeft = screenToWorld({ x: 0, y: 0 }, cameraState);
+  const bottomRight = screenToWorld(
+    { x: dimensions.width, y: dimensions.height },
+    cameraState
+  );
+
+  const minX = Math.min(topLeft.x, bottomRight.x);
+  const maxX = Math.max(topLeft.x, bottomRight.x);
+  const minY = Math.min(topLeft.y, bottomRight.y);
+  const maxY = Math.max(topLeft.y, bottomRight.y);
+
+  const startX = Math.floor(minX / GRID_SIZE) * GRID_SIZE;
+  const endX = Math.ceil(maxX / GRID_SIZE) * GRID_SIZE;
+  const startY = Math.floor(minY / GRID_SIZE) * GRID_SIZE;
+  const endY = Math.ceil(maxY / GRID_SIZE) * GRID_SIZE;
+
+  const gridLines: JSX.Element[] = [];
+
+  for (let x = startX; x <= endX; x += GRID_SIZE) {
+    gridLines.push(
+      <Line
+        key={`gx-${x}`}
+        points={[x, startY, x, endY]}
+        stroke={gridColor}
+        strokeWidth={1 / stageScale}
+        listening={false}
+      />
+    );
+  }
+
+  for (let y = startY; y <= endY; y += GRID_SIZE) {
+    gridLines.push(
+      <Line
+        key={`gy-${y}`}
+        points={[startX, y, endX, y]}
+        stroke={gridColor}
+        strokeWidth={1 / stageScale}
+        listening={false}
+      />
+    );
+  }
 
   return (
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
@@ -536,14 +595,12 @@ export function CanvasStage() {
       />
 
       <div className="absolute inset-0 z-10">
-        <div className="absolute inset-0 pointer-events-none" style={gridStyle} />
-
         <Stage
           className="absolute inset-0"
           width={dimensions.width}
           height={dimensions.height}
-          scaleX={safeStageScale}
-          scaleY={safeStageScale}
+          scaleX={stageScale}
+          scaleY={stageScale}
           x={stagePosition.x}
           y={stagePosition.y}
           onWheel={handleWheel}
@@ -556,6 +613,7 @@ export function CanvasStage() {
           onContextMenu={(e) => e.evt.preventDefault()}
           data-testid="canvas-stage"
         >
+          <Layer listening={false}>{gridLines}</Layer>
           <Layer>
             {lines.map((line) => {
               const isGate = !!line.gateId;
@@ -574,19 +632,19 @@ export function CanvasStage() {
                   <Line
                     points={[line.a.x, line.a.y, line.b.x, line.b.y]}
                     stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
-                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / safeStageScale}
+                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / stageScale}
                     opacity={isGate ? 0.8 : 1}
                     onClick={(e) => handleLineClick(line.id, e)}
                     listening={!isGate}
                   />
 
                   <Text
-                    x={(line.a.x + line.b.x) / 2 - 30 / safeStageScale}
-                    y={(line.a.y + line.b.y) / 2 - 15 / safeStageScale}
+                    x={(line.a.x + line.b.x) / 2 - 30 / stageScale}
+                    y={(line.a.y + line.b.y) / 2 - 15 / stageScale}
                     text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                    fontSize={12 / safeStageScale}
+                    fontSize={12 / stageScale}
                     fill={isGate ? "#f59e0b" : "#1e293b"}
-                    padding={4 / safeStageScale}
+                    padding={4 / stageScale}
                     onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
                     listening={!isGate}
                   />
@@ -598,8 +656,8 @@ export function CanvasStage() {
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke="#94a3b8"
-                strokeWidth={3 / safeStageScale}
-                dash={[5 / safeStageScale, 5 / safeStageScale]}
+                strokeWidth={3 / stageScale}
+                dash={[5 / stageScale, 5 / stageScale]}
               />
             )}
 
@@ -614,10 +672,10 @@ export function CanvasStage() {
                   key={post.id}
                   x={post.pos.x}
                   y={post.pos.y}
-                  radius={6 / safeStageScale}
+                  radius={6 / stageScale}
                   fill={colors[post.category]}
                   stroke={colors[post.category]}
-                  strokeWidth={2 / safeStageScale}
+                  strokeWidth={2 / stageScale}
                 />
               );
             })}
@@ -639,8 +697,8 @@ export function CanvasStage() {
                     width={rect.width}
                     height={rect.height}
                     stroke="#ef4444"
-                    strokeWidth={2 / safeStageScale}
-                    dash={[8 / safeStageScale, 4 / safeStageScale]}
+                    strokeWidth={2 / stageScale}
+                    dash={[8 / stageScale, 4 / stageScale]}
                     fill="rgba(239, 68, 68, 0.1)"
                   />
                 );

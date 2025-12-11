@@ -243,14 +243,8 @@ export function MapOverlay({
     const targetCenter = new maplibregl.LngLat(lon, lat);
     const targetZoom = 18;
 
-    // Update search input and clear search results
     setQuery(result.display_name);
     setResults([]);
-
-    // Tell the canvas this is the new map reference center
-    onPanReferenceReset?.();
-    initialCenterRef.current = targetCenter;
-    onPanOffsetChange?.({ x: 0, y: 0 });
 
     if (markerRef.current) {
       markerRef.current.remove();
@@ -260,20 +254,6 @@ export function MapOverlay({
       .setLngLat([lon, lat])
       .addTo(map);
 
-    const currentCenter = map.getCenter();
-    const closeEnough =
-      Math.abs(currentCenter.lat - targetCenter.lat) < 1e-8 &&
-      Math.abs(currentCenter.lng - targetCenter.lng) < 1e-8 &&
-      Math.abs(map.getZoom() - targetZoom) < 0.001;
-
-    if (closeEnough) {
-      initialCenterRef.current = targetCenter;
-      onPanReferenceReset?.();
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      return;
-    }
-
-    // Cancel any previous animation so this one is not ignored
     map.stop();
     if (moveEndHandlerRef.current) {
       map.off("moveend", moveEndHandlerRef.current);
@@ -291,7 +271,11 @@ export function MapOverlay({
 
     moveEndHandlerRef.current = handleMoveEnd;
     map.on("moveend", handleMoveEnd);
-    map.flyTo({ center: targetCenter, zoom: targetZoom });
+
+    map.flyTo({
+      center: targetCenter,
+      zoom: targetZoom,
+    });
   };
 
   const handleSearch = async (e: React.FormEvent) => {
