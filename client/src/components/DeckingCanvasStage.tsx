@@ -190,7 +190,7 @@ export function DeckingCanvasStage() {
         key={`grid-v-${x}`}
         points={[x, worldMinY, x, worldMaxY]}
         stroke="#e0e0e0"
-        strokeWidth={1 / scale}
+        strokeWidth={0.5 / scale}
         listening={false}
       />
     );
@@ -203,7 +203,7 @@ export function DeckingCanvasStage() {
         key={`grid-h-${y}`}
         points={[worldMinX, y, worldMaxX, y]}
         stroke="#e0e0e0"
-        strokeWidth={1 / scale}
+        strokeWidth={0.5 / scale}
         listening={false}
       />
     );
