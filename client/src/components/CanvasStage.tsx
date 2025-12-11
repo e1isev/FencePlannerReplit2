@@ -519,7 +519,7 @@ export function CanvasStage() {
 
   const gridStyle = {
     backgroundImage:
-      `linear-gradient(to right, ${gridColor} 1px, transparent 1px), linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
+      `linear-gradient(to right, ${gridColor} 0.5px, transparent 0.5px), linear-gradient(to bottom, ${gridColor} 0.5px, transparent 0.5px)`,
     backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
   } as const;
 
