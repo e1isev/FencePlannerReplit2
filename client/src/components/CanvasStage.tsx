@@ -84,11 +84,12 @@ export function CanvasStage() {
   };
 
   const stageScale = combinedScale;
+  const safeStageScale = Number.isFinite(stageScale) && stageScale > 0 ? stageScale : 1;
 
   const cameraState: CameraState = {
-    scale: stageScale,
-    offsetX: -stagePosition.x / stageScale,
-    offsetY: -stagePosition.y / stageScale,
+    scale: safeStageScale,
+    offsetX: -stagePosition.x / safeStageScale,
+    offsetY: -stagePosition.y / safeStageScale,
   };
 
   const handleZoomChange = useCallback((zoom: number) => {
@@ -535,8 +536,8 @@ export function CanvasStage() {
           className="absolute inset-0"
           width={dimensions.width}
           height={dimensions.height}
-          scaleX={stageScale}
-          scaleY={stageScale}
+          scaleX={safeStageScale}
+          scaleY={safeStageScale}
           x={stagePosition.x}
           y={stagePosition.y}
           onWheel={handleWheel}
@@ -567,19 +568,19 @@ export function CanvasStage() {
                   <Line
                     points={[line.a.x, line.a.y, line.b.x, line.b.y]}
                     stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
-                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / stageScale}
+                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / safeStageScale}
                     opacity={isGate ? 0.8 : 1}
                     onClick={(e) => handleLineClick(line.id, e)}
                     listening={!isGate}
                   />
 
                   <Text
-                    x={(line.a.x + line.b.x) / 2 - 30 / stageScale}
-                    y={(line.a.y + line.b.y) / 2 - 15 / stageScale}
+                    x={(line.a.x + line.b.x) / 2 - 30 / safeStageScale}
+                    y={(line.a.y + line.b.y) / 2 - 15 / safeStageScale}
                     text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                    fontSize={12 / stageScale}
+                    fontSize={12 / safeStageScale}
                     fill={isGate ? "#f59e0b" : "#1e293b"}
-                    padding={4 / stageScale}
+                    padding={4 / safeStageScale}
                     onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
                     listening={!isGate}
                   />
@@ -591,8 +592,8 @@ export function CanvasStage() {
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke="#94a3b8"
-                strokeWidth={3 / stageScale}
-                dash={[5 / stageScale, 5 / stageScale]}
+                strokeWidth={3 / safeStageScale}
+                dash={[5 / safeStageScale, 5 / safeStageScale]}
               />
             )}
 
@@ -607,10 +608,10 @@ export function CanvasStage() {
                   key={post.id}
                   x={post.pos.x}
                   y={post.pos.y}
-                  radius={6 / stageScale}
+                  radius={6 / safeStageScale}
                   fill={colors[post.category]}
                   stroke={colors[post.category]}
-                  strokeWidth={2 / stageScale}
+                  strokeWidth={2 / safeStageScale}
                 />
               );
             })}
@@ -632,8 +633,8 @@ export function CanvasStage() {
                     width={rect.width}
                     height={rect.height}
                     stroke="#ef4444"
-                    strokeWidth={2 / stageScale}
-                    dash={[8 / stageScale, 4 / stageScale]}
+                    strokeWidth={2 / safeStageScale}
+                    dash={[8 / safeStageScale, 4 / safeStageScale]}
                     fill="rgba(239, 68, 68, 0.1)"
                   />
                 );
