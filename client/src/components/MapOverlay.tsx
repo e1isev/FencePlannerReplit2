@@ -25,6 +25,9 @@ export interface MapOverlayProps {
 
 export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
 
+const MAX_DEFAULT_ZOOM = 22;
+const MAX_SATELLITE_ZOOM = 19;
+
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
 type StoredMapView = {
@@ -133,6 +136,7 @@ export function MapOverlay({
       style: buildMapStyle(mapMode),
       center: initialCenter,
       zoom: initialZoom,
+      maxZoom: MAX_DEFAULT_ZOOM,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -207,6 +211,20 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
+    const applyZoomLimits = () => {
+      if (mapMode === "satellite") {
+        map.setMaxZoom(MAX_SATELLITE_ZOOM);
+        const currentZoom = map.getZoom();
+        if (currentZoom > MAX_SATELLITE_ZOOM) {
+          map.setZoom(MAX_SATELLITE_ZOOM);
+        }
+      } else {
+        map.setMaxZoom(MAX_DEFAULT_ZOOM);
+      }
+    };
+
+    map.once("styledata", applyZoomLimits);
+    applyZoomLimits();
     map.setStyle(buildMapStyle(mapMode));
   }, [mapMode]);
 
