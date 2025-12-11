@@ -11,7 +11,6 @@ import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const GRID_SIZE = 15;
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
@@ -538,49 +537,7 @@ export function CanvasStage() {
     setEditValue("");
   };
 
-  const gridColor = mapMode === "satellite" ? "#475569" : "#e2e8f0";
-
-  const topLeft = screenToWorld({ x: 0, y: 0 }, cameraState);
-  const bottomRight = screenToWorld(
-    { x: dimensions.width, y: dimensions.height },
-    cameraState
-  );
-
-  const minX = Math.min(topLeft.x, bottomRight.x);
-  const maxX = Math.max(topLeft.x, bottomRight.x);
-  const minY = Math.min(topLeft.y, bottomRight.y);
-  const maxY = Math.max(topLeft.y, bottomRight.y);
-
-  const startX = Math.floor(minX / GRID_SIZE) * GRID_SIZE;
-  const endX = Math.ceil(maxX / GRID_SIZE) * GRID_SIZE;
-  const startY = Math.floor(minY / GRID_SIZE) * GRID_SIZE;
-  const endY = Math.ceil(maxY / GRID_SIZE) * GRID_SIZE;
-
   const gridLines: JSX.Element[] = [];
-
-  for (let x = startX; x <= endX; x += GRID_SIZE) {
-    gridLines.push(
-      <Line
-        key={`gx-${x}`}
-        points={[x, startY, x, endY]}
-        stroke={gridColor}
-        strokeWidth={1 / stageScale}
-        listening={false}
-      />
-    );
-  }
-
-  for (let y = startY; y <= endY; y += GRID_SIZE) {
-    gridLines.push(
-      <Line
-        key={`gy-${y}`}
-        points={[startX, y, endX, y]}
-        stroke={gridColor}
-        strokeWidth={1 / stageScale}
-        listening={false}
-      />
-    );
-  }
 
   return (
     <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">

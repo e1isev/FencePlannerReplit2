@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Konva from "konva";
 import { Stage, Layer, Text, Line } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
-import { GRID_SIZE_MM, mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
+import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
 import { findSnapPoint, getDistance } from "@/geometry/snapping";
 
 const CLOSE_TOLERANCE_MM = 150;
@@ -174,40 +174,7 @@ export function DeckingCanvasStage() {
   const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
 
-  const gridSpacingPx = mmToPx(GRID_SIZE_MM);
-
-  const worldMinX = (0 - stagePos.x) / scale;
-  const worldMaxX = (stageSize.width - stagePos.x) / scale;
-  const worldMinY = (0 - stagePos.y) / scale;
-  const worldMaxY = (stageSize.height - stagePos.y) / scale;
-
   const gridLines: JSX.Element[] = [];
-
-  const startX = Math.floor(worldMinX / gridSpacingPx) * gridSpacingPx;
-  for (let x = startX; x <= worldMaxX; x += gridSpacingPx) {
-    gridLines.push(
-      <Line
-        key={`grid-v-${x}`}
-        points={[x, worldMinY, x, worldMaxY]}
-        stroke="#e0e0e0"
-        strokeWidth={0.5 / scale}
-        listening={false}
-      />
-    );
-  }
-
-  const startY = Math.floor(worldMinY / gridSpacingPx) * gridSpacingPx;
-  for (let y = startY; y <= worldMaxY; y += gridSpacingPx) {
-    gridLines.push(
-      <Line
-        key={`grid-h-${y}`}
-        points={[worldMinX, y, worldMaxX, y]}
-        stroke="#e0e0e0"
-        strokeWidth={0.5 / scale}
-        listening={false}
-      />
-    );
-  }
 
   const handleLabelClick = (edgeIndex: number, lengthMm: number, e: any) => {
     e.cancelBubble = true;
