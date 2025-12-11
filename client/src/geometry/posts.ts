@@ -1,10 +1,12 @@
 import { FenceLine, Point, Post, PostCategory, Gate } from "@/types/models";
 import { generateId } from "@/lib/ids";
 
-const TOLERANCE = 1;
+function makePointKey(p: Point, decimals = 2): string {
+  return `${p.x.toFixed(decimals)},${p.y.toFixed(decimals)}`;
+}
 
 function pointsEqual(a: Point, b: Point): boolean {
-  return Math.abs(a.x - b.x) < TOLERANCE && Math.abs(a.y - b.y) < TOLERANCE;
+  return makePointKey(a) === makePointKey(b);
 }
 
 export function categorizePost(
@@ -50,14 +52,13 @@ export function categorizePost(
 export function generatePosts(
   lines: FenceLine[],
   gates: Gate[],
-  panelPositionsMap: Map<string, number[]> = new Map(),
-  mmPerPixel: number
+  panelPositionsMap: Map<string, number[]> = new Map()
 ): Post[] {
   const postMap = new Map<string, Post>();
-  
+
   lines.forEach((line) => {
     [line.a, line.b].forEach((point) => {
-      const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+      const key = makePointKey(point);
       if (!postMap.has(key)) {
         const category = categorizePost(point, lines, gates);
         postMap.set(key, {
@@ -70,11 +71,11 @@ export function generatePosts(
         existing.category = categorizePost(point, lines, gates);
       }
     });
-    
+
     const panelPositions = panelPositionsMap.get(line.id) || [];
-    const linePosts = getLinePosts(line, panelPositions, mmPerPixel);
+    const linePosts = getLinePosts(line, panelPositions);
     linePosts.forEach((point) => {
-      const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+      const key = makePointKey(point);
       if (!postMap.has(key)) {
         postMap.set(key, {
           id: generateId("post"),
@@ -90,17 +91,17 @@ export function generatePosts(
 
 export function getLinePosts(
   line: FenceLine,
-  panelPositions: number[],
-  mmPerPixel: number
+  panelPositions: number[]
 ): Point[] {
   const posts: Point[] = [];
   const dx = line.b.x - line.a.x;
   const dy = line.b.y - line.a.y;
-  const length_px = Math.sqrt(dx * dx + dy * dy);
+  const totalLength_mm = line.length_mm;
+
+  if (!totalLength_mm || totalLength_mm <= 0) return posts;
 
   panelPositions.forEach((pos_mm) => {
-    const pos_px = pos_mm / mmPerPixel;
-    const t = pos_px / length_px;
+    const t = pos_mm / totalLength_mm;
     if (t > 0 && t < 1) {
       posts.push({
         x: line.a.x + dx * t,
