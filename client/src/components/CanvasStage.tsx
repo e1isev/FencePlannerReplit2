@@ -237,15 +237,19 @@ export function CanvasStage() {
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
+    // Konva's pointer position already accounts for stage transforms (scale/position),
+    // so we can treat it as world coordinates directly.
+    const worldPointer = pointer;
+
     if (e.evt.button === 2) {
       setIsPanning(true);
-      setLastPanPos({ x: pointer.x, y: pointer.y });
+      setLastPanPos({ x: worldPointer.x, y: worldPointer.y });
       return;
     }
 
     if (e.target !== e.target.getStage()) return;
 
-    const point = screenToWorld(pointer, cameraState);
+    const point = worldPointer;
 
     if (isCalibrating) {
       registerCalibrationPoint(point);
@@ -282,17 +286,19 @@ export function CanvasStage() {
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
+    const worldPointer = pointer;
+
     if (isPanning && lastPanPos) {
-      const deltaX = pointer.x - lastPanPos.x;
-      const deltaY = pointer.y - lastPanPos.y;
+      const deltaX = worldPointer.x - lastPanPos.x;
+      const deltaY = worldPointer.y - lastPanPos.y;
       setPanByDelta({ x: -deltaX, y: -deltaY });
-      setLastPanPos({ x: pointer.x, y: pointer.y });
+      setLastPanPos({ x: worldPointer.x, y: worldPointer.y });
       return;
     }
 
     if (!isDrawing || !startPoint) return;
 
-    const point = screenToWorld(pointer, cameraState);
+    const point = worldPointer;
 
     const allPoints = [
       ...lines.flatMap((l) => [l.a, l.b]),
