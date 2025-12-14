@@ -26,7 +26,7 @@ export interface MapOverlayProps {
 export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
 
 const MAX_DEFAULT_ZOOM = 22;
-const MAX_SATELLITE_ZOOM = 19;
+const MAX_SATELLITE_NATIVE_ZOOM = 19;
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
@@ -82,9 +82,10 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
       [isSatellite ? "satellite" : "osm"]: {
         type: "raster" as const,
         tiles: isSatellite
-          ? [ "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" ]
-          : [ "https://tile.openstreetmap.org/{z}/{x}/{y}.png" ],
+          ? ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+          : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
         tileSize: 256,
+        ...(isSatellite ? { maxzoom: MAX_SATELLITE_NATIVE_ZOOM } : {}),
         attribution: isSatellite
           ? "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
           : "© OpenStreetMap contributors",
@@ -211,20 +212,7 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
-    const applyZoomLimits = () => {
-      if (mapMode === "satellite") {
-        map.setMaxZoom(MAX_SATELLITE_ZOOM);
-        const currentZoom = map.getZoom();
-        if (currentZoom > MAX_SATELLITE_ZOOM) {
-          map.setZoom(MAX_SATELLITE_ZOOM);
-        }
-      } else {
-        map.setMaxZoom(MAX_DEFAULT_ZOOM);
-      }
-    };
-
-    map.once("styledata", applyZoomLimits);
-    applyZoomLimits();
+    map.setMaxZoom(MAX_DEFAULT_ZOOM);
     map.setStyle(buildMapStyle(mapMode));
   }, [mapMode]);
 
