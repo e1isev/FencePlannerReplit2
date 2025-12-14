@@ -250,9 +250,14 @@ export function CanvasStage() {
       return;
     }
 
-    if (e.target !== stage) return;
+    const isStageBackground = e.target === stage;
+    const isPostShape = e.target.hasName && e.target.hasName("post");
 
-    const point = screenToWorld(pointerScreen, cameraState);
+    if (!isStageBackground && !isPostShape) return;
+
+    const point = isPostShape
+      ? { x: e.target.x(), y: e.target.y() }
+      : screenToWorld(pointerScreen, cameraState);
 
     if (isCalibrating) {
       registerCalibrationPoint(point);
@@ -380,9 +385,14 @@ export function CanvasStage() {
       const rect = stage.container().getBoundingClientRect();
       const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
 
-      if (e.target !== stage) return;
+      const isStageBackground = e.target === stage;
+      const isPostShape = e.target.hasName && e.target.hasName("post");
 
-      const point = screenToWorld(pointer, cameraState);
+      if (!isStageBackground && !isPostShape) return;
+
+      const point = isPostShape
+        ? { x: e.target.x(), y: e.target.y() }
+        : screenToWorld(pointer, cameraState);
 
       if (isCalibrating) {
         registerCalibrationPoint(point);
@@ -633,6 +643,7 @@ export function CanvasStage() {
                   fill={colors[post.category]}
                   stroke={colors[post.category]}
                   strokeWidth={2 / stageScale}
+                  name="post"
                 />
               );
             })}
