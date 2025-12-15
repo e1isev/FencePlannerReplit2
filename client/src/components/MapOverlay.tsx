@@ -28,7 +28,8 @@ export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
 
 const MAPTILER_API_KEY =
   import.meta.env.VITE_MAPTILER_API_KEY ||
-  (process.env.MAPTILER_API_KEY as string | undefined);
+  (process.env.MAPTILER_API_KEY as string | undefined) ||
+  "ZDlkZTEyMmQtNWNiZi00ZGM3LWIzMDAtODFjNGYxOGZhNTYx";
 
 if (!MAPTILER_API_KEY) {
   console.warn(
