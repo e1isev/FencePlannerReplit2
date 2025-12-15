@@ -26,9 +26,27 @@ export interface MapOverlayProps {
 
 export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
 
+const MAPTILER_API_KEY =
+  import.meta.env.VITE_MAPTILER_API_KEY ||
+  (process.env.MAPTILER_API_KEY as string | undefined) ||
+  "ZDlkZTEyMmQtNWNiZi00ZGM3LWIzMDAtODFjNGYxOGZhNTYx";
+
+if (!MAPTILER_API_KEY) {
+  console.warn(
+    "[MapOverlay] MAPTILER_API_KEY is not set. Falling back to the existing satellite tiles."
+  );
+}
+
+const MAPTILER_SATELLITE_TILES = MAPTILER_API_KEY
+  ? `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}@2x.jpg?key=${MAPTILER_API_KEY}`
+  : null;
+
+const FALLBACK_SATELLITE_TILES =
+  "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+
 // Highest zoom at which satellite tiles are expected to exist globally.
 // This should match the raster source "maxzoom" you use for satellite imagery.
-const SATELLITE_NATIVE_MAX_ZOOM = 19;
+const SATELLITE_NATIVE_MAX_ZOOM = 20;
 
 // How many levels of over-zoom we normally allow on top of the native max.
 const GLOBAL_OVERZOOM = 2;
@@ -109,6 +127,11 @@ export type MapStyleMode = "street" | "satellite";
 
 function buildMapStyle(mode: MapStyleMode): StyleSpecification {
   const isSatellite = mode === "satellite";
+  const satelliteTileTemplate = MAPTILER_SATELLITE_TILES ?? FALLBACK_SATELLITE_TILES;
+  const satelliteTileSize = MAPTILER_SATELLITE_TILES ? 512 : 256;
+  const satelliteAttribution = MAPTILER_SATELLITE_TILES
+    ? "© MapTiler © OpenStreetMap contributors"
+    : "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics";
 
   return {
     version: 8,
@@ -116,13 +139,11 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
       [isSatellite ? "satellite" : "osm"]: {
         type: "raster" as const,
         tiles: isSatellite
-          ? ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+          ? [satelliteTileTemplate]
           : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
+        tileSize: isSatellite ? satelliteTileSize : 256,
         ...(isSatellite ? { maxzoom: SATELLITE_NATIVE_MAX_ZOOM } : {}),
-        attribution: isSatellite
-          ? "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
-          : "© OpenStreetMap contributors",
+        attribution: isSatellite ? satelliteAttribution : "© OpenStreetMap contributors",
       },
     },
     layers: [
