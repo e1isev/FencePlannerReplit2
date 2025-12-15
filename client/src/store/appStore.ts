@@ -91,7 +91,13 @@ export const useAppStore = create<AppState>()(
         get().recalculate();
       },
       
-      setSelectedGateType: (type) => set({ selectedGateType: type }),
+      setSelectedGateType: (type) =>
+        set((state) => {
+          // Keep the current gate selection when the same gate button is clicked again
+          if (type !== null && state.selectedGateType === type) return state;
+
+          return { selectedGateType: type };
+        }),
       
       setDrawingMode: (mode) => set({ drawingMode: mode }),
 
