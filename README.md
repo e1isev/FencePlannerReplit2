@@ -42,6 +42,14 @@ npm start
 
 Copy `.env.example` to `.env` and fill in the values you need. Never commit real keys.
 
+### Nearmap API key setup
+Set `NEARMAP_API_KEY` in the server environment—**do not prefix it with `VITE_`** or the key will be bundled into the client build.
+
+- **Local development (.env):** add `NEARMAP_API_KEY=your_real_key_here` to the backend environment file that the server loads (typically the project root `.env` used by `npm run dev`).
+- **Hosted deployments:** add `NEARMAP_API_KEY` in your hosting provider's environment variable settings for the backend service (e.g., Render, Railway, Replit deployment). Make sure it is attached to the server process, not just the frontend build.
+- After setting the variable, restart the backend so the process picks it up.
+- Verify by reloading `/api/nearmap/health`. A configured server responds with `200 OK`; an unconfigured server returns `NEARMAP_API_KEY not configured`.
+
 ## Notes
 - All client files live under `client/` with `src/main.tsx` as the entry point.
 - API routes are registered in `server/routes/` via `server/index.ts`.
