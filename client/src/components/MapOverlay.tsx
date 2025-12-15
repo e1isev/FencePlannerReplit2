@@ -26,11 +26,43 @@ export interface MapOverlayProps {
 
 export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
 
-const MAX_DEFAULT_ZOOM = 22;
-const MAX_SATELLITE_NATIVE_ZOOM = 19;
+// Highest zoom at which satellite tiles are expected to exist globally.
+// This should match the raster source "maxzoom" you use for satellite imagery.
+const SATELLITE_NATIVE_MAX_ZOOM = 19;
+
+// How many levels of over-zoom we normally allow on top of the native max.
+const GLOBAL_OVERZOOM = 2;
+
+// Hard ceiling on the map zoom in any area.
+const GLOBAL_HARD_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM + GLOBAL_OVERZOOM;
+
+// Zoom level for our "area buckets" – coarse tiling to group nearby positions.
+const AREA_BUCKET_ZOOM = 10;
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 const MIN_QUERY_LENGTH = 3;
+
+type TileCoord = { x: number; y: number; z: number };
+
+function lngLatToTile(lng: number, lat: number, zoom: number): TileCoord {
+  const z = zoom;
+  const scale = Math.pow(2, z);
+
+  const x = Math.floor(((lng + 180) / 360) * scale);
+
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
+      scale
+  );
+
+  return { x, y, z };
+}
+
+function areaKeyForCenter(lng: number, lat: number): string {
+  const tile = lngLatToTile(lng, lat, AREA_BUCKET_ZOOM);
+  return `${tile.z}/${tile.x}/${tile.y}`;
+}
 
 type StoredMapView = {
   center: [number, number];
@@ -87,7 +119,7 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
           ? ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
           : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
         tileSize: 256,
-        ...(isSatellite ? { maxzoom: MAX_SATELLITE_NATIVE_ZOOM } : {}),
+        ...(isSatellite ? { maxzoom: SATELLITE_NATIVE_MAX_ZOOM } : {}),
         attribution: isSatellite
           ? "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
           : "© OpenStreetMap contributors",
@@ -122,6 +154,13 @@ export function MapOverlay({
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
+  // Cache of per-area safe max zooms.
+  // Key: `${z}/${x}/${y}` at AREA_BUCKET_ZOOM.
+  // Value: safe max zoom level for that area.
+  const areaZoomLimitsRef = useRef<Record<string, number>>({});
+
+  // Global fallback if no entry exists for the current area.
+  const defaultSafeMaxZoomRef = useRef<number>(GLOBAL_HARD_MAX_ZOOM);
 
   useEffect(() => {
     onMapModeChange?.(mapMode);
@@ -139,7 +178,7 @@ export function MapOverlay({
       style: buildMapStyle(mapMode),
       center: initialCenter,
       zoom: initialZoom,
-      maxZoom: MAX_DEFAULT_ZOOM,
+      maxZoom: GLOBAL_HARD_MAX_ZOOM,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -157,6 +196,75 @@ export function MapOverlay({
     };
     // Don't include mapMode, so only freshly creates on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleError = (e: any) => {
+      const sourceId = e?.sourceId || e?.error?.sourceId;
+      if (sourceId !== "satellite") {
+        return;
+      }
+
+      const zoom = map.getZoom();
+      const center = map.getCenter();
+      const key = areaKeyForCenter(center.lng, center.lat);
+
+      if (zoom <= SATELLITE_NATIVE_MAX_ZOOM) {
+        return;
+      }
+
+      const currentLimits = areaZoomLimitsRef.current;
+      const existingLimit =
+        currentLimits[key] ?? defaultSafeMaxZoomRef.current ?? GLOBAL_HARD_MAX_ZOOM;
+
+      const newLimit = Math.max(SATELLITE_NATIVE_MAX_ZOOM, Math.floor(zoom) - 1);
+
+      if (newLimit < existingLimit) {
+        currentLimits[key] = newLimit;
+        areaZoomLimitsRef.current = { ...currentLimits };
+
+        if (map.getZoom() > newLimit) {
+          map.easeTo({ zoom: newLimit });
+        }
+      }
+    };
+
+    map.on("error", handleError);
+
+    return () => {
+      map.off("error", handleError);
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleZoomEnd = () => {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+
+      const key = areaKeyForCenter(center.lng, center.lat);
+      const areaLimits = areaZoomLimitsRef.current;
+
+      const areaSafeMax =
+        areaLimits[key] ?? defaultSafeMaxZoomRef.current ?? GLOBAL_HARD_MAX_ZOOM;
+
+      const effectiveSafeMax = Math.min(areaSafeMax, GLOBAL_HARD_MAX_ZOOM);
+
+      if (zoom > effectiveSafeMax) {
+        map.easeTo({ zoom: effectiveSafeMax });
+      }
+    };
+
+    map.on("zoomend", handleZoomEnd);
+
+    return () => {
+      map.off("zoomend", handleZoomEnd);
+    };
   }, []);
 
   useEffect(() => {
@@ -214,7 +322,7 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
-    map.setMaxZoom(MAX_DEFAULT_ZOOM);
+    map.setMaxZoom(GLOBAL_HARD_MAX_ZOOM);
     map.setStyle(buildMapStyle(mapMode));
   }, [mapMode]);
 
