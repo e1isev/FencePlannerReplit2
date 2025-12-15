@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { Map, Marker, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Button } from "@/components/ui/button";
@@ -26,16 +26,23 @@ export interface MapOverlayProps {
 
 export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
 
+type SatelliteProvider = "nearmap" | "maptiler" | "esri";
+
 const MAPTILER_API_KEY =
   import.meta.env.VITE_MAPTILER_API_KEY ??
   (typeof process !== "undefined"
-    ? ((process.env.MAPTILER_API_KEY as string | undefined) ?? undefined)
-    : undefined) ??
-  "ZDlkZTEyMmQtNWNiZi00ZGM3LWIzMDAtODFjNGYxOGZhNTYx";
+    ? ((process.env.VITE_MAPTILER_API_KEY as string | undefined) ?? undefined)
+    : undefined);
+
+const SATELLITE_PROVIDER_ENV =
+  (import.meta.env.VITE_SATELLITE_PROVIDER as SatelliteProvider | undefined) ??
+  (typeof process !== "undefined"
+    ? (process.env.VITE_SATELLITE_PROVIDER as SatelliteProvider | undefined)
+    : undefined);
 
 if (!MAPTILER_API_KEY) {
   console.warn(
-    "[MapOverlay] MAPTILER_API_KEY is not set. Falling back to the existing satellite tiles."
+    "[MapOverlay] MAPTILER_API_KEY is not set. Falling back to Esri imagery when MapTiler is unavailable."
   );
 }
 
@@ -62,7 +69,79 @@ const AREA_BUCKET_ZOOM = 10;
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 const MIN_QUERY_LENGTH = 3;
 
+const PROVIDER_LABELS: Record<SatelliteProvider, string> = {
+  nearmap: "Nearmap",
+  maptiler: "MapTiler",
+  esri: "Esri",
+};
+
+const PROVIDER_ORDER: SatelliteProvider[] = (() => {
+  const base: SatelliteProvider[] = ["nearmap", "maptiler", "esri"];
+  if (SATELLITE_PROVIDER_ENV && base.includes(SATELLITE_PROVIDER_ENV)) {
+    return [
+      SATELLITE_PROVIDER_ENV,
+      ...base.filter((provider) => provider !== SATELLITE_PROVIDER_ENV),
+    ];
+  }
+  return base;
+})();
+
+type SatelliteSourceConfig = {
+  tiles: string[];
+  tileSize: number;
+  attribution: string;
+};
+
 type TileCoord = { x: number; y: number; z: number };
+
+function providerLabel(provider: SatelliteProvider) {
+  return PROVIDER_LABELS[provider];
+}
+
+function tileTemplateForProvider(provider: SatelliteProvider): string | null {
+  switch (provider) {
+    case "nearmap":
+      return "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
+    case "maptiler":
+      return MAPTILER_SATELLITE_TILES;
+    case "esri":
+    default:
+      return FALLBACK_SATELLITE_TILES;
+  }
+}
+
+function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourceConfig {
+  const template = tileTemplateForProvider(provider);
+
+  if (provider === "maptiler" && template) {
+    return {
+      tiles: [template],
+      tileSize: 512,
+      attribution: "© MapTiler © OpenStreetMap contributors",
+    };
+  }
+
+  if (provider === "nearmap" && template) {
+    return {
+      tiles: [template],
+      tileSize: 256,
+      attribution: "Tiles © Nearmap",
+    };
+  }
+
+  return {
+    tiles: [FALLBACK_SATELLITE_TILES],
+    tileSize: 256,
+    attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics",
+  };
+}
+
+function applyTileTemplate(template: string, coords: TileCoord): string {
+  return template
+    .replace(/{z}/g, String(coords.z))
+    .replace(/{x}/g, String(coords.x))
+    .replace(/{y}/g, String(coords.y));
+}
 
 function lngLatToTile(lng: number, lat: number, zoom: number): TileCoord {
   const z = zoom;
@@ -127,13 +206,12 @@ function persistView(view: StoredMapView) {
 
 export type MapStyleMode = "street" | "satellite";
 
-function buildMapStyle(mode: MapStyleMode): StyleSpecification {
+function buildMapStyle(
+  mode: MapStyleMode,
+  satelliteProvider: SatelliteProvider
+): StyleSpecification {
   const isSatellite = mode === "satellite";
-  const satelliteTileTemplate = MAPTILER_SATELLITE_TILES ?? FALLBACK_SATELLITE_TILES;
-  const satelliteTileSize = MAPTILER_SATELLITE_TILES ? 512 : 256;
-  const satelliteAttribution = MAPTILER_SATELLITE_TILES
-    ? "© MapTiler © OpenStreetMap contributors"
-    : "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics";
+  const satelliteSource = satelliteSourceForProvider(satelliteProvider);
 
   return {
     version: 8,
@@ -141,11 +219,13 @@ function buildMapStyle(mode: MapStyleMode): StyleSpecification {
       [isSatellite ? "satellite" : "osm"]: {
         type: "raster" as const,
         tiles: isSatellite
-          ? [satelliteTileTemplate]
+          ? satelliteSource.tiles
           : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: isSatellite ? satelliteTileSize : 256,
+        tileSize: isSatellite ? satelliteSource.tileSize : 256,
         ...(isSatellite ? { maxzoom: SATELLITE_NATIVE_MAX_ZOOM } : {}),
-        attribution: isSatellite ? satelliteAttribution : "© OpenStreetMap contributors",
+        attribution: isSatellite
+          ? satelliteSource.attribution
+          : "© OpenStreetMap contributors",
       },
     },
     layers: [
@@ -175,6 +255,8 @@ export function MapOverlay({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
+  const [satelliteProvider, setSatelliteProvider] = useState<SatelliteProvider>("esri");
+  const [satelliteWarning, setSatelliteWarning] = useState<string | null>(null);
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
   // Cache of per-area safe max zooms.
@@ -182,12 +264,116 @@ export function MapOverlay({
   // Value: safe max zoom level for that area.
   const areaZoomLimitsRef = useRef<Record<string, number>>({});
 
+  const providerOrderRef = useRef<SatelliteProvider[]>(PROVIDER_ORDER);
+  const mapModeRef = useRef<MapStyleMode>(mapMode);
+  const satelliteProviderRef = useRef<SatelliteProvider>(satelliteProvider);
+  const providerCheckIdRef = useRef(0);
+
   // Global fallback if no entry exists for the current area.
   const defaultSafeMaxZoomRef = useRef<number>(GLOBAL_HARD_MAX_ZOOM);
+
+  const getTileCoordForCurrentView = useCallback((): TileCoord => {
+    const map = mapRef.current;
+    const center = map?.getCenter() ?? new maplibregl.LngLat(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+    const zoom = map?.getZoom() ?? mapZoom;
+    const clampedZoom = Math.max(0, Math.min(Math.round(zoom), SATELLITE_NATIVE_MAX_ZOOM));
+
+    return lngLatToTile(center.lng, center.lat, clampedZoom);
+  }, [mapZoom]);
+
+  const isProviderUsable = useCallback(
+    async (provider: SatelliteProvider, coords: TileCoord) => {
+      const template = tileTemplateForProvider(provider);
+      if (!template) return false;
+
+      const tileUrl = applyTileTemplate(template, coords);
+
+      try {
+        const response = await fetch(tileUrl, { method: "GET", cache: "no-store" });
+        return response.ok && (response.headers.get("content-type")?.startsWith("image/") ?? true);
+      } catch (err) {
+        console.warn(`[MapOverlay] Failed to reach ${providerLabel(provider)} tiles`, err);
+        return false;
+      }
+    },
+    []
+  );
+
+  const ensureSatelliteProvider = useCallback(
+    async (startIndex = 0, failureReason?: string) => {
+      if (mapModeRef.current !== "satellite") return;
+
+      providerCheckIdRef.current += 1;
+      const checkId = providerCheckIdRef.current;
+
+      const coords = getTileCoordForCurrentView();
+      let warning = failureReason ?? null;
+
+      for (let i = startIndex; i < providerOrderRef.current.length; i++) {
+        const provider = providerOrderRef.current[i];
+
+        if (provider === "maptiler" && !MAPTILER_SATELLITE_TILES) {
+          warning = warning ?? "MapTiler API key not configured.";
+          continue;
+        }
+
+        const usable = await isProviderUsable(provider, coords);
+
+        if (providerCheckIdRef.current !== checkId) {
+          return;
+        }
+
+        if (usable) {
+          setSatelliteProvider(provider);
+          setSatelliteWarning(
+            warning && (i > startIndex || !!failureReason)
+              ? `${warning} Falling back to ${providerLabel(provider)} imagery.`
+              : warning
+          );
+          return;
+        }
+
+        warning = `Satellite provider ${providerLabel(provider)} is unavailable.`;
+      }
+
+      setSatelliteProvider("esri");
+      setSatelliteWarning(
+        warning
+          ? `${warning} Using Esri imagery as a fallback.`
+          : "Using Esri imagery as a fallback."
+      );
+    },
+    [getTileCoordForCurrentView, isProviderUsable]
+  );
+
+  const handleProviderFailure = useCallback(
+    (reason: string) => {
+      const currentIndex = providerOrderRef.current.indexOf(satelliteProviderRef.current);
+      const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 1;
+      ensureSatelliteProvider(nextIndex, reason);
+    },
+    [ensureSatelliteProvider]
+  );
+
+  useEffect(() => {
+    mapModeRef.current = mapMode;
+  }, [mapMode]);
+
+  useEffect(() => {
+    satelliteProviderRef.current = satelliteProvider;
+  }, [satelliteProvider]);
 
   useEffect(() => {
     onMapModeChange?.(mapMode);
   }, [mapMode, onMapModeChange]);
+
+  useEffect(() => {
+    if (mapMode === "satellite") {
+      ensureSatelliteProvider();
+    } else {
+      setSatelliteWarning(null);
+    }
+  }, [ensureSatelliteProvider, mapMode]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -198,7 +384,7 @@ export function MapOverlay({
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: buildMapStyle(mapMode),
+      style: buildMapStyle(mapMode, satelliteProviderRef.current),
       center: initialCenter,
       zoom: initialZoom,
       maxZoom: GLOBAL_HARD_MAX_ZOOM,
@@ -231,6 +417,19 @@ export function MapOverlay({
         return;
       }
 
+      const status = e?.error?.status || e?.error?.statusCode;
+      if (
+        mapModeRef.current === "satellite" &&
+        typeof status === "number" &&
+        status >= 400
+      ) {
+        handleProviderFailure(
+          `Satellite provider ${providerLabel(
+            satelliteProviderRef.current
+          )} returned status ${status}.`
+        );
+      }
+
       const zoom = map.getZoom();
       const center = map.getCenter();
       const key = areaKeyForCenter(center.lng, center.lat);
@@ -260,7 +459,7 @@ export function MapOverlay({
     return () => {
       map.off("error", handleError);
     };
-  }, []);
+  }, [handleProviderFailure]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -346,8 +545,8 @@ export function MapOverlay({
     if (!map) return;
 
     map.setMaxZoom(GLOBAL_HARD_MAX_ZOOM);
-    map.setStyle(buildMapStyle(mapMode));
-  }, [mapMode]);
+    map.setStyle(buildMapStyle(mapMode, satelliteProvider));
+  }, [mapMode, satelliteProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -552,6 +751,12 @@ export function MapOverlay({
             place on the map.
           </p>
         </Card>
+
+        {mapMode === "satellite" && satelliteWarning && (
+          <div className="p-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md shadow-sm">
+            {satelliteWarning}
+          </div>
+        )}
       </div>
 
       <div className="absolute top-4 right-4 z-30 flex flex-col gap-2 pointer-events-auto">

@@ -35,6 +35,13 @@ npm run build
 npm start
 ```
 
+## Satellite imagery configuration
+- `VITE_SATELLITE_PROVIDER`: Optional. Set to `nearmap`, `maptiler`, or `esri` to force a provider. When unset, the app tries Nearmap first (if available), then MapTiler, then Esri.
+- `VITE_MAPTILER_API_KEY`: Optional. Client-side key for MapTiler satellite imagery.
+- `NEARMAP_API_KEY`: Server-side Nearmap Tile API key used by the `/api/nearmap/tiles/...` proxy. This value is only read on the server.
+
+Copy `.env.example` to `.env` and fill in the values you need. Never commit real keys.
+
 ## Notes
 - All client files live under `client/` with `src/main.tsx` as the entry point.
 - API routes are registered in `server/routes/` via `server/index.ts`.
