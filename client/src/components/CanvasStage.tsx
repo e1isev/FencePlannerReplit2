@@ -275,18 +275,19 @@ export function CanvasStage() {
 
     if (selectedGateType) {
       const clickedLine = lines.find((line) => {
-        const dist = pointToLineDistance(snapped, line.a, line.b);
+        const dist = pointToLineDistance(point, line.a, line.b);
         return dist < 10 / cameraState.scale;
       });
 
       if (clickedLine && !clickedLine.gateId) {
-        addGate(clickedLine.id);
+        addGate(clickedLine.id, point);
       }
-    } else {
-      setIsDrawing(true);
-      setStartPoint(snapped);
-      setCurrentPoint(snapped);
+      return;
     }
+
+    setIsDrawing(true);
+    setStartPoint(snapped);
+    setCurrentPoint(snapped);
   };
 
   const handleMouseMove = (e: any) => {
@@ -410,18 +411,19 @@ export function CanvasStage() {
 
       if (selectedGateType) {
         const clickedLine = lines.find((line) => {
-          const dist = pointToLineDistance(snapped, line.a, line.b);
+          const dist = pointToLineDistance(point, line.a, line.b);
           return dist < 20 / cameraState.scale;
         });
-        
+
         if (clickedLine && !clickedLine.gateId) {
-          addGate(clickedLine.id);
+          addGate(clickedLine.id, point);
         }
-      } else {
-        setIsDrawing(true);
-        setStartPoint(snapped);
-        setCurrentPoint(snapped);
+        return;
       }
+
+      setIsDrawing(true);
+      setStartPoint(snapped);
+      setCurrentPoint(snapped);
     }
   };
 
@@ -514,7 +516,14 @@ export function CanvasStage() {
     const line = lines.find((l) => l.id === lineId);
     if (line && !line.gateId) {
       if (selectedGateType) {
-        addGate(lineId);
+        const stage = e.target.getStage();
+        const rect = stage.container().getBoundingClientRect();
+        const pointerScreen = {
+          x: e.evt.clientX - rect.left,
+          y: e.evt.clientY - rect.top,
+        };
+
+        addGate(lineId, screenToWorld(pointerScreen, cameraState));
       } else if (e.evt.shiftKey) {
         setSelectedLineId(lineId);
       } else {
@@ -529,7 +538,13 @@ export function CanvasStage() {
     const line = lines.find((l) => l.id === lineId);
     if (line && !line.gateId) {
       if (selectedGateType) {
-        addGate(lineId);
+        const stage = e.target.getStage();
+        const rect = stage.container().getBoundingClientRect();
+        const pointerScreen = {
+          x: e.evt.clientX - rect.left,
+          y: e.evt.clientY - rect.top,
+        };
+        addGate(lineId, screenToWorld(pointerScreen, cameraState));
       } else {
         setSelectedLineId(lineId);
       }

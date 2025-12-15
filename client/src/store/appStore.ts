@@ -53,7 +53,7 @@ interface AppState {
   toggleEvenSpacing: (id: string) => void;
   deleteLine: (id: string) => void;
   
-  addGate: (runId: string) => void;
+  addGate: (runId: string, clickPoint?: Point) => void;
   updateGateReturnDirection: (gateId: string, direction: "left" | "right") => void;
   
   recalculate: () => void;
@@ -291,7 +291,7 @@ updateLine: (id, length_mm) => {
         get().recalculate();
       },
       
-addGate: (runId) => {
+      addGate: (runId, clickPoint) => {
         const gateType = get().selectedGateType;
         if (!gateType) return;
         
@@ -326,9 +326,10 @@ addGate: (runId) => {
         const dx = line.b.x - line.a.x;
         const dy = line.b.y - line.a.y;
         const totalLength_px = Math.sqrt(dx * dx + dy * dy);
-        const totalLength_mm = totalLength_px * get().mmPerPixel;
-        
-const remainingLength_mm = totalLength_mm - opening_mm;
+        const mmPerPixel = get().mmPerPixel;
+        const totalLength_mm = totalLength_px * mmPerPixel;
+
+        const remainingLength_mm = totalLength_mm - opening_mm;
         if (remainingLength_mm < 0) {
           const warning: WarningMsg = {
             id: generateId("warn"),
@@ -338,12 +339,12 @@ const remainingLength_mm = totalLength_mm - opening_mm;
           set({ warnings: [...get().warnings, warning] });
           return;
         }
-        
+
         const allLines = get().lines;
-        
-        const pointsEqual = (p1: Point, p2: Point) => 
+
+        const pointsEqual = (p1: Point, p2: Point) =>
           Math.abs(p1.x - p2.x) < 1 && Math.abs(p1.y - p2.y) < 1;
-        
+
         const isEndpoint = (point: Point) => {
           const connectedLines = allLines.filter(
             (l) =>
@@ -353,44 +354,59 @@ const remainingLength_mm = totalLength_mm - opening_mm;
           );
           return connectedLines.length === 0;
         };
-        
+
         const aIsEndpoint = isEndpoint(line.a);
         const bIsEndpoint = isEndpoint(line.b);
-        
-        let beforeLength_mm: number;
-        let afterLength_mm: number;
-        
-        if (aIsEndpoint && !bIsEndpoint) {
-          beforeLength_mm = 0;
-          afterLength_mm = remainingLength_mm;
-        } else if (bIsEndpoint && !aIsEndpoint) {
-          beforeLength_mm = remainingLength_mm;
-          afterLength_mm = 0;
-        } else {
-          if (remainingLength_mm < 600) {
-            const warning: WarningMsg = {
-              id: generateId("warn"),
-              text: `Insufficient space for mid-run gate. Need at least 0.3m clearance on each side (0.6m total).`,
-              timestamp: Date.now(),
-            };
-            set({ warnings: [...get().warnings, warning] });
-            return;
-          }
-          beforeLength_mm = Math.min(300, remainingLength_mm / 2);
-          afterLength_mm = remainingLength_mm - beforeLength_mm;
+
+        const END_CLEARANCE_MM = 300;
+        const requiresClearance = (aIsEndpoint && bIsEndpoint) || (!aIsEndpoint && !bIsEndpoint);
+        const minStart = requiresClearance ? END_CLEARANCE_MM : 0;
+        const maxStart = totalLength_mm - opening_mm - (requiresClearance ? END_CLEARANCE_MM : 0);
+
+        if (maxStart < minStart) {
+          const warning: WarningMsg = {
+            id: generateId("warn"),
+            text: `Insufficient space for gate with required clearance.`,
+            timestamp: Date.now(),
+          };
+          set({ warnings: [...get().warnings, warning] });
+          return;
         }
-        
+
+        let desiredStart_mm = (minStart + maxStart) / 2;
+
+        if (clickPoint) {
+          const abLenSq = dx * dx + dy * dy;
+          if (abLenSq > 0) {
+            const apX = clickPoint.x - line.a.x;
+            const apY = clickPoint.y - line.a.y;
+            let t = (apX * dx + apY * dy) / abLenSq;
+            t = Math.max(0, Math.min(1, t));
+
+            const clickDist_mm = Math.sqrt(abLenSq) * t * mmPerPixel;
+            const placementMode: "center" | "start" = "center";
+            desiredStart_mm =
+              placementMode === "center"
+                ? clickDist_mm - opening_mm / 2
+                : clickDist_mm;
+          }
+        }
+
+        const gateStart_mm = Math.max(minStart, Math.min(maxStart, desiredStart_mm));
+        const beforeLength_mm = Math.max(0, gateStart_mm);
+        const afterLength_mm = Math.max(0, totalLength_mm - gateStart_mm - opening_mm);
+
         const unitX = dx / totalLength_px;
         const unitY = dy / totalLength_px;
-        
-        const beforeEnd_px = beforeLength_mm / get().mmPerPixel;
-        const gateEnd_px = beforeEnd_px + opening_mm / get().mmPerPixel;
-        
+
+        const beforeEnd_px = beforeLength_mm / mmPerPixel;
+        const gateEnd_px = (beforeLength_mm + opening_mm) / mmPerPixel;
+
         const beforeEndPoint = {
           x: line.a.x + unitX * beforeEnd_px,
           y: line.a.y + unitY * beforeEnd_px,
         };
-        
+
         const gateEndPoint = {
           x: line.a.x + unitX * gateEnd_px,
           y: line.a.y + unitY * gateEnd_px,
