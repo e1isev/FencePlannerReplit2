@@ -11,6 +11,7 @@ interface SearchResult {
   display_name: string;
   lat: string;
   lon: string;
+  place_id?: number;
 }
 
 export interface MapOverlayProps {
@@ -29,6 +30,7 @@ const MAX_DEFAULT_ZOOM = 22;
 const MAX_SATELLITE_NATIVE_ZOOM = 19;
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
+const MIN_QUERY_LENGTH = 3;
 
 type StoredMapView = {
   center: [number, number];
@@ -114,7 +116,7 @@ export function MapOverlay({
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const [query, setQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
@@ -284,42 +286,61 @@ export function MapOverlay({
     });
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleSearchChange = async (value: string, reselectFirst = false) => {
+    setQuery(value);
 
-    setIsSearching(true);
+    const trimmed = value.trim();
+    if (trimmed.length < MIN_QUERY_LENGTH) {
+      setResults([]);
+      setError(null);
+      return;
+    }
+
+    setIsSearchLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query
-        )}&addressdetails=1&limit=5`
-      );
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(
+        trimmed
+      )}`;
+
+      const res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
 
       if (!res.ok) {
-        throw new Error("Search failed. Please try again.");
+        console.error("[MapOverlay] search request failed", res.status);
+        setResults([]);
+        return;
       }
 
       const data = (await res.json()) as SearchResult[];
-      console.log("[MapOverlay] search results:", data);
-      setResults(data);
 
-      if (data.length > 0) {
-        // Always recenter on the first result
+      setResults(Array.isArray(data) ? data : []);
+
+      if (reselectFirst && Array.isArray(data) && data.length > 0) {
         recenterToResult(data[0]);
-      } else {
+      } else if (Array.isArray(data) && data.length === 0) {
         setError("No matching locations found. Try a more specific address.");
       }
     } catch (err) {
       console.error("[MapOverlay] search error:", err);
+      setResults([]);
       setError(
         err instanceof Error ? err.message : "Unable to search right now."
       );
     } finally {
-      setIsSearching(false);
+      setIsSearchLoading(false);
     }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    await handleSearchChange(query, true);
   };
 
   const handleResultSelect = (result: SearchResult) => {
@@ -349,8 +370,8 @@ export function MapOverlay({
       />
 
       {/* Search and controls, on top and clickable */}
-      <div className="absolute top-4 left-4 max-w-md space-y-3 z-30 pointer-events-auto">
-        <Card className="p-3 shadow-lg">
+      <div className="absolute top-4 left-4 max-w-md space-y-3 z-50 pointer-events-auto">
+        <Card className="p-3 shadow-lg relative overflow-visible">
           <div className="flex items-center justify-between gap-3 mb-2">
             <div className="space-y-1">
               <p className="text-sm font-semibold">Map Overlay</p>
@@ -359,34 +380,41 @@ export function MapOverlay({
             <div className="flex items-center gap-2 text-xs text-slate-600">Map locked for drawing</div>
           </div>
 
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search address"
-              className="text-sm"
-            />
-            <Button type="submit" size="sm" disabled={isSearching}>
-              {isSearching ? "Searching" : "Search"}
-            </Button>
+          <form onSubmit={handleSearch} className="space-y-2 relative">
+            <div className="flex gap-2 relative z-10">
+              <Input
+                value={query}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search address"
+                className="text-sm"
+              />
+              <Button type="submit" size="sm" disabled={isSearchLoading}>
+                {isSearchLoading ? "Searching" : "Search"}
+              </Button>
+            </div>
+
+            {(isSearchLoading || results.length > 0) && (
+              <div className="absolute left-0 right-0 top-full mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg z-20">
+                {isSearchLoading && (
+                  <div className="px-3 py-2 text-sm text-slate-600">Searching…</div>
+                )}
+
+                {!isSearchLoading &&
+                  results.map((result, index) => (
+                    <button
+                      type="button"
+                      key={`${result.place_id ?? index}-${result.lat}-${result.lon}`}
+                      onClick={() => handleResultSelect(result)}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
+                    >
+                      {result.display_name}
+                    </button>
+                  ))}
+              </div>
+            )}
           </form>
 
           {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-
-          {results.length > 0 && (
-            <div className="mt-3 rounded-md border border-slate-200 max-h-56 overflow-auto bg-white shadow-sm">
-              {results.map((result) => (
-                <button
-                  type="button"
-                  key={`${result.lat}-${result.lon}-${result.display_name}`}
-                  onClick={() => handleResultSelect(result)}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
-                >
-                  {result.display_name}
-                </button>
-              ))}
-            </div>
-          )}
 
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
             Right click and drag on the canvas to pan. Use the mouse wheel to zoom while keeping your
