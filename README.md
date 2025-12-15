@@ -40,7 +40,21 @@ npm start
 - `VITE_MAPTILER_API_KEY`: Optional. Client-side key for MapTiler satellite imagery.
 - `NEARMAP_API_KEY`: Server-side Nearmap Tile API key used by the `/api/nearmap/tiles/...` proxy. This value is only read on the server.
 
-Copy `.env.example` to `.env` and fill in the values you need. Never commit real keys.
+Copy `.env.example` to `.env` in the **repository root** (the same folder as `package.json`) and fill in the values you need. Never commit real keys.
+
+### Nearmap API key setup
+Set `NEARMAP_API_KEY` in the server environment—**do not prefix it with `VITE_`** or the key will be bundled into the client build.
+
+- **Local development (.env):** add `NEARMAP_API_KEY=your_real_key_here` to the backend environment file that the server loads (typically the project root `.env` used by `npm run dev`).
+- **Hosted deployments:** add `NEARMAP_API_KEY` in your hosting provider's environment variable settings for the backend service (e.g., Render, Railway, Replit deployment). Make sure it is attached to the server process, not just the frontend build.
+- After setting the variable, restart the backend so the process picks it up.
+- Verify by reloading `/api/nearmap/health`. A configured server responds with `200 OK`; an unconfigured server returns `NEARMAP_API_KEY not configured`.
+
+By default the server loads environment variables from `.env` in the repo root via `dotenv/config`. If you keep your secrets in a different path or filename, set `DOTENV_CONFIG_PATH` before running the server, for example:
+
+```bash
+DOTENV_CONFIG_PATH=server/.env.local npm run dev
+```
 
 ### Nearmap API key setup
 Set `NEARMAP_API_KEY` in the server environment—**do not prefix it with `VITE_`** or the key will be bundled into the client build.
