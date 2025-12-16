@@ -19,7 +19,8 @@ import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 
 const SNAP_TOLERANCE_PX = 0.1;
-const ANGLE_TOLERANCE_DEG = 2;
+const MERGE_ANGLE_TOL_DEG = 8;
+const MERGE_MAX_OFFLINE_MM = 40;
 
 const pointsMatch = (p1: Point, p2: Point) => {
   return Math.abs(p1.x - p2.x) < SNAP_TOLERANCE_PX && Math.abs(p1.y - p2.y) < SNAP_TOLERANCE_PX;
@@ -32,6 +33,24 @@ const angleBetweenDeg = (ax: number, ay: number, bx: number, by: number) => {
   if (amag === 0 || bmag === 0) return 180;
   const cos = Math.min(1, Math.max(-1, adotb / (amag * bmag)));
   return (Math.acos(cos) * 180) / Math.PI;
+};
+
+const pointToLineDistance = (
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number
+) => {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const abLen = Math.hypot(abx, aby);
+  if (abLen === 0) return Infinity;
+  const cross = Math.abs(abx * apy - aby * apx);
+  return cross / abLen;
 };
 
 const farthestPair = (points: Point[]): [Point, Point] => {
@@ -86,7 +105,13 @@ const mergeCollinearLines = (
 
     for (const candidate of candidates) {
       const sharedPoint = findSharedPoint(primary, candidate);
-      if (!sharedPoint) continue;
+      if (!sharedPoint) {
+        console.debug("mergeCollinearLines blocked - no shared point", {
+          primaryId: primary.id,
+          candidateId: candidate.id,
+        });
+        continue;
+      }
 
       const primaryOther = pointsMatch(primary.a, sharedPoint) ? primary.b : primary.a;
       const candidateOther = pointsMatch(candidate.a, sharedPoint) ? candidate.b : candidate.a;
@@ -97,8 +122,45 @@ const mergeCollinearLines = (
       const by = candidateOther.y - sharedPoint.y;
 
       const angle = angleBetweenDeg(ax, ay, bx, by);
-      const isCollinear = angle < ANGLE_TOLERANCE_DEG || Math.abs(angle - 180) < ANGLE_TOLERANCE_DEG;
-      if (!isCollinear) continue;
+      const delta = Math.min(angle, Math.abs(180 - angle));
+      const isCollinear = delta <= MERGE_ANGLE_TOL_DEG;
+
+      const offlineDistPx1 = pointToLineDistance(
+        primaryOther.x,
+        primaryOther.y,
+        sharedPoint.x,
+        sharedPoint.y,
+        candidateOther.x,
+        candidateOther.y
+      );
+      const offlineDistPx2 = pointToLineDistance(
+        candidateOther.x,
+        candidateOther.y,
+        sharedPoint.x,
+        sharedPoint.y,
+        primaryOther.x,
+        primaryOther.y
+      );
+
+      const offlineDistMm1 = offlineDistPx1 * mmPerPixel;
+      const offlineDistMm2 = offlineDistPx2 * mmPerPixel;
+      const nearSameLine =
+        offlineDistMm1 <= MERGE_MAX_OFFLINE_MM && offlineDistMm2 <= MERGE_MAX_OFFLINE_MM;
+
+      if (!(isCollinear && nearSameLine)) {
+        console.debug("mergeCollinearLines blocked", {
+          primaryId: primary.id,
+          candidateId: candidate.id,
+          sharedPoint,
+          angle,
+          delta,
+          offlineDistMm1,
+          offlineDistMm2,
+          isCollinear,
+          nearSameLine,
+        });
+        continue;
+      }
 
       const [p1, p2] = farthestPair([primary.a, primary.b, candidate.a, candidate.b]);
       const length_px = Math.hypot(p2.x - p1.x, p2.y - p1.y);
