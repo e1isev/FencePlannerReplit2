@@ -53,3 +53,13 @@ export interface DeckingBoardPlan {
   areaMm2: number;
   areaM2: number;
 }
+
+export interface DeckingState {
+  polygon: Point[];
+  boards: Board[];
+  selectedColor: DeckColor;
+  boardDirection: BoardDirection;
+  boardPlan: DeckingBoardPlan | null;
+  cornerConstraints: Record<number, CornerConstraint>;
+  baselineEdgeIndex: number | null;
+}
