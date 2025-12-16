@@ -56,7 +56,7 @@ const FALLBACK_SATELLITE_TILES =
 // Highest zoom at which satellite tiles are expected to exist globally.
 // This should match the raster source "maxzoom" you use for satellite imagery.
 // Keep conservative to avoid 404 gaps from providers that top out around z20.
-const SATELLITE_NATIVE_MAX_ZOOM = 20;
+const SATELLITE_NATIVE_MAX_ZOOM = 19;
 
 // How many levels of over-zoom we normally allow on top of the native max.
 // Nearmap supports up to zoom 21, so do not over-zoom.
@@ -64,6 +64,9 @@ const GLOBAL_OVERZOOM = 0;
 
 // Hard ceiling on the map zoom in any area.
 const GLOBAL_HARD_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM + GLOBAL_OVERZOOM;
+
+const MAP_MIN_ZOOM = 0;
+const NEARMAP_TILE_URL_TEMPLATE = "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
 
 // Zoom level for our "area buckets" – coarse tiling to group nearby positions.
 const AREA_BUCKET_ZOOM = 10;
@@ -103,7 +106,7 @@ function providerLabel(provider: SatelliteProvider) {
 function tileTemplateForProvider(provider: SatelliteProvider): string | null {
   switch (provider) {
     case "nearmap":
-      return "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
+      return NEARMAP_TILE_URL_TEMPLATE;
     case "maptiler":
       return MAPTILER_SATELLITE_TILES;
     case "esri":
@@ -204,6 +207,33 @@ function persistView(view: StoredMapView) {
   } catch (error) {
     console.warn("[MapOverlay] Failed to persist map view", error);
   }
+}
+
+function moveMapInstant(
+  map: maplibregl.Map,
+  center: [number, number],
+  zoom?: number
+) {
+  const z =
+    zoom == null
+      ? map.getZoom()
+      : Math.max(MAP_MIN_ZOOM, Math.min(zoom, GLOBAL_HARD_MAX_ZOOM));
+
+  map.stop();
+  map.jumpTo({ center, zoom: z });
+}
+
+function moveWhenReady(
+  map: maplibregl.Map,
+  center: [number, number],
+  zoom?: number
+) {
+  if (map.loaded()) {
+    moveMapInstant(map, center, zoom);
+    return;
+  }
+
+  map.once("load", () => moveMapInstant(map, center, zoom));
 }
 
 export type MapStyleMode = "street" | "satellite";
@@ -332,7 +362,10 @@ export function MapOverlay({
     const map = mapRef.current;
     const center = map?.getCenter() ?? new maplibregl.LngLat(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
     const zoom = map?.getZoom() ?? mapZoom;
-    const clampedZoom = Math.max(0, Math.min(Math.round(zoom), SATELLITE_NATIVE_MAX_ZOOM));
+    const clampedZoom = Math.max(
+      MAP_MIN_ZOOM,
+      Math.min(Math.round(zoom), SATELLITE_NATIVE_MAX_ZOOM)
+    );
 
     return lngLatToTile(center.lng, center.lat, clampedZoom);
   }, [mapZoom]);
@@ -443,7 +476,7 @@ export function MapOverlay({
       style: buildMapStyle(mapMode, satelliteProviderRef.current),
       center: initialCenter,
       zoom: initialZoom,
-      minZoom: 0,
+      minZoom: MAP_MIN_ZOOM,
       maxZoom: GLOBAL_HARD_MAX_ZOOM,
       attributionControl: false,
       dragRotate: false,
@@ -463,6 +496,52 @@ export function MapOverlay({
     };
     // Don't include mapMode, so only freshly creates on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const ensureNearmapLayer = () => {
+      if (!map.isStyleLoaded()) return;
+
+      if (!map.getSource("nearmap")) {
+        map.addSource("nearmap", {
+          type: "raster",
+          tiles: [NEARMAP_TILE_URL_TEMPLATE],
+          tileSize: 256,
+          minzoom: MAP_MIN_ZOOM,
+          maxzoom: GLOBAL_HARD_MAX_ZOOM,
+          scheme: "xyz",
+        });
+      }
+
+      if (!map.getLayer("nearmap")) {
+        map.addLayer({
+          id: "nearmap",
+          type: "raster",
+          source: "nearmap",
+          paint: {
+            "raster-opacity": 1,
+            "raster-fade-duration": 0,
+          },
+        });
+      }
+
+      const shouldShow =
+        mapModeRef.current === "satellite" &&
+        satelliteProviderRef.current === "nearmap";
+
+      map.setLayoutProperty("nearmap", "visibility", shouldShow ? "visible" : "none");
+      map.moveLayer("nearmap");
+    };
+
+    map.on("load", ensureNearmapLayer);
+    ensureNearmapLayer();
+
+    return () => {
+      map.off("load", ensureNearmapLayer);
+    };
   }, []);
 
   useEffect(() => {
@@ -603,9 +682,13 @@ export function MapOverlay({
     if (!map) return;
 
     const currentZoom = map.getZoom();
-    if (Math.abs(currentZoom - mapZoom) < 0.001) return;
+    const clampedZoom = Math.max(
+      MAP_MIN_ZOOM,
+      Math.min(mapZoom, GLOBAL_HARD_MAX_ZOOM)
+    );
+    if (Math.abs(currentZoom - clampedZoom) < 0.001) return;
 
-    map.easeTo({ zoom: mapZoom, duration: 0 });
+    map.easeTo({ zoom: clampedZoom, duration: 0 });
   }, [mapZoom]);
 
   useEffect(() => {
@@ -613,7 +696,7 @@ export function MapOverlay({
     if (!map) return;
 
     map.setMaxZoom(GLOBAL_HARD_MAX_ZOOM);
-    map.setMinZoom(0);
+    map.setMinZoom(MAP_MIN_ZOOM);
     map.setStyle(buildMapStyle(mapMode, satelliteProvider));
   }, [mapMode, satelliteProvider]);
 
@@ -652,9 +735,7 @@ export function MapOverlay({
 
       flyLockRef.current = true;
 
-      const safeZoom = Math.min(desiredZoom ?? 18, 18);
-
-      map.stop();
+      const safeZoom = Math.min(desiredZoom ?? 18, GLOBAL_HARD_MAX_ZOOM);
 
       if (moveEndHandlerRef.current) {
         map.off("moveend", moveEndHandlerRef.current);
@@ -674,11 +755,7 @@ export function MapOverlay({
       moveEndHandlerRef.current = unlock;
       map.on("moveend", unlock);
 
-      map.flyTo({
-        center: [lon, lat],
-        zoom: safeZoom,
-        essential: true,
-      });
+      moveWhenReady(map, [lon, lat], safeZoom);
     },
     [onPanOffsetChange, onPanReferenceReset]
   );
