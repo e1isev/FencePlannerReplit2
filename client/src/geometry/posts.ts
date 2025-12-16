@@ -28,11 +28,47 @@ export function getPostNeighbours(
     .map((line) => (pointsEqual(line.a, pos) ? line.b : line.a));
 }
 
+function pointToSegmentDistanceSq(p: Point, a: Point, b: Point) {
+  const ab = { x: b.x - a.x, y: b.y - a.y };
+  const ap = { x: p.x - a.x, y: p.y - a.y };
+  const abLenSq = ab.x * ab.x + ab.y * ab.y;
+  if (abLenSq === 0) return ap.x * ap.x + ap.y * ap.y;
+
+  const t = Math.max(0, Math.min(1, (ap.x * ab.x + ap.y * ab.y) / abLenSq));
+  const proj = { x: a.x + ab.x * t, y: a.y + ab.y * t };
+  const dx = p.x - proj.x;
+  const dy = p.y - proj.y;
+
+  return dx * dx + dy * dy;
+}
+
 export function getPostAngleDeg(
   post: Point,
-  neighbours: Array<Point>
+  neighbours: Array<Point>,
+  lines: FenceLine[] = []
 ): number {
-  if (neighbours.length === 0) return 0;
+  if (neighbours.length === 0) {
+    if (lines.length === 0) {
+      return 0;
+    }
+
+    let closestLine = lines[0];
+    let minDistSq = pointToSegmentDistanceSq(post, closestLine.a, closestLine.b);
+
+    for (let i = 1; i < lines.length; i++) {
+      const candidate = lines[i];
+      const distSq = pointToSegmentDistanceSq(post, candidate.a, candidate.b);
+
+      if (distSq < minDistSq) {
+        minDistSq = distSq;
+        closestLine = candidate;
+      }
+    }
+
+    const dx = closestLine.b.x - closestLine.a.x;
+    const dy = closestLine.b.y - closestLine.a.y;
+    return radToDeg(Math.atan2(dy, dx));
+  }
 
   if (neighbours.length === 1) {
     const dx = neighbours[0].x - post.x;

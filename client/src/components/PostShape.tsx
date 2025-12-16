@@ -3,7 +3,7 @@ import { Rect } from "react-konva";
 
 import { POST_CORNER_RADIUS_MM, POST_SIZE_MM } from "@/constants/geometry";
 import { getPostAngleDeg } from "@/geometry/posts";
-import { Point, PostCategory } from "@/types/models";
+import { FenceLine, Point, PostCategory } from "@/types/models";
 
 type PostShapeProps = {
   x: number;
@@ -11,6 +11,7 @@ type PostShapeProps = {
   neighbours: Array<Point>;
   mmPerPixel: number;
   category: PostCategory;
+  lines: FenceLine[];
   isSatelliteMode?: boolean;
 };
 
@@ -20,6 +21,7 @@ export function PostShape({
   neighbours,
   mmPerPixel,
   category,
+  lines,
   isSatelliteMode,
 }: PostShapeProps) {
   const mmToPx = (mm: number) => (mmPerPixel > 0 ? mm / mmPerPixel : mm);
@@ -27,7 +29,7 @@ export function PostShape({
   const postSizePx = mmToPx(POST_SIZE_MM);
   const cornerRadiusPx = mmToPx(POST_CORNER_RADIUS_MM);
 
-  const angleDeg = getPostAngleDeg({ x, y }, neighbours);
+  const angleDeg = getPostAngleDeg({ x, y }, neighbours, lines);
 
   const getPostColors = (type: PostCategory) => {
     switch (type) {
