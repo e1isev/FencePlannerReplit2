@@ -1,9 +1,9 @@
 import { PanelSegment, Leftover } from "@/types/models";
 import { generateId } from "@/lib/ids";
 
-const PANEL_LENGTH_MM = 2390;
+export const PANEL_LENGTH_MM = 2390;
 const CUT_BUFFER_MM = 300;
-const MIN_LEFTOVER_MM = 300;
+export const MIN_LEFTOVER_MM = 300;
 
 export interface PanelFitResult {
   segments: PanelSegment[];
