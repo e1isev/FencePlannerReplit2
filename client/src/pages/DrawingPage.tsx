@@ -10,7 +10,7 @@ import { calculateCosts } from "@/lib/pricing";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
-  const { lines, posts, gates, warnings, panels, fenceStyleId } = useAppStore();
+  const { lines, posts, gates, warnings, panels, fenceStyleId, mmPerPixel } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
@@ -142,29 +142,27 @@ export default function DrawingPage() {
                   .filter((g) => g.type.startsWith("sliding"))
                   .map((gate) => {
                     const gateLine = lines.find((l) => l.gateId === gate.id);
-                    if (!gateLine) return null;
+                    if (!gateLine || !mmPerPixel) return null;
 
-                    const rect = getSlidingReturnRect(gate, gateLine, lines);
-                    if (!rect) return null;
+                    const geometry = getSlidingReturnRect(gate, gateLine, mmPerPixel);
+                    if (!geometry) return null;
 
-                    const tl = transform({ x: rect.x, y: rect.y });
-                    const br = transform({ x: rect.x + rect.width, y: rect.y + rect.height });
+                    const [x1, y1, x2, y2] = geometry.points;
+                    const start = transform({ x: x1, y: y1 });
+                    const end = transform({ x: x2, y: y2 });
+                    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
 
                     return (
                       <Group key={gate.id}>
-                        <Rect
-                          x={tl.x}
-                          y={tl.y}
-                          width={br.x - tl.x}
-                          height={br.y - tl.y}
+                        <Line
+                          points={[start.x, start.y, end.x, end.y]}
                           stroke="#ef4444"
-                          strokeWidth={1.5}
+                          strokeWidth={geometry.strokeWidth * drawingScale}
                           dash={[6, 3]}
-                          fill="rgba(239, 68, 68, 0.1)"
                         />
                         <Text
-                          x={tl.x + 10}
-                          y={tl.y + 10}
+                          x={mid.x + 6}
+                          y={mid.y - 6}
                           text="Return"
                           fontSize={8}
                           fill="#ef4444"

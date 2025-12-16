@@ -299,6 +299,8 @@ updateLine: (id, length_mm) => {
         if (!line) return;
         
         let opening_mm = 0;
+        const leafCount = gateType.startsWith("double") ? 2 : 1;
+        const returnLength_mm = gateType.startsWith("sliding") ? 4800 : undefined;
         if (gateType === "opening_custom") {
           const input = prompt("Enter gate opening in metres:");
           if (!input) return;
@@ -321,6 +323,10 @@ updateLine: (id, length_mm) => {
           opening_mm,
           runId,
           slidingReturnDirection: "left",
+          leaf_count: leafCount,
+          leaf_width_mm: opening_mm / leafCount,
+          panel_width_mm: opening_mm,
+          returnLength_mm,
         };
         
         const dx = line.b.x - line.a.x;

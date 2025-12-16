@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
+import { Stage, Layer, Line, Circle, Text, Group } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
@@ -669,20 +669,16 @@ export function CanvasStage() {
                 const gateLine = lines.find((l) => l.gateId === gate.id);
                 if (!gateLine) return null;
 
-                const rect = getSlidingReturnRect(gate, gateLine, lines);
-                if (!rect) return null;
+                const geometry = getSlidingReturnRect(gate, gateLine, mmPerPixel);
+                if (!geometry) return null;
 
                 return (
-                  <Rect
+                  <Line
                     key={gate.id}
-                    x={rect.x}
-                    y={rect.y}
-                    width={rect.width}
-                    height={rect.height}
+                    points={geometry.points}
                     stroke="#ef4444"
-                    strokeWidth={2 / stageScale}
+                    strokeWidth={geometry.strokeWidth / stageScale}
                     dash={[8 / stageScale, 4 / stageScale]}
-                    fill="rgba(239, 68, 68, 0.1)"
                   />
                 );
               })}

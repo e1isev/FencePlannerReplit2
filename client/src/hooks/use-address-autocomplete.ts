@@ -13,6 +13,7 @@ export const MIN_QUERY_LENGTH = 3;
 const DEBOUNCE_MS = 350;
 const MAX_RESULTS = 5;
 const BIAS_DELTA = 0.35;
+const CACHE_LIMIT = 15;
 
 function haversineDistanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
   const R = 6371;
@@ -46,7 +47,15 @@ function scoreSuggestion(s: AddressSuggestion, mapCenter: MapCenter) {
 }
 
 function rankSuggestions(suggestions: AddressSuggestion[], mapCenter: MapCenter) {
+  const seen = new Set<string>();
+
   return [...suggestions]
+    .filter((s) => {
+      const key = `${s.display_name}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map((s) => ({ suggestion: s, score: scoreSuggestion(s, mapCenter) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_RESULTS)
@@ -66,6 +75,8 @@ export function useAddressAutocomplete(
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
+  const cacheOrderRef = useRef<string[]>([]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -81,6 +92,11 @@ export function useAddressAutocomplete(
     const handler = setTimeout(async () => {
       requestIdRef.current += 1;
       const requestId = requestIdRef.current;
+
+      const cached = cacheRef.current.get(trimmed);
+      if (cached && cached.length > 0) {
+        setSuggestions(rankSuggestions(cached, mapCenter));
+      }
 
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -128,6 +144,16 @@ export function useAddressAutocomplete(
 
         if (requestIdRef.current === requestId) {
           const ranked = rankSuggestions(Array.isArray(data) ? data : [], mapCenter);
+          cacheRef.current.set(trimmed, ranked);
+          cacheOrderRef.current.push(trimmed);
+
+          if (cacheOrderRef.current.length > CACHE_LIMIT) {
+            const oldest = cacheOrderRef.current.shift();
+            if (oldest) {
+              cacheRef.current.delete(oldest);
+            }
+          }
+
           setSuggestions(ranked);
 
           if (ranked.length === 0) {

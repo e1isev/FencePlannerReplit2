@@ -57,6 +57,8 @@ const FALLBACK_SATELLITE_TILES =
 // This should match the raster source "maxzoom" you use for satellite imagery.
 // Allow full MapLibre range so the user is never clamped while zooming.
 const SATELLITE_NATIVE_MAX_ZOOM = 22;
+const NEARMAP_MIN_ZOOM = 3;
+const NEARMAP_MAX_ZOOM = 21;
 
 const MAP_MIN_ZOOM = 0;
 const MAP_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM;
@@ -66,9 +68,15 @@ const PROVIDER_CAPABILITIES: Record<
   SatelliteProvider,
   { maxZoom: number; maxImageSizePx: number }
 > = {
-  nearmap: { maxZoom: 21, maxImageSizePx: 2048 },
+  nearmap: { maxZoom: NEARMAP_MAX_ZOOM, maxImageSizePx: 2048 },
   maptiler: { maxZoom: SATELLITE_NATIVE_MAX_ZOOM, maxImageSizePx: 4096 },
   esri: { maxZoom: 20, maxImageSizePx: 4096 },
+};
+
+const PROVIDER_MIN_ZOOM: Record<SatelliteProvider, number> = {
+  nearmap: NEARMAP_MIN_ZOOM,
+  maptiler: MAP_MIN_ZOOM,
+  esri: MAP_MIN_ZOOM,
 };
 
 const BASE_SATELLITE_PROVIDER: SatelliteProvider = "esri";
@@ -119,7 +127,8 @@ function tileTemplateForProvider(provider: SatelliteProvider): string | null {
 
 function clampZoomForProvider(provider: SatelliteProvider, zoom: number) {
   const providerZoom = PROVIDER_CAPABILITIES[provider]?.maxZoom ?? MAP_MAX_ZOOM;
-  return Math.max(MAP_MIN_ZOOM, Math.min(zoom, providerZoom));
+  const providerMinZoom = PROVIDER_MIN_ZOOM[provider] ?? MAP_MIN_ZOOM;
+  return Math.max(providerMinZoom, Math.min(zoom, providerZoom));
 }
 
 async function isTileMostlyEmpty(blob: Blob): Promise<boolean> {
@@ -180,11 +189,14 @@ function logNearmapRejection(params: {
   url?: string;
   zoom: number;
   center: { lng: number; lat: number };
+  coords?: TileCoord | null;
+  tileSize?: number;
+  message?: string;
 }) {
   if (!isDevEnvironment()) return;
 
-  const { status, url, zoom, center } = params;
-  const tileSize = satelliteSourceForProvider("nearmap").tileSize;
+  const { status, url, zoom, center, coords, message } = params;
+  const tileSize = params.tileSize ?? satelliteSourceForProvider("nearmap").tileSize;
 
   console.warn("[MapOverlay] Nearmap request rejected", {
     provider: "nearmap",
@@ -192,8 +204,10 @@ function logNearmapRejection(params: {
     width: tileSize,
     height: tileSize,
     center,
+    coords,
     status,
     url,
+    message,
   });
 }
 
@@ -234,6 +248,15 @@ function applyTileTemplate(template: string, coords: TileCoord): string {
     .replace(/{z}/g, String(coords.z))
     .replace(/{x}/g, String(coords.x))
     .replace(/{y}/g, String(coords.y));
+}
+
+function parseTileCoordsFromUrl(url?: string | null): TileCoord | null {
+  if (!url) return null;
+  const match = url.match(/\/(\d+)\/(\d+)\/(\d+)(?:\.|$)/);
+  if (!match) return null;
+
+  const [, z, x, y] = match;
+  return { z: Number(z), x: Number(x), y: Number(y) };
 }
 
 function lngLatToTile(lng: number, lat: number, zoom: number): TileCoord {
@@ -332,6 +355,8 @@ function buildMapStyle(
     isSatellite && overlayTemplate
       ? satelliteSourceForProvider(satelliteProvider)
       : null;
+  const overlayMinZoom = PROVIDER_MIN_ZOOM[satelliteProvider] ?? MAP_MIN_ZOOM;
+  const baseMinZoom = PROVIDER_MIN_ZOOM[BASE_SATELLITE_PROVIDER] ?? MAP_MIN_ZOOM;
 
   const osmSource = {
     type: "raster" as const,
@@ -348,7 +373,7 @@ function buildMapStyle(
           type: "raster" as const,
           tiles: baseSource.tiles,
           tileSize: baseSource.tileSize,
-          minzoom: MAP_MIN_ZOOM,
+          minzoom: baseMinZoom,
           maxzoom: baseSource.maxZoom,
           scheme: "xyz",
           attribution: baseSource.attribution,
@@ -359,7 +384,7 @@ function buildMapStyle(
                 type: "raster" as const,
                 tiles: overlaySource.tiles,
                 tileSize: overlaySource.tileSize,
-                minzoom: MAP_MIN_ZOOM,
+                minzoom: overlayMinZoom,
                 maxzoom: overlaySource.maxZoom,
                 scheme: "xyz",
                 attribution: overlaySource.attribution,
@@ -451,6 +476,11 @@ export function MapOverlay({
   const [satelliteWarning, setSatelliteWarning] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [tileFailures, setTileFailures] = useState<Record<SatelliteProvider, number>>({
+    nearmap: 0,
+    maptiler: 0,
+    esri: 0,
+  });
   const mapCenterValue = useMemo(
     () => (mapCenter ? { lng: mapCenter[0], lat: mapCenter[1] } : null),
     [mapCenter]
@@ -466,6 +496,7 @@ export function MapOverlay({
   const mapModeRef = useRef<MapStyleMode>(mapMode);
   const satelliteProviderRef = useRef<SatelliteProvider>(satelliteProvider);
   const providerCheckIdRef = useRef(0);
+  const loggedTileFailuresRef = useRef<Set<string>>(new Set());
 
   const getTileCoordForCurrentView = useCallback(
     (provider: SatelliteProvider): TileCoord => {
@@ -478,6 +509,46 @@ export function MapOverlay({
       return lngLatToTile(center.lng, center.lat, clampedZoom);
     },
     [mapZoom]
+  );
+
+  const registerTileFailure = useCallback(
+    (details: {
+      provider: SatelliteProvider;
+      status?: number;
+      url?: string;
+      coords?: TileCoord | null;
+      message?: string;
+      tileSize?: number;
+      zoom?: number;
+      center?: { lng: number; lat: number };
+    }) => {
+      const coordsKey = details.coords
+        ? `${details.coords.z}/${details.coords.x}/${details.coords.y}`
+        : "unknown";
+      const key = `${details.provider}:${details.url ?? coordsKey}:${details.status ?? "no-status"}`;
+
+      if (!loggedTileFailuresRef.current.has(key)) {
+        loggedTileFailuresRef.current.add(key);
+        console.warn("[MapOverlay] Satellite tile failure", {
+          provider: details.provider,
+          z: details.coords?.z,
+          x: details.coords?.x,
+          y: details.coords?.y,
+          tileSize: details.tileSize,
+          url: details.url,
+          status: details.status,
+          message: details.message,
+          zoom: details.zoom,
+          center: details.center,
+        });
+      }
+
+      setTileFailures((prev) => ({
+        ...prev,
+        [details.provider]: (prev[details.provider] ?? 0) + 1,
+      }));
+    },
+    []
   );
 
   const isProviderUsable = useCallback(
@@ -582,6 +653,28 @@ export function MapOverlay({
   }, [mapMode, onMapModeChange]);
 
   useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const activeProvider =
+      mapMode === "satellite" ? satelliteProviderRef.current : BASE_SATELLITE_PROVIDER;
+    const providerMax =
+      PROVIDER_CAPABILITIES[activeProvider]?.maxZoom ?? PROVIDER_CAPABILITIES.esri.maxZoom;
+    const providerMin = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
+
+    map.setMaxZoom(providerMax);
+    map.setMinZoom(providerMin);
+
+    const currentZoom = map.getZoom();
+    if (currentZoom > providerMax) {
+      map.setZoom(providerMax);
+    }
+    if (currentZoom < providerMin) {
+      map.setZoom(providerMin);
+    }
+  }, [mapMode, satelliteProvider]);
+
+  useEffect(() => {
     if (mapMode === "satellite") {
       ensureSatelliteProvider();
     } else {
@@ -636,22 +729,32 @@ export function MapOverlay({
       const status = e?.error?.status || e?.error?.statusCode;
       const url = e?.error?.url || e?.tile?.url;
       const message = e?.error?.message || e?.message;
+      const coords = parseTileCoordsFromUrl(url);
+      const activeProvider = satelliteProviderRef.current;
+      const tileSize = satelliteSourceForProvider(activeProvider).tileSize;
 
       const center = map.getCenter();
-      if (satelliteProviderRef.current === "nearmap" && typeof status === "number") {
+      if (activeProvider === "nearmap" && typeof status === "number") {
         logNearmapRejection({
           status,
           url,
           zoom: map.getZoom(),
           center: { lng: center.lng, lat: center.lat },
+          coords,
+          tileSize,
+          message,
         });
       }
 
-      console.warn("[MapOverlay] Satellite tile error", {
-        message,
+      registerTileFailure({
+        provider: activeProvider,
         status,
         url,
-        sourceId,
+        coords,
+        message,
+        tileSize,
+        zoom: map.getZoom(),
+        center: { lng: center.lng, lat: center.lat },
       });
 
       if (
@@ -672,7 +775,7 @@ export function MapOverlay({
     return () => {
       map.off("error", handleError);
     };
-  }, [handleProviderFailure]);
+  }, [handleProviderFailure, registerTileFailure]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -960,6 +1063,18 @@ export function MapOverlay({
           "absolute inset-0 transition-opacity opacity-90 pointer-events-none bg-[#eaf2ff]"
         )}
       />
+
+      {isDevEnvironment() && (
+        <div className="absolute top-4 right-4 z-50 text-xs bg-white/85 backdrop-blur rounded-md shadow px-3 py-2 pointer-events-none space-y-1">
+          <p className="font-semibold">Tile failures</p>
+          {(Object.keys(tileFailures) as SatelliteProvider[]).map((provider) => (
+            <p key={provider} className="flex items-center gap-2">
+              <span className="min-w-[72px] text-slate-600">{providerLabel(provider)}:</span>
+              <span className="tabular-nums text-slate-900">{tileFailures[provider]}</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Search and controls, on top and clickable */}
       <div className="absolute top-4 left-4 max-w-md space-y-3 z-50 pointer-events-auto">
