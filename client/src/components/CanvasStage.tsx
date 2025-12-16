@@ -6,6 +6,7 @@ import { findSnapPoint } from "@/geometry/snapping";
 import {
   DEFAULT_SNAP_TOLERANCE,
   FENCE_THICKNESS_MM,
+  LINE_HIT_SLOP_PX,
   SNAP_RADIUS_MM,
 } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
@@ -612,6 +613,8 @@ export function CanvasStage() {
               const isGate = !!line.gateId;
               const isSelected = line.id === selectedLineId;
 
+              const isInteractive = !isGate;
+
               const dx = line.b.x - line.a.x;
               const dy = line.b.y - line.a.y;
               const lineLength_px = Math.sqrt(dx * dx + dy * dy);
@@ -622,6 +625,7 @@ export function CanvasStage() {
 
               const baseStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
               const outlineStrokeWidth = baseStrokeWidth + mmToPx(6);
+              const hitStrokeWidth = baseStrokeWidth + LINE_HIT_SLOP_PX * 2;
 
               const mainStroke = isGate
                 ? "#fbbf24"
@@ -637,6 +641,24 @@ export function CanvasStage() {
                 <Group key={line.id}>
                   <Line
                     points={[line.a.x, line.a.y, line.b.x, line.b.y]}
+                    stroke="rgba(0,0,0,0)"
+                    strokeWidth={hitStrokeWidth}
+                    hitStrokeWidth={hitStrokeWidth}
+                    listening={isInteractive}
+                    perfectDrawEnabled={false}
+                    onMouseEnter={(e) => {
+                      const stage = e.target.getStage();
+                      if (stage) stage.container().style.cursor = isInteractive ? "pointer" : "default";
+                    }}
+                    onMouseLeave={(e) => {
+                      const stage = e.target.getStage();
+                      if (stage) stage.container().style.cursor = "default";
+                    }}
+                    onClick={(e) => handleLineClick(line.id, e)}
+                    onTap={(e) => handleLineClick(line.id, e)}
+                  />
+                  <Line
+                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
                     stroke={outlineStroke}
                     strokeWidth={outlineStrokeWidth}
                     opacity={isGate ? 0.8 : mapMode === "satellite" ? 0.75 : 0.9}
@@ -648,8 +670,7 @@ export function CanvasStage() {
                     strokeWidth={baseStrokeWidth}
                     hitStrokeWidth={mmToPx(LINE_HIT_SLOP_MM)}
                     opacity={isGate ? 0.8 : 1}
-                    onClick={(e) => handleLineClick(line.id, e)}
-                    listening={!isGate}
+                    listening={false}
                     shadowColor={mapMode === "satellite" ? "rgba(0,0,0,0.6)" : undefined}
                     shadowBlur={mapMode === "satellite" ? 2 : undefined}
                   />
