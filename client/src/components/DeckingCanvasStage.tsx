@@ -3,10 +3,15 @@ import Konva from "konva";
 import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
 import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
-import { findSnapPoint, getDistance, snapToAngle } from "@/geometry/snapping";
+import {
+  CLOSE_SHAPE_SNAP_RADIUS_MM,
+  ENDPOINT_SNAP_RADIUS_MM,
+  findSnapPoint,
+  getDistance,
+  snapToAngle,
+} from "@/geometry/snapping";
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
 
-const CLOSE_TOLERANCE_MM = 150;
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
 const BASE_PADDING = 8;
@@ -228,7 +233,7 @@ export function DeckingCanvasStage() {
 
     if (points.length >= 2) {
       const distanceToStart = getDistance(points[0], snapped);
-      if (distanceToStart <= CLOSE_TOLERANCE_MM) {
+      if (distanceToStart <= CLOSE_SHAPE_SNAP_RADIUS_MM) {
         const newPolygon = [...points];
         if (newPolygon.length >= 3) {
           setPolygon(newPolygon);
@@ -263,7 +268,7 @@ export function DeckingCanvasStage() {
 
     const boardEndpoints = boards.flatMap((board) => [board.start, board.end]);
     const allPoints = [...points, ...polygon, ...boardEndpoints];
-    const snapPoint = findSnapPoint(worldPosMm, allPoints);
+    const snapPoint = findSnapPoint(worldPosMm, allPoints, ENDPOINT_SNAP_RADIUS_MM);
     const snappedToPoint = Boolean(snapPoint);
     let candidate = snapPoint || worldPosMm;
 
