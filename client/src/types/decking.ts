@@ -20,6 +20,13 @@ export interface CornerConstraint {
   angleDeg: number;
 }
 
+export type EdgeLockMode = "locked" | "unlocked";
+
+export interface EdgeConstraint {
+  mode: EdgeLockMode;
+  lengthMm?: number;
+}
+
 export interface Board {
   id: string;
   start: Point;
@@ -61,5 +68,6 @@ export interface DeckingState {
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
   cornerConstraints: Record<number, CornerConstraint>;
+  edgeConstraints: Record<number, EdgeConstraint>;
   baselineEdgeIndex: number | null;
 }

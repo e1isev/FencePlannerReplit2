@@ -13,13 +13,23 @@ import type {
   DeckColor,
   DeckingBoardPlan,
   DeckingCuttingList,
+  EdgeConstraint,
   Point,
 } from "@/types/decking";
-import { applyCornerAngleRotateForward } from "@/geometry/deckingAngles";
+import {
+  angleDegAtVertex,
+  applyCornerAngleRotateForward,
+} from "@/geometry/deckingAngles";
 import {
   findBottomEdgeIndex,
   rotatePolygonToHorizontalBaseline,
 } from "@/geometry/deckingBaseline";
+import {
+  edgeLengthMm,
+  isEdgeLocked,
+  lockEdge,
+  unlockEdge,
+} from "@/geometry/deckingEdges";
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -88,11 +98,13 @@ interface DeckingState {
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
   cornerConstraints: Record<number, CornerConstraint>;
+  edgeConstraints: Record<number, EdgeConstraint>;
   baselineEdgeIndex: number | null;
   history: Array<{
     polygon: Point[];
     boardDirection: BoardDirection;
     cornerConstraints: Record<number, CornerConstraint>;
+    edgeConstraints: Record<number, EdgeConstraint>;
     baselineEdgeIndex: number | null;
   }>;
   historyIndex: number;
@@ -103,6 +115,8 @@ interface DeckingState {
   calculateBoards: () => void;
   getCuttingList: () => DeckingCuttingList;
   updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
+  lockEdgeLength: (edgeIndex: number) => void;
+  unlockEdgeLength: (edgeIndex: number) => void;
   setCornerAngle: (vertexIndex: number, angleDeg: number) => void;
   clearCornerAngle: (vertexIndex: number) => void;
   clear: () => void;
@@ -120,6 +134,7 @@ export const useDeckingStore = create<DeckingState>()(
       boardDirection: "horizontal",
       boardPlan: null,
       cornerConstraints: {},
+      edgeConstraints: {},
       baselineEdgeIndex: null,
       history: [],
       historyIndex: -1,
@@ -145,6 +160,7 @@ export const useDeckingStore = create<DeckingState>()(
         set({
           polygon: normalizedPolygon,
           cornerConstraints: {},
+          edgeConstraints: {},
           baselineEdgeIndex,
         });
         get().calculateBoards();
@@ -154,9 +170,19 @@ export const useDeckingStore = create<DeckingState>()(
       updateEdgeLength: (edgeIndex, lengthMm) => {
         if (lengthMm <= 0) return;
 
-        const { polygon, baselineEdgeIndex } = get();
+        const {
+          polygon,
+          baselineEdgeIndex,
+          edgeConstraints,
+          cornerConstraints,
+        } = get();
         const n = polygon.length;
         if (n < 2) return;
+
+        if (isEdgeLocked(edgeConstraints, edgeIndex)) {
+          window.alert("Edge length is locked, unlock to edit");
+          return;
+        }
 
         const startIndex = ((edgeIndex % n) + n) % n;
         const endIndex = (startIndex + 1) % n;
@@ -197,8 +223,46 @@ export const useDeckingStore = create<DeckingState>()(
             ? newPolygon
             : rotatePolygonToHorizontalBaseline(newPolygon, nextBaselineEdgeIndex);
 
+        const toleranceMm = 0.5;
+        for (const [lockedIndexStr, constraint] of Object.entries(edgeConstraints)) {
+          const lockedIndex = Number(lockedIndexStr);
+          if (constraint.mode !== "locked" || constraint.lengthMm === undefined) continue;
+          const actualLength = edgeLengthMm(normalizedPolygon, lockedIndex);
+          if (Math.abs(actualLength - constraint.lengthMm) > toleranceMm) {
+            window.alert("Edit would change a locked dimension, unlock it first");
+            return;
+          }
+        }
+
+        for (const [vertexIndexStr, constraint] of Object.entries(cornerConstraints)) {
+          const vertexIndex = Number(vertexIndexStr);
+          if (!constraint.locked) continue;
+          const angleDeg = angleDegAtVertex(normalizedPolygon, vertexIndex);
+          if (Math.abs(angleDeg - constraint.angleDeg) > 0.5) {
+            window.alert("Edit would change a locked angle, unlock it first");
+            return;
+          }
+        }
+
         set({ polygon: normalizedPolygon, baselineEdgeIndex: nextBaselineEdgeIndex });
         get().calculateBoards();
+        get().saveHistory();
+      },
+
+      lockEdgeLength: (edgeIndex) => {
+        const { polygon, edgeConstraints } = get();
+        if (polygon.length < 2) return;
+        const length = edgeLengthMm(polygon, edgeIndex);
+        const nextConstraints = lockEdge(edgeConstraints, edgeIndex, length);
+        set({ edgeConstraints: nextConstraints });
+        get().saveHistory();
+      },
+
+      unlockEdgeLength: (edgeIndex) => {
+        const { edgeConstraints } = get();
+        if (!edgeConstraints[edgeIndex]) return;
+        const nextConstraints = unlockEdge(edgeConstraints, edgeIndex);
+        set({ edgeConstraints: nextConstraints });
         get().saveHistory();
       },
 
@@ -365,6 +429,7 @@ export const useDeckingStore = create<DeckingState>()(
           boards: [],
           boardPlan: null,
           cornerConstraints: {},
+          edgeConstraints: {},
           baselineEdgeIndex: null,
         });
         get().saveHistory();
@@ -379,6 +444,7 @@ export const useDeckingStore = create<DeckingState>()(
             polygon: snapshot.polygon,
             boardDirection: snapshot.boardDirection,
             cornerConstraints: snapshot.cornerConstraints,
+            edgeConstraints: snapshot.edgeConstraints,
             baselineEdgeIndex: snapshot.baselineEdgeIndex,
             historyIndex: newIndex,
           });
@@ -395,6 +461,7 @@ export const useDeckingStore = create<DeckingState>()(
             polygon: snapshot.polygon,
             boardDirection: snapshot.boardDirection,
             cornerConstraints: snapshot.cornerConstraints,
+            edgeConstraints: snapshot.edgeConstraints,
             baselineEdgeIndex: snapshot.baselineEdgeIndex,
             historyIndex: newIndex,
           });
@@ -409,12 +476,14 @@ export const useDeckingStore = create<DeckingState>()(
           history,
           historyIndex,
           cornerConstraints,
+          edgeConstraints,
           baselineEdgeIndex,
         } = get();
         const snapshot = {
           polygon: JSON.parse(JSON.stringify(polygon)),
           boardDirection,
           cornerConstraints: JSON.parse(JSON.stringify(cornerConstraints)),
+          edgeConstraints: JSON.parse(JSON.stringify(edgeConstraints)),
           baselineEdgeIndex,
         };
         const newHistory = history.slice(0, historyIndex + 1);

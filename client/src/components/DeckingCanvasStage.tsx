@@ -11,6 +11,7 @@ import {
   snapToAngle,
 } from "@/geometry/snapping";
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
+import { edgeLengthMm, isEdgeLocked } from "@/geometry/deckingEdges";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -105,6 +106,8 @@ export function DeckingCanvasStage() {
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
   const [editingEdgeIndex, setEditingEdgeIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [edgeEditorPos, setEdgeEditorPos] = useState<{ x: number; y: number } | null>(null);
+  const [lockAfterApply, setLockAfterApply] = useState(false);
   const [selectedCornerIndex, setSelectedCornerIndex] = useState<number | null>(null);
   const [editingCornerIndex, setEditingCornerIndex] = useState<number | null>(null);
   const [angleEditValue, setAngleEditValue] = useState("");
@@ -116,7 +119,10 @@ export function DeckingCanvasStage() {
     setPolygon,
     boardDirection,
     updateEdgeLength,
+    lockEdgeLength,
+    unlockEdgeLength,
     cornerConstraints,
+    edgeConstraints,
     setCornerAngle,
     clearCornerAngle,
   } = useDeckingStore();
@@ -311,6 +317,40 @@ export function DeckingCanvasStage() {
     [points]
   );
 
+  const computeLabelPosition = (
+    segment: Segment,
+    center: { x: number; y: number } | null
+  ) => {
+    const startPx = { x: mmToPx(segment.start.x), y: mmToPx(segment.start.y) };
+    const endPx = { x: mmToPx(segment.end.x), y: mmToPx(segment.end.y) };
+
+    const dxPx = endPx.x - startPx.x;
+    const dyPx = endPx.y - startPx.y;
+    const lengthPx = Math.hypot(dxPx, dyPx);
+    if (lengthPx === 0) return null;
+
+    const midPoint = {
+      x: (startPx.x + endPx.x) / 2,
+      y: (startPx.y + endPx.y) / 2,
+    };
+
+    const perp = { x: -dyPx / lengthPx, y: dxPx / lengthPx };
+    const centrePx = center
+      ? { x: mmToPx(center.x), y: mmToPx(center.y) }
+      : midPoint;
+    const toMid = { x: midPoint.x - centrePx.x, y: midPoint.y - centrePx.y };
+
+    const dot1 = perp.x * toMid.x + perp.y * toMid.y;
+    const dot2 = -perp.x * toMid.x + -perp.y * toMid.y;
+    const outwardNormal = dot1 < dot2 ? { x: -perp.x, y: -perp.y } : perp;
+
+    const labelOffset = BASE_LABEL_OFFSET / stageScale;
+    return {
+      x: midPoint.x + outwardNormal.x * labelOffset,
+      y: midPoint.y + outwardNormal.y * labelOffset,
+    };
+  };
+
   const renderDimensionLabel = (
     segment: Segment,
     key: string,
@@ -332,21 +372,7 @@ export function DeckingCanvasStage() {
       y: (startPx.y + endPx.y) / 2,
     };
 
-    const perp = { x: -dyPx / lengthPx, y: dxPx / lengthPx };
-    const centrePx = center
-      ? { x: mmToPx(center.x), y: mmToPx(center.y) }
-      : midPoint;
-    const toMid = { x: midPoint.x - centrePx.x, y: midPoint.y - centrePx.y };
-
-    const dot1 = perp.x * toMid.x + perp.y * toMid.y;
-    const dot2 = -perp.x * toMid.x + -perp.y * toMid.y;
-    const outwardNormal = dot1 < dot2 ? { x: -perp.x, y: -perp.y } : perp;
-
-    const labelOffset = BASE_LABEL_OFFSET / stageScale;
-    const labelPos = {
-      x: midPoint.x + outwardNormal.x * labelOffset,
-      y: midPoint.y + outwardNormal.y * labelOffset,
-    };
+    const labelPos = computeLabelPosition(segment, center) || midPoint;
 
     const text = formatLength(lengthMm);
     const fontSize = BASE_FONT_SIZE / stageScale;
@@ -359,8 +385,12 @@ export function DeckingCanvasStage() {
     const rectWidth = contentWidth + hitPadding * 2;
     const rectHeight = contentHeight + hitPadding * 2;
 
+    const locked = options?.edgeIndex !== undefined
+      ? isEdgeLocked(edgeConstraints, options.edgeIndex)
+      : false;
+
     const handleClick = options?.edgeIndex !== undefined
-      ? (e: any) => handleLabelClick(options.edgeIndex as number, lengthMm, e)
+      ? (e: any) => handleLabelClick(options.edgeIndex as number, lengthMm, labelPos, e)
       : undefined;
 
     return (
@@ -377,7 +407,7 @@ export function DeckingCanvasStage() {
           offsetX={rectWidth / 2}
           offsetY={rectHeight / 2}
           cornerRadius={cornerRadius}
-          fill="rgba(15,23,42,0.8)"
+          fill={locked ? "rgba(30,41,59,0.95)" : "rgba(15,23,42,0.8)"}
           stroke="rgba(255,255,255,0.65)"
           strokeWidth={1 / stageScale}
         />
@@ -386,7 +416,7 @@ export function DeckingCanvasStage() {
           height={contentHeight}
           offsetX={contentWidth / 2}
           offsetY={contentHeight / 2}
-          text={text}
+          text={`${text}${locked ? " 🔒" : ""}`}
           fontSize={fontSize}
           fill="#f8fafc"
           align="center"
@@ -396,10 +426,20 @@ export function DeckingCanvasStage() {
     );
   };
 
-  const handleLabelClick = (edgeIndex: number, lengthMm: number, e: any) => {
+  const handleLabelClick = (
+    edgeIndex: number,
+    lengthMm: number,
+    labelPos: { x: number; y: number },
+    e: any
+  ) => {
     e.cancelBubble = true;
     setEditingEdgeIndex(edgeIndex);
     setEditValue((lengthMm / 1000).toFixed(2));
+    setLockAfterApply(isEdgeLocked(edgeConstraints, edgeIndex));
+    setEdgeEditorPos({
+      x: stagePos.x + labelPos.x * scale,
+      y: stagePos.y + labelPos.y * scale,
+    });
   };
 
   const renderCornerMarkers = () => {
@@ -491,10 +531,23 @@ export function DeckingCanvasStage() {
       const metres = parseFloat(editValue);
       if (!isNaN(metres) && metres > 0) {
         updateEdgeLength(editingEdgeIndex, metres * 1000);
+        if (lockAfterApply) {
+          lockEdgeLength(editingEdgeIndex);
+        }
       }
     }
     setEditingEdgeIndex(null);
     setEditValue("");
+    setEdgeEditorPos(null);
+    setLockAfterApply(false);
+  };
+
+  const handleUnlockEdge = () => {
+    if (editingEdgeIndex === null) return;
+    unlockEdgeLength(editingEdgeIndex);
+    const length = edgeLengthMm(polygon, editingEdgeIndex);
+    setEditValue((length / 1000).toFixed(2));
+    setLockAfterApply(false);
   };
 
   const handleCornerSubmit = () => {
@@ -518,6 +571,15 @@ export function DeckingCanvasStage() {
     setSelectedCornerIndex(null);
   };
 
+  const editingLocked =
+    editingEdgeIndex !== null && isEdgeLocked(edgeConstraints, editingEdgeIndex);
+  const editingEdgeLengthMm =
+    editingEdgeIndex !== null ? edgeLengthMm(polygon, editingEdgeIndex) : 0;
+  const editorPosition = edgeEditorPos || {
+    x: stageSize.width / 2,
+    y: 32,
+  };
+
   return (
     <div
       ref={containerRef}
@@ -525,35 +587,82 @@ export function DeckingCanvasStage() {
       onContextMenu={(e) => e.preventDefault()}
     >
       {editingEdgeIndex !== null && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white p-4 rounded-lg shadow-lg border border-slate-200">
-          <input
-            type="number"
-            step="0.1"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleLabelSubmit();
-              if (e.key === "Escape") {
-                setEditingEdgeIndex(null);
-                setEditValue("");
-              }
-            }}
-            className="px-3 py-2 border border-slate-300 rounded-md text-sm font-mono w-24"
-            autoFocus
-          />
-          <div className="flex gap-2 mt-2">
-            <button onClick={handleLabelSubmit} className="px-3 py-1 bg-blue-600 text-white rounded text-xs">
-              Apply
-            </button>
-            <button
-              onClick={() => {
-                setEditingEdgeIndex(null);
-                setEditValue("");
+        <div
+          className="absolute z-50 bg-white p-4 rounded-lg shadow-lg border border-slate-200"
+          style={{ left: editorPosition.x, top: editorPosition.y }}
+        >
+          <div className="text-xs text-slate-600 mb-2">
+            Edge {editingEdgeIndex + 1} {editingLocked ? "(Locked)" : ""}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-slate-600">Length (m)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !editingLocked) handleLabelSubmit();
+                if (e.key === "Escape") {
+                  setEditingEdgeIndex(null);
+                  setEditValue("");
+                  setEdgeEditorPos(null);
+                  setLockAfterApply(false);
+                }
               }}
-              className="px-3 py-1 bg-slate-200 rounded text-xs"
-            >
-              Cancel
-            </button>
+              disabled={editingLocked}
+              className="px-3 py-2 border border-slate-300 rounded-md text-sm font-mono w-24 disabled:bg-slate-100"
+              autoFocus
+            />
+            {editingLocked ? (
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                Locked at {formatLength(editingEdgeLengthMm)}
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 text-[11px] text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={lockAfterApply}
+                  onChange={(e) => setLockAfterApply(e.target.checked)}
+                />
+                Lock after applying
+              </label>
+            )}
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={handleLabelSubmit}
+                disabled={editingLocked}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-50"
+              >
+                Apply
+              </button>
+              <button
+                onClick={() => {
+                  setEditingEdgeIndex(null);
+                  setEditValue("");
+                  setEdgeEditorPos(null);
+                  setLockAfterApply(false);
+                }}
+                className="px-3 py-1 bg-slate-200 rounded text-xs"
+              >
+                Close
+              </button>
+              {editingLocked ? (
+                <button
+                  onClick={handleUnlockEdge}
+                  className="px-3 py-1 bg-amber-100 text-amber-700 rounded text-xs"
+                >
+                  Unlock
+                </button>
+              ) : (
+                <button
+                  onClick={() => lockEdgeLength(editingEdgeIndex)}
+                  className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded text-xs"
+                >
+                  Lock
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
