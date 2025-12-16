@@ -72,23 +72,20 @@ export function CanvasStage() {
     setMmPerPixel,
   } = useAppStore();
 
-  const combinedScale = scale * mapScale;
+  const viewScale = Number.isFinite(scale * mapScale) && scale * mapScale > 0 ? scale * mapScale : 1;
 
   // Stage is always centred in the viewport.
   // The only thing that moves the world relative to the screen
   // is mapPanOffset coming from MapOverlay.
-  const stagePosition = {
+  const viewOffset = {
     x: dimensions.width / 2 - mapPanOffset.x,
     y: dimensions.height / 2 - mapPanOffset.y,
   };
 
-  const stageScale =
-    Number.isFinite(combinedScale) && combinedScale > 0 ? combinedScale : 1;
-
   const cameraState: CameraState = {
-    scale: stageScale,
-    offsetX: -stagePosition.x / stageScale,
-    offsetY: -stagePosition.y / stageScale,
+    scale: viewScale,
+    offsetX: -viewOffset.x / viewScale,
+    offsetY: -viewOffset.y / viewScale,
   };
 
   const handleZoomChange = useCallback((zoom: number) => {
@@ -581,10 +578,6 @@ export function CanvasStage() {
           className="absolute inset-0"
           width={dimensions.width}
           height={dimensions.height}
-          scaleX={stageScale}
-          scaleY={stageScale}
-          x={stagePosition.x}
-          y={stagePosition.y}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -595,8 +588,13 @@ export function CanvasStage() {
           onContextMenu={(e) => e.evt.preventDefault()}
           data-testid="canvas-stage"
         >
-          <Layer listening={false}>{gridLines}</Layer>
+          <Layer listening={false}>
+            <Group x={viewOffset.x} y={viewOffset.y} scaleX={viewScale} scaleY={viewScale}>
+              {gridLines}
+            </Group>
+          </Layer>
           <Layer>
+            <Group x={viewOffset.x} y={viewOffset.y} scaleX={viewScale} scaleY={viewScale}>
             {lines.map((line) => {
               const isGate = !!line.gateId;
               const isSelected = line.id === selectedLineId;
@@ -609,26 +607,52 @@ export function CanvasStage() {
               const perpX = -unitY;
               const perpY = unitX;
 
+              const baseStrokeWidth = isGate ? 6 : isSelected ? 4 : 3;
+              const outlineStrokeWidth = baseStrokeWidth + (mapMode === "satellite" ? 3 : 2);
+
+              const mainStroke = isGate
+                ? "#fbbf24"
+                : mapMode === "satellite"
+                  ? "rgba(255,255,255,0.9)"
+                  : isSelected
+                    ? "#2563eb"
+                    : "#475569";
+
+              const outlineStroke = mapMode === "satellite" ? "rgba(0,0,0,0.6)" : "#0f172a";
+
               return (
                 <Group key={line.id}>
                   <Line
                     points={[line.a.x, line.a.y, line.b.x, line.b.y]}
-                    stroke={isGate ? "#fbbf24" : isSelected ? "#2563eb" : "#475569"}
-                    strokeWidth={(isGate ? 6 : isSelected ? 4 : 3) / stageScale}
+                    stroke={outlineStroke}
+                    strokeWidth={outlineStrokeWidth}
+                    opacity={isGate ? 0.8 : mapMode === "satellite" ? 0.75 : 0.9}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Line
+                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
+                    stroke={mainStroke}
+                    strokeWidth={baseStrokeWidth}
                     opacity={isGate ? 0.8 : 1}
+                    strokeScaleEnabled={false}
                     onClick={(e) => handleLineClick(line.id, e)}
                     listening={!isGate}
+                    shadowColor={mapMode === "satellite" ? "rgba(0,0,0,0.6)" : undefined}
+                    shadowBlur={mapMode === "satellite" ? 2 : undefined}
                   />
 
                   <Text
-                    x={(line.a.x + line.b.x) / 2 - 30 / stageScale}
-                    y={(line.a.y + line.b.y) / 2 - 15 / stageScale}
+                    x={(line.a.x + line.b.x) / 2 - 30 / viewScale}
+                    y={(line.a.y + line.b.y) / 2 - 15 / viewScale}
                     text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                    fontSize={12 / stageScale}
-                    fill={isGate ? "#f59e0b" : "#1e293b"}
-                    padding={4 / stageScale}
+                    fontSize={12 / viewScale}
+                    fill={isGate ? "#f59e0b" : mapMode === "satellite" ? "#0f172a" : "#1e293b"}
+                    padding={4 / viewScale}
                     onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
                     listening={!isGate}
+                    shadowColor={mapMode === "satellite" ? "rgba(255,255,255,0.8)" : undefined}
+                    shadowBlur={mapMode === "satellite" ? 1 : undefined}
                   />
                 </Group>
               );
@@ -638,8 +662,9 @@ export function CanvasStage() {
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke="#94a3b8"
-                strokeWidth={3 / stageScale}
-                dash={[5 / stageScale, 5 / stageScale]}
+                strokeWidth={3}
+                dash={[5, 5]}
+                strokeScaleEnabled={false}
               />
             )}
 
@@ -654,10 +679,11 @@ export function CanvasStage() {
                   key={post.id}
                   x={post.pos.x}
                   y={post.pos.y}
-                  radius={6 / stageScale}
+                  radius={6 / viewScale}
                   fill={colors[post.category]}
                   stroke={colors[post.category]}
-                  strokeWidth={2 / stageScale}
+                  strokeWidth={2}
+                  strokeScaleEnabled={false}
                   name="post"
                 />
               );
@@ -677,11 +703,13 @@ export function CanvasStage() {
                     key={gate.id}
                     points={geometry.points}
                     stroke="#ef4444"
-                    strokeWidth={geometry.strokeWidth / stageScale}
-                    dash={[8 / stageScale, 4 / stageScale]}
+                    strokeWidth={geometry.strokeWidth}
+                    dash={[8, 4]}
+                    strokeScaleEnabled={false}
                   />
                 );
               })}
+            </Group>
           </Layer>
         </Stage>
       </div>
