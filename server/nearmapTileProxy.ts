@@ -6,6 +6,7 @@ import { fetch } from "undici";
 import { log } from "./vite";
 
 const NEARMAP_TILE_BASE = "https://api.nearmap.com/tiles/v3/Vert";
+const NEARMAP_MIN_ZOOM = 3;
 const NEARMAP_MAX_ZOOM = 21;
 const MIN_VALID_IMAGE_BYTES = 1000;
 const TRANSPARENT_TILE_PNG_BASE64 =
@@ -43,6 +44,8 @@ const metrics = {
   blankTiles: 0,
   upstreamErrors: 0,
 };
+
+const loggedUpstreamFailures = new Set<string>();
 
 let metricsWindowStart = Date.now();
 
@@ -99,7 +102,8 @@ class TileFetchError extends Error {
     message: string,
     public readonly reason: FetchFailureReason,
     public readonly status: number,
-    public readonly retryAfter?: string | null
+    public readonly retryAfter?: string | null,
+    public readonly bodySnippet?: string | null
   ) {
     super(message);
   }
@@ -127,13 +131,11 @@ async function fetchUpstreamTile(
 
   try {
     const response = await fetch(url, { signal: controller.signal });
-    const arrayBuffer = await response.arrayBuffer();
-    const bytes = Buffer.from(arrayBuffer);
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
     log(
       `[NearmapTileProxy] z=${coords.z} x=${coords.x} y=${coords.y} status=${response.status} ` +
-        `content-type=${contentType || "unknown"} bytes=${bytes.length} url=${url}`,
+        `content-type=${contentType || "unknown"} url=${url}`,
       "nearmap"
     );
 
@@ -160,16 +162,41 @@ async function fetchUpstreamTile(
     }
 
     if (!response.ok) {
+      let bodySnippet: string | null = null;
+      try {
+        bodySnippet = (await response.text()).slice(0, 500);
+      } catch {
+        bodySnippet = null;
+      }
       throw new TileFetchError(
         `Unexpected Nearmap status ${response.status}`,
         "invalid",
-        response.status
+        response.status,
+        undefined,
+        bodySnippet
       );
     }
 
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = Buffer.from(arrayBuffer);
+    const loggedContentType = contentType || "unknown";
+
+    log(
+      `[NearmapTileProxy] z=${coords.z} x=${coords.x} y=${coords.y} status=${response.status} ` +
+        `content-type=${loggedContentType} bytes=${bytes.length} url=${url}`,
+      "nearmap"
+    );
+
     const isImage = contentType.startsWith("image/");
     if (!isImage || bytes.length < MIN_VALID_IMAGE_BYTES) {
-      throw new TileFetchError("Upstream tile content invalid", "invalid", response.status);
+      const snippet = isImage ? null : bytes.toString("utf-8").slice(0, 500);
+      throw new TileFetchError(
+        "Upstream tile content invalid",
+        "invalid",
+        response.status,
+        undefined,
+        snippet
+      );
     }
 
     const etag = makeEtag(bytes);
@@ -210,8 +237,21 @@ export async function handleNearmapTile(req: Request, res: Response) {
     return;
   }
 
+  if (zNum < NEARMAP_MIN_ZOOM) {
+    res
+      .status(400)
+      .json({ message: `Zoom level below Nearmap minimum ${NEARMAP_MIN_ZOOM}` });
+    return;
+  }
+
   if (zNum > NEARMAP_MAX_ZOOM) {
     res.status(400).json({ message: `Zoom level exceeds Nearmap max ${NEARMAP_MAX_ZOOM}` });
+    return;
+  }
+
+  const maxIndex = Math.pow(2, zNum);
+  if (xNum < 0 || yNum < 0 || xNum >= maxIndex || yNum >= maxIndex) {
+    res.status(400).json({ message: "Tile coordinates out of range" });
     return;
   }
 
@@ -283,7 +323,17 @@ export async function handleNearmapTile(req: Request, res: Response) {
     const fetchError = error as TileFetchError;
     const message = fetchError instanceof Error ? fetchError.message : "Unknown error";
 
-    log(`[Nearmap] Failed to proxy tile ${cacheKey}: ${message}`, "nearmap");
+    const logKey = `${cacheKey}:${fetchError instanceof TileFetchError ? fetchError.status : "unknown"}`;
+    if (!loggedUpstreamFailures.has(logKey)) {
+      loggedUpstreamFailures.add(logKey);
+      log(
+        `[Nearmap] Failed to proxy tile ${cacheKey}: ${message} ` +
+          `status=${fetchError instanceof TileFetchError ? fetchError.status : "n/a"} ` +
+          `body=${fetchError instanceof TileFetchError ? fetchError.bodySnippet ?? "<empty>" : "n/a"} ` +
+          `url=${upstreamUrl}`,
+        "nearmap"
+      );
+    }
 
     if (fetchError instanceof TileFetchError) {
       if (fetchError.reason === "auth") {

@@ -70,6 +70,10 @@ export interface Gate {
   opening_mm: number;
   runId: string;
   slidingReturnDirection: "left" | "right";
+  leaf_count?: number;
+  leaf_width_mm?: number;
+  panel_width_mm?: number;
+  returnLength_mm?: number;
 }
 
 export interface WarningMsg {
