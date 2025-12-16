@@ -249,11 +249,6 @@ export function DeckingCanvasStage() {
   const drawingPoints = previewPoint ? [...points, previewPoint] : points;
   const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
-  const cornerScreenPos =
-    editingCornerIndex !== null && polygon[editingCornerIndex]
-      ? getCornerScreenPosition(editingCornerIndex)
-      : null;
-
   const gridLines: JSX.Element[] = [];
 
   const getSnappedPointer = (
@@ -287,6 +282,11 @@ export function DeckingCanvasStage() {
       y: stagePos.y + mmToPx(corner.y) * scale,
     };
   };
+
+  const cornerScreenPos =
+    editingCornerIndex !== null && polygon[editingCornerIndex]
+      ? getCornerScreenPosition(editingCornerIndex)
+      : null;
 
   const handleCornerClick = (vertexIndex: number, e?: any) => {
     if (e) e.cancelBubble = true;
