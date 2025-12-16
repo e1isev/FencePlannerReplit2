@@ -274,14 +274,14 @@ export function DeckingCanvasStage() {
     return candidate;
   };
 
-  function getCornerScreenPosition(vertexIndex: number) {
+  const getCornerScreenPosition = (vertexIndex: number) => {
     const corner = polygon[vertexIndex];
     if (!corner) return null;
     return {
       x: stagePos.x + mmToPx(corner.x) * scale,
       y: stagePos.y + mmToPx(corner.y) * scale,
     };
-  }
+  };
 
   const cornerScreenPos =
     editingCornerIndex !== null && polygon[editingCornerIndex]
