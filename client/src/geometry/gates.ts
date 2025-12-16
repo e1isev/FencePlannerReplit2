@@ -1,5 +1,23 @@
 import { GateType, Gate, FenceLine, Point } from "@/types/models";
 
+function gateAngleDeg(x1: number, y1: number, x2: number, y2: number) {
+  return (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+}
+
+function gateBasis(x1: number, y1: number, x2: number, y2: number) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+
+  // normal, rotate 90 degrees
+  const nx = -uy;
+  const ny = ux;
+
+  return { ux, uy, nx, ny, len };
+}
+
 const GATE_SIZES_MM: Record<GateType, number> = {
   single_900: 900,
   single_1800: 1800,
@@ -58,7 +76,14 @@ export function getSlidingReturnRect(
   gate: Gate,
   gateLine: FenceLine,
   mmPerPixel: number
-): { points: [number, number, number, number]; strokeWidth: number } | null {
+):
+  | {
+      center: Point;
+      width: number;
+      height: number;
+      rotation: number;
+    }
+  | null {
   if (!gate.type.startsWith("sliding")) {
     return null;
   }
@@ -67,28 +92,34 @@ export function getSlidingReturnRect(
     return null;
   }
 
+  const RETURN_THICKNESS_MM = 51;
+  const RETURN_OFFSET_MM = 0;
+
   const returnLength_mm = gate.returnLength_mm ?? 4800;
   const returnLength_px = returnLength_mm / mmPerPixel;
-  const gateThickness_px = Math.max(8, Math.min(30, 150 / mmPerPixel));
+  const returnThickness_px = Math.max(8, RETURN_THICKNESS_MM / mmPerPixel);
+  const returnOffset_px = RETURN_OFFSET_MM / mmPerPixel;
 
-  const gateDx = gateLine.b.x - gateLine.a.x;
-  const gateDy = gateLine.b.y - gateLine.a.y;
-  const gateLength = Math.sqrt(gateDx * gateDx + gateDy * gateDy);
-  const gateNx = gateDx / gateLength;
-  const gateNy = gateDy / gateLength;
-  
-  const perpX = gate.slidingReturnDirection === "left" ? -gateNy : gateNy;
-  const perpY = gate.slidingReturnDirection === "left" ? gateNx : -gateNx;
+  const { ux, uy, nx, ny } = gateBasis(
+    gateLine.a.x,
+    gateLine.a.y,
+    gateLine.b.x,
+    gateLine.b.y
+  );
 
+  const angle = gateAngleDeg(gateLine.a.x, gateLine.a.y, gateLine.b.x, gateLine.b.y);
   const anchor = gate.slidingReturnDirection === "left" ? gateLine.a : gateLine.b;
+  const normalSign = gate.slidingReturnDirection === "left" ? -1 : 1;
 
-  const endPoint: Point = {
-    x: anchor.x + perpX * returnLength_px,
-    y: anchor.y + perpY * returnLength_px,
+  const center: Point = {
+    x: anchor.x + ux * (returnLength_px / 2) + nx * (normalSign * returnOffset_px),
+    y: anchor.y + uy * (returnLength_px / 2) + ny * (normalSign * returnOffset_px),
   };
 
   return {
-    points: [anchor.x, anchor.y, endPoint.x, endPoint.y],
-    strokeWidth: gateThickness_px,
+    center,
+    width: returnLength_px,
+    height: returnThickness_px,
+    rotation: angle,
   };
 }

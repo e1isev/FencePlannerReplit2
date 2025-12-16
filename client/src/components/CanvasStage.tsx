@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Line, Text, Group } from "react-konva";
+import { Stage, Layer, Line, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
@@ -696,13 +696,21 @@ export function CanvasStage() {
                 if (!geometry) return null;
 
                 return (
-                  <Line
+                  <Rect
                     key={gate.id}
-                    points={geometry.points}
+                    x={geometry.center.x}
+                    y={geometry.center.y}
+                    width={geometry.width}
+                    height={geometry.height}
+                    offsetX={geometry.width / 2}
+                    offsetY={geometry.height / 2}
+                    rotation={geometry.rotation}
                     stroke="#ef4444"
-                    strokeWidth={geometry.strokeWidth}
+                    strokeWidth={2}
                     dash={[8, 4]}
+                    fill="rgba(239, 68, 68, 0.12)"
                     strokeScaleEnabled={false}
+                    listening={false}
                   />
                 );
               })}
