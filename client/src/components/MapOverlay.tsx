@@ -62,6 +62,17 @@ const MAP_MIN_ZOOM = 0;
 const MAP_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM;
 const NEARMAP_TILE_URL_TEMPLATE = "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
 
+const PROVIDER_CAPABILITIES: Record<
+  SatelliteProvider,
+  { maxZoom: number; maxImageSizePx: number }
+> = {
+  nearmap: { maxZoom: 21, maxImageSizePx: 2048 },
+  maptiler: { maxZoom: SATELLITE_NATIVE_MAX_ZOOM, maxImageSizePx: 4096 },
+  esri: { maxZoom: 20, maxImageSizePx: 4096 },
+};
+
+const BASE_SATELLITE_PROVIDER: SatelliteProvider = "esri";
+
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
 const PROVIDER_LABELS: Record<SatelliteProvider, string> = {
@@ -85,6 +96,7 @@ type SatelliteSourceConfig = {
   tiles: string[];
   tileSize: number;
   attribution: string;
+  maxZoom: number;
 };
 
 type TileCoord = { x: number; y: number; z: number };
@@ -105,6 +117,86 @@ function tileTemplateForProvider(provider: SatelliteProvider): string | null {
   }
 }
 
+function clampZoomForProvider(provider: SatelliteProvider, zoom: number) {
+  const providerZoom = PROVIDER_CAPABILITIES[provider]?.maxZoom ?? MAP_MAX_ZOOM;
+  return Math.max(MAP_MIN_ZOOM, Math.min(zoom, providerZoom));
+}
+
+async function isTileMostlyEmpty(blob: Blob): Promise<boolean> {
+  if (typeof document === "undefined") return false;
+
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return false;
+
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    const samplesPerAxis = 5;
+    const totalSamples = samplesPerAxis * samplesPerAxis;
+    let emptySamples = 0;
+
+    for (let x = 0; x < samplesPerAxis; x++) {
+      for (let y = 0; y < samplesPerAxis; y++) {
+        const sampleX = Math.floor(((x + 0.5) / samplesPerAxis) * canvas.width);
+        const sampleY = Math.floor(((y + 0.5) / samplesPerAxis) * canvas.height);
+        const pixel = ctx.getImageData(sampleX, sampleY, 1, 1).data;
+        const r = pixel[0];
+        const g = pixel[1];
+        const b = pixel[2];
+        const a = pixel[3];
+
+        const isTransparent = a < 5;
+        const isBlack = r < 6 && g < 6 && b < 6;
+        const isWhite = r > 250 && g > 250 && b > 250;
+        if (isTransparent || isBlack || isWhite) {
+          emptySamples += 1;
+        }
+      }
+    }
+
+    return emptySamples / totalSamples >= 0.7;
+  } catch (error) {
+    console.warn("[MapOverlay] Failed to evaluate tile opacity", error);
+    return false;
+  }
+}
+
+function isDevEnvironment() {
+  if (typeof import.meta !== "undefined" && "env" in import.meta) {
+    // @ts-ignore Vite injects env
+    return Boolean(import.meta.env?.DEV);
+  }
+  return process.env.NODE_ENV === "development";
+}
+
+function logNearmapRejection(params: {
+  status?: number;
+  url?: string;
+  zoom: number;
+  center: { lng: number; lat: number };
+}) {
+  if (!isDevEnvironment()) return;
+
+  const { status, url, zoom, center } = params;
+  const tileSize = satelliteSourceForProvider("nearmap").tileSize;
+
+  console.warn("[MapOverlay] Nearmap request rejected", {
+    provider: "nearmap",
+    zoom,
+    width: tileSize,
+    height: tileSize,
+    center,
+    status,
+    url,
+  });
+}
+
 function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourceConfig {
   const template = tileTemplateForProvider(provider);
 
@@ -113,6 +205,7 @@ function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourc
       tiles: [template],
       tileSize: 512,
       attribution: "© MapTiler © OpenStreetMap contributors",
+      maxZoom: clampZoomForProvider(provider, SATELLITE_NATIVE_MAX_ZOOM),
     };
   }
 
@@ -121,6 +214,7 @@ function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourc
       tiles: [template],
       tileSize: 256,
       attribution: "Tiles © Nearmap",
+      maxZoom: clampZoomForProvider(provider, SATELLITE_NATIVE_MAX_ZOOM),
     };
   }
 
@@ -128,6 +222,10 @@ function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourc
     tiles: [FALLBACK_SATELLITE_TILES],
     tileSize: 256,
     attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics",
+    maxZoom: clampZoomForProvider(
+      provider,
+      PROVIDER_CAPABILITIES[provider]?.maxZoom ?? SATELLITE_NATIVE_MAX_ZOOM
+    ),
   };
 }
 
@@ -228,7 +326,12 @@ function buildMapStyle(
   satelliteProvider: SatelliteProvider
 ): StyleSpecification {
   const isSatellite = mode === "satellite";
-  const satelliteSource = satelliteSourceForProvider(satelliteProvider);
+  const baseSource = satelliteSourceForProvider(BASE_SATELLITE_PROVIDER);
+  const overlayTemplate = tileTemplateForProvider(satelliteProvider);
+  const overlaySource =
+    isSatellite && overlayTemplate
+      ? satelliteSourceForProvider(satelliteProvider)
+      : null;
 
   const osmSource = {
     type: "raster" as const,
@@ -241,16 +344,28 @@ function buildMapStyle(
 
   const sources: StyleSpecification["sources"] = isSatellite
     ? {
-        satellite: {
+        base: {
           type: "raster" as const,
-          tiles: satelliteSource.tiles,
-          tileSize: satelliteSource.tileSize,
-          minzoom: 0,
-          maxzoom: SATELLITE_NATIVE_MAX_ZOOM,
+          tiles: baseSource.tiles,
+          tileSize: baseSource.tileSize,
+          minzoom: MAP_MIN_ZOOM,
+          maxzoom: baseSource.maxZoom,
           scheme: "xyz",
-          attribution: satelliteSource.attribution,
+          attribution: baseSource.attribution,
         },
-        osm: osmSource,
+        ...(overlaySource
+          ? {
+              overlay: {
+                type: "raster" as const,
+                tiles: overlaySource.tiles,
+                tileSize: overlaySource.tileSize,
+                minzoom: MAP_MIN_ZOOM,
+                maxzoom: overlaySource.maxZoom,
+                scheme: "xyz",
+                attribution: overlaySource.attribution,
+              },
+            }
+          : {}),
       }
     : {
         osm: osmSource,
@@ -266,22 +381,27 @@ function buildMapStyle(
           },
         },
         {
-          id: "osm",
+          id: "satellite-base",
           type: "raster" as const,
-          source: "osm",
-          paint: {
-            "raster-opacity": 1,
-          },
-        },
-        {
-          id: "satellite",
-          type: "raster" as const,
-          source: "satellite",
+          source: "base",
           paint: {
             "raster-opacity": 1,
             "raster-fade-duration": 0,
           },
         },
+        ...(overlaySource
+          ? [
+              {
+                id: "satellite-overlay",
+                type: "raster" as const,
+                source: "overlay",
+                paint: {
+                  "raster-opacity": 1,
+                  "raster-fade-duration": 0,
+                },
+              },
+            ]
+          : []),
       ]
     : [
         {
@@ -321,6 +441,7 @@ export function MapOverlay({
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const flyLockRef = useRef(false);
+  const pendingFlyRef = useRef<{ lon: number; lat: number; zoom: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsListRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -346,34 +467,51 @@ export function MapOverlay({
   const satelliteProviderRef = useRef<SatelliteProvider>(satelliteProvider);
   const providerCheckIdRef = useRef(0);
 
-  const getTileCoordForCurrentView = useCallback((): TileCoord => {
-    const map = mapRef.current;
-    const center = map?.getCenter() ?? new maplibregl.LngLat(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
-    const zoom = map?.getZoom() ?? mapZoom;
-    const clampedZoom = Math.max(
-      MAP_MIN_ZOOM,
-      Math.min(Math.round(zoom), SATELLITE_NATIVE_MAX_ZOOM)
-    );
+  const getTileCoordForCurrentView = useCallback(
+    (provider: SatelliteProvider): TileCoord => {
+      const map = mapRef.current;
+      const center =
+        map?.getCenter() ?? new maplibregl.LngLat(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+      const zoom = map?.getZoom() ?? mapZoom;
+      const clampedZoom = Math.round(clampZoomForProvider(provider, zoom));
 
-    return lngLatToTile(center.lng, center.lat, clampedZoom);
-  }, [mapZoom]);
+      return lngLatToTile(center.lng, center.lat, clampedZoom);
+    },
+    [mapZoom]
+  );
 
   const isProviderUsable = useCallback(
-    async (provider: SatelliteProvider, coords: TileCoord) => {
+    async (provider: SatelliteProvider) => {
       const template = tileTemplateForProvider(provider);
       if (!template) return false;
 
+      const coords = getTileCoordForCurrentView(provider);
       const tileUrl = applyTileTemplate(template, coords);
 
       try {
         const response = await fetch(tileUrl, { method: "GET", cache: "no-store" });
-        return response.ok && (response.headers.get("content-type")?.startsWith("image/") ?? true);
+        const contentType = response.headers.get("content-type") ?? "";
+
+        if (!response.ok || !contentType.startsWith("image/")) {
+          return false;
+        }
+
+        if (provider === "nearmap") {
+          const blob = await response.clone().blob();
+          const mostlyEmpty = await isTileMostlyEmpty(blob);
+          if (mostlyEmpty) {
+            console.warn("[MapOverlay] Nearmap tile appeared empty; skipping overlay.");
+            return false;
+          }
+        }
+
+        return true;
       } catch (err) {
         console.warn(`[MapOverlay] Failed to reach ${providerLabel(provider)} tiles`, err);
         return false;
       }
     },
-    []
+    [getTileCoordForCurrentView]
   );
 
   const ensureSatelliteProvider = useCallback(
@@ -383,7 +521,6 @@ export function MapOverlay({
       providerCheckIdRef.current += 1;
       const checkId = providerCheckIdRef.current;
 
-      const coords = getTileCoordForCurrentView();
       let warning = failureReason ?? null;
 
       for (let i = startIndex; i < providerOrderRef.current.length; i++) {
@@ -394,7 +531,7 @@ export function MapOverlay({
           continue;
         }
 
-        const usable = await isProviderUsable(provider, coords);
+        const usable = await isProviderUsable(provider);
 
         if (providerCheckIdRef.current !== checkId) {
           return;
@@ -490,61 +627,25 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
-    const ensureNearmapLayer = () => {
-      if (!map.isStyleLoaded()) return;
-
-      if (!map.getSource("nearmap")) {
-        map.addSource("nearmap", {
-          type: "raster",
-          tiles: [NEARMAP_TILE_URL_TEMPLATE],
-          tileSize: 256,
-          minzoom: MAP_MIN_ZOOM,
-          maxzoom: MAP_MAX_ZOOM,
-          scheme: "xyz",
-        });
-      }
-
-      if (!map.getLayer("nearmap")) {
-        map.addLayer({
-          id: "nearmap",
-          type: "raster",
-          source: "nearmap",
-          paint: {
-            "raster-opacity": 1,
-            "raster-fade-duration": 0,
-          },
-        });
-      }
-
-      const shouldShow =
-        mapModeRef.current === "satellite" &&
-        satelliteProviderRef.current === "nearmap";
-
-      map.setLayoutProperty("nearmap", "visibility", shouldShow ? "visible" : "none");
-      map.moveLayer("nearmap");
-    };
-
-    map.on("load", ensureNearmapLayer);
-    ensureNearmapLayer();
-
-    return () => {
-      map.off("load", ensureNearmapLayer);
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
     const handleError = (e: any) => {
       const sourceId = e?.sourceId || e?.error?.sourceId;
-      if (sourceId !== "satellite") {
+      if (sourceId !== "overlay") {
         return;
       }
 
       const status = e?.error?.status || e?.error?.statusCode;
       const url = e?.error?.url || e?.tile?.url;
       const message = e?.error?.message || e?.message;
+
+      const center = map.getCenter();
+      if (satelliteProviderRef.current === "nearmap" && typeof status === "number") {
+        logNearmapRejection({
+          status,
+          url,
+          zoom: map.getZoom(),
+          center: { lng: center.lng, lat: center.lat },
+        });
+      }
 
       console.warn("[MapOverlay] Satellite tile error", {
         message,
@@ -667,13 +768,19 @@ export function MapOverlay({
         return;
       }
 
+      const activeProvider =
+        mapModeRef.current === "satellite"
+          ? satelliteProviderRef.current
+          : BASE_SATELLITE_PROVIDER;
+      const safeZoom = clampZoomForProvider(activeProvider, desiredZoom ?? 18);
+
       if (flyLockRef.current) {
+        pendingFlyRef.current = { lon, lat, zoom: safeZoom };
         return;
       }
 
       flyLockRef.current = true;
-
-      const safeZoom = Math.min(desiredZoom ?? 18, MAP_MAX_ZOOM);
+      pendingFlyRef.current = null;
 
       if (moveEndHandlerRef.current) {
         map.off("moveend", moveEndHandlerRef.current);
@@ -688,6 +795,12 @@ export function MapOverlay({
         flyLockRef.current = false;
         map.off("moveend", unlock);
         moveEndHandlerRef.current = null;
+
+        const pending = pendingFlyRef.current;
+        if (pending) {
+          pendingFlyRef.current = null;
+          flyToSearchResult(pending.lon, pending.lat, pending.zoom);
+        }
       };
 
       moveEndHandlerRef.current = unlock;
@@ -876,10 +989,14 @@ export function MapOverlay({
               </Button>
             </div>
 
-            {isDropdownOpen && (isSearchLoading || suggestions.length > 0 || error) && (
+            {isDropdownOpen &&
+              (isSearchLoading ||
+                suggestions.length > 0 ||
+                error ||
+                query.trim().length >= MIN_QUERY_LENGTH) && (
               <div
                 ref={resultsListRef}
-                className="absolute left-0 right-0 top-full mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg z-20"
+                className="absolute left-0 right-0 top-full mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg z-20 min-h-[48px]"
               >
                 {isSearchLoading && (
                   <div className="px-3 py-2 text-sm text-slate-600">Searching…</div>
@@ -887,6 +1004,12 @@ export function MapOverlay({
 
                 {error && (
                   <div className="px-3 py-2 text-sm text-red-600">{error}</div>
+                )}
+
+                {!isSearchLoading && suggestions.length === 0 && !error && (
+                  <div className="px-3 py-2 text-sm text-slate-500">
+                    Refining suggestions…
+                  </div>
                 )}
 
                 {suggestions.map((result, index) => (

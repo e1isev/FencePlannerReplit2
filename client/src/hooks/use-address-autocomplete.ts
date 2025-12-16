@@ -10,7 +10,48 @@ export interface AddressSuggestion {
 }
 
 export const MIN_QUERY_LENGTH = 3;
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 350;
+const MAX_RESULTS = 5;
+const BIAS_DELTA = 0.35;
+
+function haversineDistanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+
+  const aa = sinLat * sinLat + sinLon * sinLon * Math.cos(lat1) * Math.cos(lat2);
+  const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+  return R * c;
+}
+
+function scoreSuggestion(s: AddressSuggestion, mapCenter: MapCenter) {
+  const parsed = { lat: Number(s.lat), lon: Number(s.lon) };
+  const hasStreetNumber = /\b\d+\b/.test(s.display_name.split(",")[0] ?? "");
+  const nearCenter =
+    mapCenter &&
+    Math.abs(parsed.lat - mapCenter.lat) <= BIAS_DELTA &&
+    Math.abs(parsed.lon - mapCenter.lng) <= BIAS_DELTA;
+
+  const distanceKm = mapCenter
+    ? haversineDistanceKm({ lat: mapCenter.lat, lon: mapCenter.lng }, parsed)
+    : null;
+  const distanceScore = distanceKm == null ? 0 : Math.max(0, 1.5 - Math.min(distanceKm, 50) / 50);
+
+  return (hasStreetNumber ? 3 : 0) + (nearCenter ? 2 : 0) + distanceScore;
+}
+
+function rankSuggestions(suggestions: AddressSuggestion[], mapCenter: MapCenter) {
+  return [...suggestions]
+    .map((s) => ({ suggestion: s, score: scoreSuggestion(s, mapCenter) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_RESULTS)
+    .map((entry) => entry.suggestion);
+}
 
 export function useAddressAutocomplete(
   query: string,
@@ -51,14 +92,17 @@ export function useAddressAutocomplete(
       try {
         const params = new URLSearchParams({
           format: "json",
-          limit: "5",
+          limit: "10",
           q: trimmed,
           countrycodes: "au",
+          bounded: "1",
+          addressdetails: "1",
+          dedupe: "1",
         });
 
         if (mapCenter) {
-          const lngDelta = 0.5;
-          const latDelta = 0.5;
+          const lngDelta = BIAS_DELTA;
+          const latDelta = BIAS_DELTA;
           params.set(
             "viewbox",
             `${mapCenter.lng - lngDelta},${mapCenter.lat + latDelta},${mapCenter.lng + lngDelta},${mapCenter.lat - latDelta}`
@@ -68,7 +112,7 @@ export function useAddressAutocomplete(
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?${params.toString()}`,
           {
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", "Accept-Language": "en-AU" },
             signal: controller.signal,
           }
         );
@@ -83,9 +127,10 @@ export function useAddressAutocomplete(
         const data = (await res.json()) as AddressSuggestion[];
 
         if (requestIdRef.current === requestId) {
-          setSuggestions(Array.isArray(data) ? data : []);
+          const ranked = rankSuggestions(Array.isArray(data) ? data : [], mapCenter);
+          setSuggestions(ranked);
 
-          if (Array.isArray(data) && data.length === 0) {
+          if (ranked.length === 0) {
             setError("No matching locations found. Try a more specific address.");
           }
         }
