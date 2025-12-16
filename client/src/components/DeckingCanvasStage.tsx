@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Konva from "konva";
-import { Stage, Layer, Text, Line } from "react-konva";
+import { Label, Layer, Line, Tag, Text, Stage } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
 import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
 import { findSnapPoint, getDistance } from "@/geometry/snapping";
@@ -309,25 +309,43 @@ export function DeckingCanvasStage() {
 
               const perpX = -dyPx / lengthPx;
               const perpY = dxPx / lengthPx;
-              const labelOffset = 12;
+              const labelOffset = 14;
 
               const labelPoint = {
                 x: midPoint.x + perpX * labelOffset,
                 y: midPoint.y + perpY * labelOffset,
               };
 
+              const text = `${(lengthMm / 1000).toFixed(2)}m`;
+              const fontSize = 12;
+              const padding = 4;
+              const estimatedWidth = text.length * fontSize * 0.6 + padding * 2;
+              const estimatedHeight = fontSize + padding * 2;
+
+              const angleDeg = (Math.atan2(dyPx, dxPx) * 180) / Math.PI;
+              const readableAngle = angleDeg > 90 || angleDeg < -90 ? angleDeg + 180 : angleDeg;
+
               return (
-                <Text
+                <Label
                   key={`edge-label-${index}`}
-                  x={labelPoint.x - 30}
-                  y={labelPoint.y - 10}
-                  text={`${(lengthMm / 1000).toFixed(2)}m`}
-                  fontSize={12}
-                  fill="#1e293b"
-                  padding={4}
-                  onClick={(e) => handleLabelClick(index, lengthMm, e)}
+                  x={labelPoint.x}
+                  y={labelPoint.y}
+                  offsetX={estimatedWidth / 2}
+                  offsetY={estimatedHeight / 2}
+                  rotation={readableAngle}
                   listening
-                />
+                  onClick={(e) => handleLabelClick(index, lengthMm, e)}
+                >
+                  <Tag
+                    fill="rgba(255,255,255,0.9)"
+                    stroke="rgba(15,23,42,0.35)"
+                    strokeWidth={1}
+                    cornerRadius={4}
+                    pointerDirection="none"
+                    padding={padding}
+                  />
+                  <Text text={text} fontSize={fontSize} fill="#1e293b" padding={padding} />
+                </Label>
               );
             })}
 
