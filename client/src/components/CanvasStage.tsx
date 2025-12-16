@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Line, Text, Group, Rect } from "react-konva";
+import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
@@ -20,6 +20,7 @@ import { getPostNeighbours } from "@/geometry/posts";
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
+const LABEL_OFFSET_PX = 14;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
@@ -651,18 +652,66 @@ export function CanvasStage() {
                     shadowBlur={mapMode === "satellite" ? 2 : undefined}
                   />
 
-                  <Text
-                    x={(line.a.x + line.b.x) / 2 - 30 / viewScale}
-                    y={(line.a.y + line.b.y) / 2 - 15 / viewScale}
-                    text={`${(line.length_mm / 1000).toFixed(2)}m`}
-                    fontSize={12 / viewScale}
-                    fill={isGate ? "#f59e0b" : mapMode === "satellite" ? "#0f172a" : "#1e293b"}
-                    padding={4 / viewScale}
-                    onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
-                    listening={!isGate}
-                    shadowColor={mapMode === "satellite" ? "rgba(255,255,255,0.8)" : undefined}
-                    shadowBlur={mapMode === "satellite" ? 1 : undefined}
-                  />
+                  {(() => {
+                    const dx = line.b.x - line.a.x;
+                    const dy = line.b.y - line.a.y;
+                    const length = Math.hypot(dx, dy) || 1;
+
+                    const nx = -dy / length;
+                    const ny = dx / length;
+
+                    const midX = (line.a.x + line.b.x) / 2;
+                    const midY = (line.a.y + line.b.y) / 2;
+
+                    const labelOffset = LABEL_OFFSET_PX / viewScale;
+                    const labelX = midX + nx * labelOffset;
+                    const labelY = midY + ny * labelOffset;
+
+                    const text = `${(line.length_mm / 1000).toFixed(2)}m`;
+                    const fontSize = 12 / viewScale;
+                    const padding = 4 / viewScale;
+                    const estimatedWidth = text.length * fontSize * 0.6 + padding * 2;
+                    const estimatedHeight = fontSize + padding * 2;
+
+                    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+                    const readableAngle = angleDeg > 90 || angleDeg < -90 ? angleDeg + 180 : angleDeg;
+
+                    const textFill = isGate
+                      ? "#f59e0b"
+                      : mapMode === "satellite"
+                        ? "#0f172a"
+                        : "#1e293b";
+
+                    const tagFill = mapMode === "satellite" ? "rgba(255,255,255,0.9)" : "#ffffff";
+                    const tagStroke = mapMode === "satellite" ? "rgba(0,0,0,0.35)" : "rgba(15,23,42,0.35)";
+
+                    return (
+                      <Label
+                        x={labelX}
+                        y={labelY}
+                        offsetX={estimatedWidth / 2}
+                        offsetY={estimatedHeight / 2}
+                        rotation={readableAngle}
+                        listening={!isGate}
+                        onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+                      >
+                        <Tag
+                          fill={tagFill}
+                          stroke={tagStroke}
+                          strokeWidth={1 / viewScale}
+                          cornerRadius={4 / viewScale}
+                          pointerDirection="none"
+                          padding={padding}
+                        />
+                        <Text
+                          text={text}
+                          fontSize={fontSize}
+                          fill={textFill}
+                          padding={padding}
+                        />
+                      </Label>
+                    );
+                  })()}
                 </Group>
               );
             })}
