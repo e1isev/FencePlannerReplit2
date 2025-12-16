@@ -55,13 +55,13 @@ const FALLBACK_SATELLITE_TILES =
 
 // Highest zoom at which satellite tiles are expected to exist globally.
 // This should match the raster source "maxzoom" you use for satellite imagery.
-// Allow full MapLibre range so the user is never clamped while zooming.
+// Keep the UI max higher so the map can overscale after the provider tops out.
 const SATELLITE_NATIVE_MAX_ZOOM = 22;
 const NEARMAP_MIN_ZOOM = 3;
 const NEARMAP_MAX_ZOOM = 21;
 
 const MAP_MIN_ZOOM = 0;
-const MAP_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM;
+const MAP_MAX_ZOOM = 24;
 const NEARMAP_TILE_URL_TEMPLATE = "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
 
 const PROVIDER_CAPABILITIES: Record<
@@ -219,7 +219,7 @@ function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourc
       tiles: [template],
       tileSize: 512,
       attribution: "© MapTiler © OpenStreetMap contributors",
-      maxZoom: clampZoomForProvider(provider, SATELLITE_NATIVE_MAX_ZOOM),
+      maxZoom: SATELLITE_NATIVE_MAX_ZOOM,
     };
   }
 
@@ -228,7 +228,7 @@ function satelliteSourceForProvider(provider: SatelliteProvider): SatelliteSourc
       tiles: [template],
       tileSize: 256,
       attribution: "Tiles © Nearmap",
-      maxZoom: clampZoomForProvider(provider, SATELLITE_NATIVE_MAX_ZOOM),
+      maxZoom: NEARMAP_MAX_ZOOM,
     };
   }
 
@@ -656,17 +656,12 @@ export function MapOverlay({
 
     const activeProvider =
       mapMode === "satellite" ? satelliteProviderRef.current : BASE_SATELLITE_PROVIDER;
-    const providerMax =
-      PROVIDER_CAPABILITIES[activeProvider]?.maxZoom ?? PROVIDER_CAPABILITIES.esri.maxZoom;
     const providerMin = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
 
-    map.setMaxZoom(providerMax);
+    map.setMaxZoom(MAP_MAX_ZOOM);
     map.setMinZoom(providerMin);
 
     const currentZoom = map.getZoom();
-    if (currentZoom > providerMax) {
-      map.setZoom(providerMax);
-    }
     if (currentZoom < providerMin) {
       map.setZoom(providerMin);
     }
@@ -869,11 +864,10 @@ export function MapOverlay({
         return;
       }
 
-      const activeProvider =
-        mapModeRef.current === "satellite"
-          ? satelliteProviderRef.current
-          : BASE_SATELLITE_PROVIDER;
-      const safeZoom = clampZoomForProvider(activeProvider, desiredZoom ?? 18);
+      const safeZoom = Math.max(
+        MAP_MIN_ZOOM,
+        Math.min(desiredZoom ?? 18, MAP_MAX_ZOOM)
+      );
 
       if (flyLockRef.current) {
         pendingFlyRef.current = { lon, lat, zoom: safeZoom };
