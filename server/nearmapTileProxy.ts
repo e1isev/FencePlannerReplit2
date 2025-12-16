@@ -6,17 +6,24 @@ import { fetch } from "undici";
 import { log } from "./vite";
 
 const NEARMAP_TILE_BASE = "https://api.nearmap.com/tiles/v3/Vert";
+const NEARMAP_MAX_ZOOM = 21;
+const MIN_VALID_IMAGE_BYTES = 1000;
+const TRANSPARENT_TILE_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAABFUlEQVR4nO3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBPAABPO1TCQAAAABJRU5ErkJggg==";
 
-const BLANK_TILE_JPEG_BASE64 =
-  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCABAAEADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/AP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCj//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Bj//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bj//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEABj8Cj//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8Bj//Z";
-
-const BLANK_TILE_JPEG = Buffer.from(BLANK_TILE_JPEG_BASE64, "base64");
+const TRANSPARENT_TILE_PNG = Buffer.from(TRANSPARENT_TILE_PNG_BASE64, "base64");
+const TRANSPARENT_TILE_TTL_SECONDS = 24 * 60 * 60; // 1 day
+const IMAGE_TILE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 const METRIC_LOG_INTERVAL_MS = 30_000;
 const METRIC_WINDOW_MS = 60_000;
 
 interface CachedTile {
   bytes: Buffer;
+  contentType: string;
   etag: string;
   ttlSeconds: number;
 }
@@ -68,7 +75,7 @@ function makeEtag(buf: Buffer) {
 }
 
 function sendCachedTile(req: Request, res: Response, cached: CachedTile) {
-  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Content-Type", cached.contentType);
   res.setHeader("Cache-Control", `public, max-age=${cached.ttlSeconds}, immutable`);
   res.setHeader("ETag", cached.etag);
 
@@ -81,35 +88,101 @@ function sendCachedTile(req: Request, res: Response, cached: CachedTile) {
   res.status(200).send(cached.bytes);
 }
 
-async function fetchUpstreamTile(url: string) {
+type TileFetchOutcome =
+  | { type: "image"; tile: CachedTile }
+  | { type: "missing"; tile: CachedTile };
+
+type FetchFailureReason = "auth" | "rate-limit" | "server" | "invalid";
+
+class TileFetchError extends Error {
+  constructor(
+    message: string,
+    public readonly reason: FetchFailureReason,
+    public readonly status: number,
+    public readonly retryAfter?: string | null
+  ) {
+    super(message);
+  }
+}
+
+function transparentTile(): CachedTile {
+  return {
+    bytes: TRANSPARENT_TILE_PNG,
+    contentType: "image/png",
+    etag: makeEtag(TRANSPARENT_TILE_PNG),
+    ttlSeconds: TRANSPARENT_TILE_TTL_SECONDS,
+  } satisfies CachedTile;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchUpstreamTile(
+  url: string,
+  coords: { z: number; x: number; y: number }
+): Promise<TileFetchOutcome> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
 
   try {
     const response = await fetch(url, { signal: controller.signal });
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+    log(
+      `[NearmapTileProxy] z=${coords.z} x=${coords.x} y=${coords.y} status=${response.status} ` +
+        `content-type=${contentType || "unknown"} bytes=${bytes.length} url=${url}`,
+      "nearmap"
+    );
 
     if (response.status === 404) {
       metrics.blankTiles += 1;
-      const bytes = BLANK_TILE_JPEG;
-      return {
-        bytes,
-        etag: makeEtag(bytes),
-        ttlSeconds: 365 * 24 * 60 * 60,
-      } satisfies CachedTile;
+      return { type: "missing", tile: transparentTile() };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new TileFetchError("Nearmap upstream auth failed", "auth", response.status);
+    }
+
+    if (response.status === 429) {
+      throw new TileFetchError(
+        "Nearmap rate limited",
+        "rate-limit",
+        response.status,
+        response.headers.get("retry-after")
+      );
+    }
+
+    if (response.status >= 500) {
+      throw new TileFetchError("Nearmap upstream server error", "server", response.status);
     }
 
     if (!response.ok) {
-      throw new Error(`Nearmap upstream error, status ${response.status}`);
+      throw new TileFetchError(
+        `Unexpected Nearmap status ${response.status}`,
+        "invalid",
+        response.status
+      );
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const bytes = Buffer.from(arrayBuffer);
+    const isImage = contentType.startsWith("image/");
+    if (!isImage || bytes.length < MIN_VALID_IMAGE_BYTES) {
+      throw new TileFetchError("Upstream tile content invalid", "invalid", response.status);
+    }
+
+    const etag = makeEtag(bytes);
 
     return {
-      bytes,
-      etag: makeEtag(bytes),
-      ttlSeconds: 24 * 60 * 60,
-    } satisfies CachedTile;
+      type: "image",
+      tile: {
+        bytes,
+        contentType,
+        etag,
+        ttlSeconds: IMAGE_TILE_TTL_SECONDS,
+      },
+    } satisfies TileFetchOutcome;
   } finally {
     clearTimeout(timeout);
   }
@@ -126,7 +199,28 @@ export async function handleNearmapTile(req: Request, res: Response) {
   }
 
   const { z, x, y, format } = req.params as Record<string, string>;
-  const cacheKey = `${z}/${x}/${y}.${format}`;
+
+  const zNum = Number(z);
+  const xNum = Number(x);
+  const yNum = Number(y);
+  const normalizedFormat = (format ?? "jpg").toLowerCase();
+
+  if (!Number.isInteger(zNum) || !Number.isInteger(xNum) || !Number.isInteger(yNum)) {
+    res.status(400).json({ message: "Invalid tile coordinates" });
+    return;
+  }
+
+  if (zNum > NEARMAP_MAX_ZOOM) {
+    res.status(400).json({ message: `Zoom level exceeds Nearmap max ${NEARMAP_MAX_ZOOM}` });
+    return;
+  }
+
+  if (!normalizedFormat.match(/^(jpg|jpeg|png)$/)) {
+    res.status(400).json({ message: "Unsupported tile format" });
+    return;
+  }
+
+  const cacheKey = `${zNum}/${xNum}/${yNum}.${normalizedFormat}`;
 
   const cached = cache.get(cacheKey);
   if (cached) {
@@ -136,38 +230,84 @@ export async function handleNearmapTile(req: Request, res: Response) {
 
   const existing = inFlight.get(cacheKey);
   if (existing) {
-    const tile = await existing;
-    cache.set(cacheKey, tile, { ttl: tile.ttlSeconds * 1000 });
-    sendCachedTile(req, res, tile);
-    return;
+    try {
+      const tile = await existing;
+      cache.set(cacheKey, tile, { ttl: tile.ttlSeconds * 1000 });
+      sendCachedTile(req, res, tile);
+      return;
+    } catch {
+      // If the in-flight request failed, fall through to start a new fetch.
+    }
   }
 
-  const upstreamUrl = `${NEARMAP_TILE_BASE}/${z}/${x}/${y}.${format}?apikey=${encodeURIComponent(apiKey)}`;
+  const upstreamUrl = `${NEARMAP_TILE_BASE}/${zNum}/${xNum}/${yNum}.${normalizedFormat}?apikey=${encodeURIComponent(apiKey)}`;
 
   const upstreamPromise = limit(async () => {
     metrics.upstreamFetches += 1;
-    return fetchUpstreamTile(upstreamUrl);
-  })
-    .then((tile) => {
-      cache.set(cacheKey, tile, { ttl: tile.ttlSeconds * 1000 });
-      return tile;
-    })
-    .catch((error) => {
-      metrics.upstreamErrors += 1;
-      throw error;
-    })
-    .finally(() => {
-      inFlight.delete(cacheKey);
-    });
+
+    const maxRetries = 2;
+    const retryDelays = [200, 600];
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await fetchUpstreamTile(upstreamUrl, { z: zNum, x: xNum, y: yNum });
+        cache.set(cacheKey, result.tile, { ttl: result.tile.ttlSeconds * 1000 });
+        return result.tile;
+      } catch (error) {
+        if (
+          error instanceof TileFetchError &&
+          (error.reason === "rate-limit" || error.reason === "server") &&
+          attempt < maxRetries
+        ) {
+          const delay = retryDelays[attempt] ?? retryDelays[retryDelays.length - 1];
+          await wait(delay);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new TileFetchError("Failed to fetch tile", "invalid", 500);
+  }).finally(() => {
+    inFlight.delete(cacheKey);
+  });
 
   inFlight.set(cacheKey, upstreamPromise);
 
   try {
     const tile = await upstreamPromise;
     sendCachedTile(req, res, tile);
+    return;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    metrics.upstreamErrors += 1;
+    const fetchError = error as TileFetchError;
+    const message = fetchError instanceof Error ? fetchError.message : "Unknown error";
+
     log(`[Nearmap] Failed to proxy tile ${cacheKey}: ${message}`, "nearmap");
-    res.status(502).json({ message: "Failed to fetch Nearmap tile" });
+
+    if (fetchError instanceof TileFetchError) {
+      if (fetchError.reason === "auth") {
+        res.status(502).json({ error: "Upstream auth failed" });
+        return;
+      }
+
+      if (fetchError.reason === "rate-limit") {
+        if (fetchError.retryAfter) {
+          res.setHeader("Retry-After", fetchError.retryAfter);
+        }
+        res.setHeader("Cache-Control", "no-store");
+        res.status(503).json({ error: "Upstream rate limited" });
+        return;
+      }
+
+      if (fetchError.reason === "server") {
+        res.setHeader("Cache-Control", "no-store");
+        res.status(502).json({ error: "Upstream server error" });
+        return;
+      }
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    res.status(502).json({ error: "Failed to fetch Nearmap tile" });
   }
 }
