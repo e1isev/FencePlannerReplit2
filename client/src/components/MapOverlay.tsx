@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { Map, Marker, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
+import {
+  MIN_QUERY_LENGTH,
+  useAddressAutocomplete,
+  type AddressSuggestion,
+} from "@/hooks/use-address-autocomplete";
 
-interface SearchResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-  place_id?: number;
-}
+type SearchResult = AddressSuggestion;
 
 export interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
@@ -72,7 +72,6 @@ const NEARMAP_TILE_URL_TEMPLATE = "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
 const AREA_BUCKET_ZOOM = 10;
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
-const MIN_QUERY_LENGTH = 3;
 
 const PROVIDER_LABELS: Record<SatelliteProvider, string> = {
   nearmap: "Nearmap",
@@ -336,13 +335,23 @@ export function MapOverlay({
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const flyLockRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultsListRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const [satelliteProvider, setSatelliteProvider] = useState<SatelliteProvider>("esri");
   const [satelliteWarning, setSatelliteWarning] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const mapCenterValue = useMemo(
+    () => (mapCenter ? { lng: mapCenter[0], lat: mapCenter[1] } : null),
+    [mapCenter]
+  );
+  const { suggestions, isLoading: isSearchLoading, error } = useAddressAutocomplete(
+    query,
+    mapCenterValue
+  );
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
   // Cache of per-area safe max zooms.
@@ -643,6 +652,7 @@ export function MapOverlay({
     const handleViewChange = () => {
       const zoom = map.getZoom();
       const center = map.getCenter();
+      setMapCenter([center.lng, center.lat]);
       onZoomChange?.(zoom);
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
       onScaleChange?.(metersPerPixel, zoom);
@@ -668,7 +678,7 @@ export function MapOverlay({
       map.off("zoom", handleViewChange);
       map.off("move", handleViewChange);
     };
-  }, [onPanOffsetChange, onScaleChange, onZoomChange]);
+  }, [onPanOffsetChange, onScaleChange, onZoomChange, setMapCenter]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -771,7 +781,8 @@ export function MapOverlay({
     const lon = Number(result.lon);
 
     setQuery(result.display_name);
-    setResults([]);
+    setIsDropdownOpen(false);
+    setActiveIndex(-1);
 
     if (markerRef.current) {
       markerRef.current.remove();
@@ -784,61 +795,103 @@ export function MapOverlay({
     flyToSearchResult(lon, lat, 18);
   };
 
-  const handleSearchChange = async (value: string, reselectFirst = false) => {
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    if (suggestions.length > 0) {
+      setActiveIndex(0);
+    } else {
+      setActiveIndex(-1);
+    }
+  }, [isDropdownOpen, suggestions]);
+
+  const handleSearchChange = (value: string) => {
     setQuery(value);
 
     const trimmed = value.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
-      setResults([]);
-      setError(null);
+      setIsDropdownOpen(false);
+      setActiveIndex(-1);
       return;
     }
 
-    setIsSearchLoading(true);
-    setError(null);
+    setIsDropdownOpen(true);
+  };
 
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(
-        trimmed
-      )}`;
-
-      const res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        console.error("[MapOverlay] search request failed", res.status);
-        setResults([]);
-        return;
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!isDropdownOpen) {
+        setIsDropdownOpen(true);
       }
 
-      const data = (await res.json()) as SearchResult[];
-
-      setResults(Array.isArray(data) ? data : []);
-
-      if (reselectFirst && Array.isArray(data) && data.length > 0) {
-        recenterToResult(data[0]);
-      } else if (Array.isArray(data) && data.length === 0) {
-        setError("No matching locations found. Try a more specific address.");
+      if (suggestions.length > 0) {
+        setActiveIndex((prev) => ((prev + 1) % suggestions.length + suggestions.length) % suggestions.length);
       }
-    } catch (err) {
-      console.error("[MapOverlay] search error:", err);
-      setResults([]);
-      setError(
-        err instanceof Error ? err.message : "Unable to search right now."
-      );
-    } finally {
-      setIsSearchLoading(false);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!isDropdownOpen) {
+        setIsDropdownOpen(true);
+      }
+
+      if (suggestions.length > 0) {
+        setActiveIndex((prev) =>
+          prev <= 0 ? suggestions.length - 1 : (prev - 1 + suggestions.length) % suggestions.length
+        );
+      }
+      return;
+    }
+
+    if (event.key === "Enter") {
+      if (activeIndex >= 0 && suggestions[activeIndex]) {
+        event.preventDefault();
+        handleResultSelect(suggestions[activeIndex]);
+      }
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setIsDropdownOpen(false);
+      setActiveIndex(-1);
     }
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleInputFocus = () => {
+    if (query.trim().length >= MIN_QUERY_LENGTH) {
+      setIsDropdownOpen(true);
+    }
+  };
 
-    await handleSearchChange(query, true);
+  const handleInputBlur = () => {
+    setTimeout(() => {
+      const activeElement = document.activeElement;
+      if (
+        activeElement &&
+        (activeElement === inputRef.current || resultsListRef.current?.contains(activeElement))
+      ) {
+        return;
+      }
+
+      setIsDropdownOpen(false);
+      setActiveIndex(-1);
+    }, 0);
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = query.trim();
+    if (trimmed.length < MIN_QUERY_LENGTH) return;
+
+    setIsDropdownOpen(true);
+
+    const result =
+      (activeIndex >= 0 && suggestions[activeIndex]) || suggestions[0];
+    if (result) {
+      recenterToResult(result);
+    }
   };
 
   const handleResultSelect = (result: SearchResult) => {
@@ -883,6 +936,10 @@ export function MapOverlay({
               <Input
                 value={query}
                 onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                ref={inputRef}
                 placeholder="Search address"
                 className="text-sm"
               />
@@ -891,28 +948,36 @@ export function MapOverlay({
               </Button>
             </div>
 
-            {(isSearchLoading || results.length > 0) && (
-              <div className="absolute left-0 right-0 top-full mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg z-20">
+            {isDropdownOpen && (isSearchLoading || suggestions.length > 0 || error) && (
+              <div
+                ref={resultsListRef}
+                className="absolute left-0 right-0 top-full mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg z-20"
+              >
                 {isSearchLoading && (
                   <div className="px-3 py-2 text-sm text-slate-600">Searching…</div>
                 )}
 
-                {!isSearchLoading &&
-                  results.map((result, index) => (
-                    <button
-                      type="button"
-                      key={`${result.place_id ?? index}-${result.lat}-${result.lon}`}
-                      onClick={() => handleResultSelect(result)}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
-                    >
-                      {result.display_name}
-                    </button>
-                  ))}
+                {error && (
+                  <div className="px-3 py-2 text-sm text-red-600">{error}</div>
+                )}
+
+                {suggestions.map((result, index) => (
+                  <button
+                    type="button"
+                    key={`${result.place_id ?? index}-${result.lat}-${result.lon}`}
+                    onClick={() => handleResultSelect(result)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    className={cn(
+                      "w-full text-left px-3 py-2 text-sm",
+                      activeIndex === index ? "bg-slate-100" : "hover:bg-slate-50"
+                    )}
+                  >
+                    {result.display_name}
+                  </button>
+                ))}
               </div>
             )}
           </form>
-
-          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
 
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
             Right click and drag on the canvas to pan. Use the mouse wheel to zoom while keeping your
