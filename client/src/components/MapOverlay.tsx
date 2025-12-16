@@ -55,21 +55,12 @@ const FALLBACK_SATELLITE_TILES =
 
 // Highest zoom at which satellite tiles are expected to exist globally.
 // This should match the raster source "maxzoom" you use for satellite imagery.
-// Keep conservative to avoid 404 gaps from providers that top out around z20.
-const SATELLITE_NATIVE_MAX_ZOOM = 19;
-
-// How many levels of over-zoom we normally allow on top of the native max.
-// Nearmap supports up to zoom 21, so do not over-zoom.
-const GLOBAL_OVERZOOM = 0;
-
-// Hard ceiling on the map zoom in any area.
-const GLOBAL_HARD_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM + GLOBAL_OVERZOOM;
+// Allow full MapLibre range so the user is never clamped while zooming.
+const SATELLITE_NATIVE_MAX_ZOOM = 22;
 
 const MAP_MIN_ZOOM = 0;
+const MAP_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM;
 const NEARMAP_TILE_URL_TEMPLATE = "/api/nearmap/tiles/{z}/{x}/{y}.jpg";
-
-// Zoom level for our "area buckets" – coarse tiling to group nearby positions.
-const AREA_BUCKET_ZOOM = 10;
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
@@ -162,11 +153,6 @@ function lngLatToTile(lng: number, lat: number, zoom: number): TileCoord {
   return { x, y, z };
 }
 
-function areaKeyForCenter(lng: number, lat: number): string {
-  const tile = lngLatToTile(lng, lat, AREA_BUCKET_ZOOM);
-  return `${tile.z}/${tile.x}/${tile.y}`;
-}
-
 type StoredMapView = {
   center: [number, number];
   zoom: number;
@@ -216,7 +202,7 @@ function moveMapInstant(
   const z =
     zoom == null
       ? map.getZoom()
-      : Math.max(MAP_MIN_ZOOM, Math.min(zoom, GLOBAL_HARD_MAX_ZOOM));
+      : Math.max(MAP_MIN_ZOOM, Math.min(zoom, MAP_MAX_ZOOM));
 
   map.stop();
   map.jumpTo({ center, zoom: z });
@@ -354,18 +340,11 @@ export function MapOverlay({
   );
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
-  // Cache of per-area safe max zooms.
-  // Key: `${z}/${x}/${y}` at AREA_BUCKET_ZOOM.
-  // Value: safe max zoom level for that area.
-  const areaZoomLimitsRef = useRef<Record<string, number>>({});
 
   const providerOrderRef = useRef<SatelliteProvider[]>(PROVIDER_ORDER);
   const mapModeRef = useRef<MapStyleMode>(mapMode);
   const satelliteProviderRef = useRef<SatelliteProvider>(satelliteProvider);
   const providerCheckIdRef = useRef(0);
-
-  // Global fallback if no entry exists for the current area.
-  const defaultSafeMaxZoomRef = useRef<number>(GLOBAL_HARD_MAX_ZOOM);
 
   const getTileCoordForCurrentView = useCallback((): TileCoord => {
     const map = mapRef.current;
@@ -486,7 +465,7 @@ export function MapOverlay({
       center: initialCenter,
       zoom: initialZoom,
       minZoom: MAP_MIN_ZOOM,
-      maxZoom: GLOBAL_HARD_MAX_ZOOM,
+      maxZoom: MAP_MAX_ZOOM,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -520,7 +499,7 @@ export function MapOverlay({
           tiles: [NEARMAP_TILE_URL_TEMPLATE],
           tileSize: 256,
           minzoom: MAP_MIN_ZOOM,
-          maxzoom: GLOBAL_HARD_MAX_ZOOM,
+          maxzoom: MAP_MAX_ZOOM,
           scheme: "xyz",
         });
       }
@@ -585,29 +564,6 @@ export function MapOverlay({
           )} returned status ${status}.`
         );
       }
-
-      const zoom = map.getZoom();
-      const center = map.getCenter();
-      const key = areaKeyForCenter(center.lng, center.lat);
-
-      if (zoom <= SATELLITE_NATIVE_MAX_ZOOM) {
-        return;
-      }
-
-      const currentLimits = areaZoomLimitsRef.current;
-      const existingLimit =
-        currentLimits[key] ?? defaultSafeMaxZoomRef.current ?? GLOBAL_HARD_MAX_ZOOM;
-
-      const newLimit = Math.max(SATELLITE_NATIVE_MAX_ZOOM, Math.floor(zoom) - 1);
-
-      if (newLimit < existingLimit) {
-        currentLimits[key] = newLimit;
-        areaZoomLimitsRef.current = { ...currentLimits };
-
-        if (map.getZoom() > newLimit) {
-          map.easeTo({ zoom: newLimit });
-        }
-      }
     };
 
     map.on("error", handleError);
@@ -616,34 +572,6 @@ export function MapOverlay({
       map.off("error", handleError);
     };
   }, [handleProviderFailure]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const handleZoomEnd = () => {
-      const center = map.getCenter();
-      const zoom = map.getZoom();
-
-      const key = areaKeyForCenter(center.lng, center.lat);
-      const areaLimits = areaZoomLimitsRef.current;
-
-      const areaSafeMax =
-        areaLimits[key] ?? defaultSafeMaxZoomRef.current ?? GLOBAL_HARD_MAX_ZOOM;
-
-      const effectiveSafeMax = Math.min(areaSafeMax, GLOBAL_HARD_MAX_ZOOM);
-
-      if (zoom > effectiveSafeMax) {
-        map.easeTo({ zoom: effectiveSafeMax });
-      }
-    };
-
-    map.on("zoomend", handleZoomEnd);
-
-    return () => {
-      map.off("zoomend", handleZoomEnd);
-    };
-  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -694,7 +622,7 @@ export function MapOverlay({
     const currentZoom = map.getZoom();
     const clampedZoom = Math.max(
       MAP_MIN_ZOOM,
-      Math.min(mapZoom, GLOBAL_HARD_MAX_ZOOM)
+      Math.min(mapZoom, MAP_MAX_ZOOM)
     );
     if (Math.abs(currentZoom - clampedZoom) < 0.001) return;
 
@@ -705,7 +633,7 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
-    map.setMaxZoom(GLOBAL_HARD_MAX_ZOOM);
+    map.setMaxZoom(MAP_MAX_ZOOM);
     map.setMinZoom(MAP_MIN_ZOOM);
     map.setStyle(buildMapStyle(mapMode, satelliteProvider));
   }, [mapMode, satelliteProvider]);
@@ -745,7 +673,7 @@ export function MapOverlay({
 
       flyLockRef.current = true;
 
-      const safeZoom = Math.min(desiredZoom ?? 18, GLOBAL_HARD_MAX_ZOOM);
+      const safeZoom = Math.min(desiredZoom ?? 18, MAP_MAX_ZOOM);
 
       if (moveEndHandlerRef.current) {
         map.off("moveend", moveEndHandlerRef.current);
