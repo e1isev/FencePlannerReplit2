@@ -9,11 +9,13 @@ import {
 import type {
   Board,
   BoardDirection,
+  CornerConstraint,
   DeckColor,
   DeckingBoardPlan,
   DeckingCuttingList,
   Point,
 } from "@/types/decking";
+import { applyCornerAngleRotateForward } from "@/geometry/deckingAngles";
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -81,7 +83,12 @@ interface DeckingState {
   selectedColor: DeckColor;
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
-  history: Array<{ polygon: Point[]; boardDirection: BoardDirection }>;
+  cornerConstraints: Record<number, CornerConstraint>;
+  history: Array<{
+    polygon: Point[];
+    boardDirection: BoardDirection;
+    cornerConstraints: Record<number, CornerConstraint>;
+  }>;
   historyIndex: number;
 
   setSelectedColor: (color: DeckColor) => void;
@@ -90,6 +97,8 @@ interface DeckingState {
   calculateBoards: () => void;
   getCuttingList: () => DeckingCuttingList;
   updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
+  setCornerAngle: (vertexIndex: number, angleDeg: number) => void;
+  clearCornerAngle: (vertexIndex: number) => void;
   clear: () => void;
   undo: () => void;
   redo: () => void;
@@ -104,6 +113,7 @@ export const useDeckingStore = create<DeckingState>()(
       selectedColor: "mallee-bark",
       boardDirection: "horizontal",
       boardPlan: null,
+      cornerConstraints: {},
       history: [],
       historyIndex: -1,
 
@@ -118,7 +128,7 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       setPolygon: (points) => {
-        set({ polygon: points });
+        set({ polygon: points, cornerConstraints: {} });
         get().calculateBoards();
         get().saveHistory();
       },
@@ -127,33 +137,65 @@ export const useDeckingStore = create<DeckingState>()(
         if (lengthMm <= 0) return;
 
         const { polygon } = get();
-        if (polygon.length < 2) return;
+        const n = polygon.length;
+        if (n < 2) return;
 
-        const startIndex = ((edgeIndex % polygon.length) + polygon.length) % polygon.length;
-        const endIndex = (startIndex + 1) % polygon.length;
+        const startIndex = ((edgeIndex % n) + n) % n;
+        const endIndex = (startIndex + 1) % n;
 
         const start = polygon[startIndex];
         const end = polygon[endIndex];
 
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const currentLength = Math.sqrt(dx * dx + dy * dy);
+        const direction = { x: end.x - start.x, y: end.y - start.y };
+        const currentLength = Math.hypot(direction.x, direction.y);
         if (currentLength === 0) return;
 
         const scale = lengthMm / currentLength;
         const newEnd = {
-          x: start.x + dx * scale,
-          y: start.y + dy * scale,
+          x: start.x + direction.x * scale,
+          y: start.y + direction.y * scale,
         };
 
-        const newPolygon = polygon.map((point, idx) => {
-          if (idx === endIndex) return newEnd;
-          if (endIndex === 0 && idx === 0) return newEnd;
-          return point;
-        });
+        const delta = { x: newEnd.x - end.x, y: newEnd.y - end.y };
+        const newPolygon = polygon.map((point) => ({ ...point }));
+        newPolygon[endIndex] = newEnd;
+
+        let k = (endIndex + 1) % n;
+        while (k !== startIndex) {
+          newPolygon[k] = {
+            x: newPolygon[k].x + delta.x,
+            y: newPolygon[k].y + delta.y,
+          };
+          k = (k + 1) % n;
+        }
 
         set({ polygon: newPolygon });
         get().calculateBoards();
+        get().saveHistory();
+      },
+
+      setCornerAngle: (vertexIndex, angleDeg) => {
+        const { polygon, cornerConstraints } = get();
+        if (polygon.length < 3) return;
+        if (angleDeg <= 0 || angleDeg >= 360) return;
+
+        const newPolygon = applyCornerAngleRotateForward(polygon, vertexIndex, angleDeg);
+        const newConstraints = {
+          ...cornerConstraints,
+          [vertexIndex]: { locked: true, angleDeg },
+        };
+
+        set({ polygon: newPolygon, cornerConstraints: newConstraints });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
+      clearCornerAngle: (vertexIndex) => {
+        const { cornerConstraints } = get();
+        if (!cornerConstraints[vertexIndex]) return;
+        const newConstraints = { ...cornerConstraints };
+        delete newConstraints[vertexIndex];
+        set({ cornerConstraints: newConstraints });
         get().saveHistory();
       },
 
@@ -276,7 +318,7 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       clear: () => {
-        set({ polygon: [], boards: [], boardPlan: null });
+        set({ polygon: [], boards: [], boardPlan: null, cornerConstraints: {} });
         get().saveHistory();
       },
 
@@ -285,7 +327,12 @@ export const useDeckingStore = create<DeckingState>()(
         if (historyIndex > 0) {
           const newIndex = historyIndex - 1;
           const snapshot = history[newIndex];
-          set({ polygon: snapshot.polygon, boardDirection: snapshot.boardDirection, historyIndex: newIndex });
+          set({
+            polygon: snapshot.polygon,
+            boardDirection: snapshot.boardDirection,
+            cornerConstraints: snapshot.cornerConstraints,
+            historyIndex: newIndex,
+          });
           get().calculateBoards();
         }
       },
@@ -295,16 +342,22 @@ export const useDeckingStore = create<DeckingState>()(
         if (historyIndex < history.length - 1) {
           const newIndex = historyIndex + 1;
           const snapshot = history[newIndex];
-          set({ polygon: snapshot.polygon, boardDirection: snapshot.boardDirection, historyIndex: newIndex });
+          set({
+            polygon: snapshot.polygon,
+            boardDirection: snapshot.boardDirection,
+            cornerConstraints: snapshot.cornerConstraints,
+            historyIndex: newIndex,
+          });
           get().calculateBoards();
         }
       },
 
       saveHistory: () => {
-        const { polygon, boardDirection, history, historyIndex } = get();
+        const { polygon, boardDirection, history, historyIndex, cornerConstraints } = get();
         const snapshot = {
           polygon: JSON.parse(JSON.stringify(polygon)),
           boardDirection,
+          cornerConstraints: JSON.parse(JSON.stringify(cornerConstraints)),
         };
         const newHistory = history.slice(0, historyIndex + 1);
         newHistory.push(snapshot);
