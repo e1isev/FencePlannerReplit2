@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
-import { findSnapPoint } from "@/geometry/snapping";
-import { DEFAULT_SNAP_TOLERANCE, FENCE_THICKNESS_MM, SNAP_RADIUS_MM } from "@/constants/geometry";
+import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint } from "@/geometry/snapping";
+import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
@@ -196,7 +196,8 @@ export function CanvasStage() {
     });
   };
 
-  const snapTolerance = mmPerPixel > 0 ? SNAP_RADIUS_MM / mmPerPixel : DEFAULT_SNAP_TOLERANCE;
+  const snapTolerance =
+    mmPerPixel > 0 ? ENDPOINT_SNAP_RADIUS_MM / mmPerPixel : ENDPOINT_SNAP_RADIUS_MM;
 
   const handleCalibrationComplete = useCallback(
     (a: Point, b: Point) => {

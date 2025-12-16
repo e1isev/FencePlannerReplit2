@@ -1,5 +1,7 @@
-import { DEFAULT_SNAP_TOLERANCE } from "@/constants/geometry";
 import { Point } from "@/types/models";
+
+export const ENDPOINT_SNAP_RADIUS_MM = 250;
+export const CLOSE_SHAPE_SNAP_RADIUS_MM = 350;
 
 export function snapTo90Degrees(start: Point, end: Point): Point {
   const dx = end.x - start.x;
@@ -21,7 +23,7 @@ export function isOrthogonal(start: Point, end: Point, tolerance: number = 0.01)
 export function findSnapPoint(
   point: Point,
   existingPoints: Point[],
-  tolerance: number = DEFAULT_SNAP_TOLERANCE
+  tolerance: number = ENDPOINT_SNAP_RADIUS_MM
 ): Point | null {
   for (const existing of existingPoints) {
     const distance = Math.sqrt(
