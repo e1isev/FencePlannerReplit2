@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Line, Circle, Text, Group } from "react-konva";
+import { Stage, Layer, Line, Text, Group } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
@@ -10,6 +10,8 @@ import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PostShape } from "./PostShape";
+import { getPostNeighbours } from "@/geometry/posts";
 
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
@@ -644,21 +646,16 @@ export function CanvasStage() {
             )}
 
             {posts.map((post) => {
-              const colors = {
-                end: "#10b981",
-                corner: "#ef4444",
-                line: "#06b6d4",
-              };
+              const neighbours = getPostNeighbours(post.pos, lines);
+
               return (
-                <Circle
+                <PostShape
                   key={post.id}
                   x={post.pos.x}
                   y={post.pos.y}
-                  radius={6 / stageScale}
-                  fill={colors[post.category]}
-                  stroke={colors[post.category]}
-                  strokeWidth={2 / stageScale}
-                  name="post"
+                  neighbours={neighbours}
+                  mmPerPixel={mmPerPixel}
+                  isSatelliteMode={mapMode === "satellite"}
                 />
               );
             })}
