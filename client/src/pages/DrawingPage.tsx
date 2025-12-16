@@ -15,7 +15,7 @@ export default function DrawingPage() {
 
   const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
 
-  const padding = 100;
+  const padding = 80;
   const canvasWidth = 1200;
   const canvasHeight = 800;
 
@@ -31,12 +31,23 @@ export default function DrawingPage() {
     maxY = Math.max(maxY, line.a.y, line.b.y);
   });
 
-  const drawingWidth = maxX - minX;
-  const drawingHeight = maxY - minY;
+  const hasLines = lines.length > 0;
 
-  const scaleX = (canvasWidth - 2 * padding) / drawingWidth;
-  const scaleY = (canvasHeight - 2 * padding) / drawingHeight;
-  const drawingScale = Math.min(scaleX, scaleY, 1);
+  if (!hasLines) {
+    minX = 0;
+    minY = 0;
+    maxX = canvasWidth - 2 * padding;
+    maxY = canvasHeight - 2 * padding;
+  }
+  const drawingWidth = hasLines ? maxX - minX : canvasWidth - 2 * padding;
+  const drawingHeight = hasLines ? maxY - minY : canvasHeight - 2 * padding;
+
+  const safeDrawingWidth = Math.max(drawingWidth, 1);
+  const safeDrawingHeight = Math.max(drawingHeight, 1);
+
+  const scaleX = (canvasWidth - 2 * padding) / safeDrawingWidth;
+  const scaleY = (canvasHeight - 2 * padding) / safeDrawingHeight;
+  const drawingScale = Math.min(scaleX, scaleY);
 
   const offsetX = padding + (canvasWidth - 2 * padding - drawingWidth * drawingScale) / 2;
   const offsetY = padding + (canvasHeight - 2 * padding - drawingHeight * drawingScale) / 2;
