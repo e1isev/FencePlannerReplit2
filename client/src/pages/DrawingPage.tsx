@@ -9,6 +9,7 @@ import { getSlidingReturnRect } from "@/geometry/gates";
 import { calculateCosts } from "@/lib/pricing";
 import { PostShape } from "@/components/PostShape";
 import { getPostNeighbours } from "@/geometry/posts";
+import { FENCE_THICKNESS_MM } from "@/constants/geometry";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
@@ -54,10 +55,19 @@ export default function DrawingPage() {
   const offsetX = padding + (canvasWidth - 2 * padding - drawingWidth * drawingScale) / 2;
   const offsetY = padding + (canvasHeight - 2 * padding - drawingHeight * drawingScale) / 2;
 
+  const effectiveMmPerPixel = mmPerPixel ? mmPerPixel / drawingScale : 1;
+  const mmToPx = (mm: number) => (effectiveMmPerPixel > 0 ? mm / effectiveMmPerPixel : mm);
+
   const transform = (point: { x: number; y: number }) => ({
     x: (point.x - minX) * drawingScale + offsetX,
     y: (point.y - minY) * drawingScale + offsetY,
   });
+
+  const transformedLines = lines.map((line) => ({
+    ...line,
+    a: transform(line.a),
+    b: transform(line.b),
+  }));
 
   return (
     <div className="min-h-screen bg-white" data-testid="page-drawing">
@@ -90,17 +100,17 @@ export default function DrawingPage() {
                   fill="white"
                 />
 
-                {lines.map((line) => {
+                {transformedLines.map((line) => {
                   const isGate = !!line.gateId;
-                  const a = transform(line.a);
-                  const b = transform(line.b);
+                  const a = line.a;
+                  const b = line.b;
 
                   return (
                     <Group key={line.id}>
                       <Line
                         points={[a.x, a.y, b.x, b.y]}
                         stroke={isGate ? "#f59e0b" : "#475569"}
-                        strokeWidth={isGate ? 4 : 2}
+                        strokeWidth={mmToPx(FENCE_THICKNESS_MM)}
                         opacity={isGate ? 0.9 : 1}
                       />
                       <Text
@@ -134,10 +144,6 @@ export default function DrawingPage() {
                   const transformedPost = transform(post.pos);
                   const neighbours = getPostNeighbours(post.pos, lines).map(transform);
 
-                  const effectiveMmPerPixel = mmPerPixel
-                    ? mmPerPixel / drawingScale
-                    : 1;
-
                   return (
                     <PostShape
                       key={post.id}
@@ -146,6 +152,7 @@ export default function DrawingPage() {
                       neighbours={neighbours}
                       mmPerPixel={effectiveMmPerPixel}
                       category={post.category}
+                      lines={transformedLines}
                     />
                   );
                 })}

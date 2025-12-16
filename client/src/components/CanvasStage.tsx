@@ -3,7 +3,11 @@ import { Stage, Layer, Line, Text, Group } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
-import { DEFAULT_SNAP_TOLERANCE, SNAP_RADIUS_MM } from "@/constants/geometry";
+import {
+  DEFAULT_SNAP_TOLERANCE,
+  FENCE_THICKNESS_MM,
+  SNAP_RADIUS_MM,
+} from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
@@ -75,6 +79,11 @@ export function CanvasStage() {
   } = useAppStore();
 
   const viewScale = Number.isFinite(scale * mapScale) && scale * mapScale > 0 ? scale * mapScale : 1;
+
+  const mmToPx = useCallback(
+    (mm: number) => (mmPerPixel > 0 ? mm / mmPerPixel : mm),
+    [mmPerPixel]
+  );
 
   // Stage is always centred in the viewport.
   // The only thing that moves the world relative to the screen
@@ -609,8 +618,8 @@ export function CanvasStage() {
               const perpX = -unitY;
               const perpY = unitX;
 
-              const baseStrokeWidth = isGate ? 6 : isSelected ? 4 : 3;
-              const outlineStrokeWidth = baseStrokeWidth + (mapMode === "satellite" ? 3 : 2);
+              const baseStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
+              const outlineStrokeWidth = baseStrokeWidth + mmToPx(6);
 
               const mainStroke = isGate
                 ? "#fbbf24"
@@ -629,7 +638,6 @@ export function CanvasStage() {
                     stroke={outlineStroke}
                     strokeWidth={outlineStrokeWidth}
                     opacity={isGate ? 0.8 : mapMode === "satellite" ? 0.75 : 0.9}
-                    strokeScaleEnabled={false}
                     listening={false}
                   />
                   <Line
@@ -637,7 +645,6 @@ export function CanvasStage() {
                     stroke={mainStroke}
                     strokeWidth={baseStrokeWidth}
                     opacity={isGate ? 0.8 : 1}
-                    strokeScaleEnabled={false}
                     onClick={(e) => handleLineClick(line.id, e)}
                     listening={!isGate}
                     shadowColor={mapMode === "satellite" ? "rgba(0,0,0,0.6)" : undefined}
@@ -664,9 +671,8 @@ export function CanvasStage() {
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke="#94a3b8"
-                strokeWidth={3}
+                strokeWidth={mmToPx(FENCE_THICKNESS_MM)}
                 dash={[5, 5]}
-                strokeScaleEnabled={false}
               />
             )}
 
@@ -681,6 +687,7 @@ export function CanvasStage() {
                   neighbours={neighbours}
                   mmPerPixel={mmPerPixel}
                   category={post.category}
+                  lines={lines}
                   isSatelliteMode={mapMode === "satellite"}
                 />
               );
