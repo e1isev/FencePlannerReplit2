@@ -1,11 +1,76 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
-import { Label, Layer, Line, Tag, Text, Stage } from "react-konva";
+import { Group, Layer, Line, Rect, Text, Stage } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
 import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
-import { findSnapPoint, getDistance } from "@/geometry/snapping";
+import { findSnapPoint, getDistance, snapToAngle } from "@/geometry/snapping";
 
 const CLOSE_TOLERANCE_MM = 150;
+const BASE_LABEL_OFFSET = 32;
+const BASE_FONT_SIZE = 14;
+const BASE_PADDING = 8;
+const BASE_CORNER_RADIUS = 6;
+const BASE_HIT_PADDING = 6;
+
+type Segment = {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+};
+
+function formatLength(lengthMm: number): string {
+  if (lengthMm >= 1000) {
+    return `${(lengthMm / 1000).toFixed(2)}m`;
+  }
+  return `${Math.round(lengthMm)}mm`;
+}
+
+function computeCentroid(points: { x: number; y: number }[], treatAsClosed: boolean = true) {
+  if (points.length === 0) return null;
+
+  if (treatAsClosed && points.length >= 3) {
+    let area = 0;
+    let cx = 0;
+    let cy = 0;
+
+    for (let i = 0; i < points.length; i++) {
+      const j = (i + 1) % points.length;
+      const cross = points[i].x * points[j].y - points[j].x * points[i].y;
+      area += cross;
+      cx += (points[i].x + points[j].x) * cross;
+      cy += (points[i].y + points[j].y) * cross;
+    }
+
+    if (area !== 0) {
+      area *= 0.5;
+      return {
+        x: cx / (6 * area),
+        y: cy / (6 * area),
+      };
+    }
+  }
+
+  const sum = points.reduce(
+    (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
+    { x: 0, y: 0 }
+  );
+
+  return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
+function getSegments(points: { x: number; y: number }[], closed: boolean): Segment[] {
+  const segments: Segment[] = [];
+  if (points.length < 2) return segments;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    segments.push({ start: points[i], end: points[i + 1] });
+  }
+
+  if (closed && points.length > 2) {
+    segments.push({ start: points[points.length - 1], end: points[0] });
+  }
+
+  return segments;
+}
 
 const COLOR_MAP: Record<string, string> = {
   "storm-granite": "#6b7280",
@@ -34,6 +99,8 @@ export function DeckingCanvasStage() {
 
   const { boards, polygon, selectedColor, setPolygon, boardDirection, updateEdgeLength } =
     useDeckingStore();
+
+  const stageScale = scale;
 
   useEffect(() => {
     const updateSize = () => {
@@ -100,21 +167,14 @@ export function DeckingCanvasStage() {
       });
       return;
     }
-
     const stage = e.target.getStage();
     const pointer = stage?.getPointerPosition();
     if (!pointer) return;
 
     if (!isDrawing || points.length === 0) return;
 
-    const worldPosMm = {
-      x: pxToMm((pointer.x - stagePos.x) / scale),
-      y: pxToMm((pointer.y - stagePos.y) / scale),
-    };
-
-    const boardEndpoints = boards.flatMap((board) => [board.start, board.end]);
-    const allPoints = [...points, ...polygon, ...boardEndpoints];
-    const snapped = findSnapPoint(worldPosMm, allPoints) || worldPosMm;
+    const lastPoint = points[points.length - 1];
+    const snapped = getSnappedPointer(pointer, lastPoint, e.evt.altKey);
 
     setPreviewPoint(snapped);
   };
@@ -133,14 +193,8 @@ export function DeckingCanvasStage() {
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    const worldPosMm = {
-      x: pxToMm((pointer.x - stagePos.x) / scale),
-      y: pxToMm((pointer.y - stagePos.y) / scale),
-    };
-
-    const boardEndpoints = boards.flatMap((board) => [board.start, board.end]);
-    const allPoints = [...points, ...polygon, ...boardEndpoints];
-    const snapped = findSnapPoint(worldPosMm, allPoints) || worldPosMm;
+    const anchor = isDrawing && points.length > 0 ? points[points.length - 1] : null;
+    const snapped = getSnappedPointer(pointer, anchor, e.evt.altKey);
 
     if (!isDrawing) {
       setIsDrawing(true);
@@ -163,7 +217,6 @@ export function DeckingCanvasStage() {
       }
     }
 
-    const lastPoint = points[points.length - 1];
     setPoints([...points, snapped]);
     setPreviewPoint(snapped);
   };
@@ -175,6 +228,123 @@ export function DeckingCanvasStage() {
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
 
   const gridLines: JSX.Element[] = [];
+
+  const getSnappedPointer = (
+    pointer: { x: number; y: number },
+    anchor: { x: number; y: number } | null,
+    disableAngleSnap?: boolean
+  ) => {
+    const worldPosMm = {
+      x: pxToMm((pointer.x - stagePos.x) / scale),
+      y: pxToMm((pointer.y - stagePos.y) / scale),
+    };
+
+    const boardEndpoints = boards.flatMap((board) => [board.start, board.end]);
+    const allPoints = [...points, ...polygon, ...boardEndpoints];
+    const snapPoint = findSnapPoint(worldPosMm, allPoints);
+    const snappedToPoint = Boolean(snapPoint);
+    let candidate = snapPoint || worldPosMm;
+
+    if (anchor && !snappedToPoint && !disableAngleSnap) {
+      candidate = snapToAngle(anchor, candidate);
+    }
+
+    return candidate;
+  };
+
+  const polygonCentroid = useMemo(() => computeCentroid(polygon), [polygon]);
+  const drawingCentre = useMemo(() => computeCentroid(points, false), [points]);
+
+  const polygonSegments = useMemo(() => getSegments(polygon, true), [polygon]);
+  const drawingSegments = useMemo(
+    () => getSegments(points, false),
+    [points]
+  );
+
+  const renderDimensionLabel = (
+    segment: Segment,
+    key: string,
+    center: { x: number; y: number } | null,
+    options?: { edgeIndex?: number; isPreview?: boolean }
+  ) => {
+    const startPx = { x: mmToPx(segment.start.x), y: mmToPx(segment.start.y) };
+    const endPx = { x: mmToPx(segment.end.x), y: mmToPx(segment.end.y) };
+
+    const dxPx = endPx.x - startPx.x;
+    const dyPx = endPx.y - startPx.y;
+    const lengthPx = Math.hypot(dxPx, dyPx);
+    const lengthMm = getDistance(segment.start, segment.end);
+
+    if (lengthPx === 0 || lengthMm === 0) return null;
+
+    const midPoint = {
+      x: (startPx.x + endPx.x) / 2,
+      y: (startPx.y + endPx.y) / 2,
+    };
+
+    const perp = { x: -dyPx / lengthPx, y: dxPx / lengthPx };
+    const centrePx = center
+      ? { x: mmToPx(center.x), y: mmToPx(center.y) }
+      : midPoint;
+    const toMid = { x: midPoint.x - centrePx.x, y: midPoint.y - centrePx.y };
+
+    const dot1 = perp.x * toMid.x + perp.y * toMid.y;
+    const dot2 = -perp.x * toMid.x + -perp.y * toMid.y;
+    const outwardNormal = dot1 < dot2 ? { x: -perp.x, y: -perp.y } : perp;
+
+    const labelOffset = BASE_LABEL_OFFSET / stageScale;
+    const labelPos = {
+      x: midPoint.x + outwardNormal.x * labelOffset,
+      y: midPoint.y + outwardNormal.y * labelOffset,
+    };
+
+    const text = formatLength(lengthMm);
+    const fontSize = BASE_FONT_SIZE / stageScale;
+    const padding = BASE_PADDING / stageScale;
+    const hitPadding = BASE_HIT_PADDING / stageScale;
+    const cornerRadius = BASE_CORNER_RADIUS / stageScale;
+    const textWidth = text.length * fontSize * 0.6;
+    const contentWidth = textWidth + padding * 2;
+    const contentHeight = fontSize + padding * 2;
+    const rectWidth = contentWidth + hitPadding * 2;
+    const rectHeight = contentHeight + hitPadding * 2;
+
+    const handleClick = options?.edgeIndex !== undefined
+      ? (e: any) => handleLabelClick(options.edgeIndex as number, lengthMm, e)
+      : undefined;
+
+    return (
+      <Group
+        key={key}
+        x={labelPos.x}
+        y={labelPos.y}
+        listening
+        onClick={handleClick}
+      >
+        <Rect
+          width={rectWidth}
+          height={rectHeight}
+          offsetX={rectWidth / 2}
+          offsetY={rectHeight / 2}
+          cornerRadius={cornerRadius}
+          fill="rgba(15,23,42,0.8)"
+          stroke="rgba(255,255,255,0.65)"
+          strokeWidth={1 / stageScale}
+        />
+        <Text
+          width={contentWidth}
+          height={contentHeight}
+          offsetX={contentWidth / 2}
+          offsetY={contentHeight / 2}
+          text={text}
+          fontSize={fontSize}
+          fill="#f8fafc"
+          align="center"
+          verticalAlign="middle"
+        />
+      </Group>
+    );
+  };
 
   const handleLabelClick = (edgeIndex: number, lengthMm: number, e: any) => {
     e.cancelBubble = true;
@@ -286,69 +456,6 @@ export function DeckingCanvasStage() {
             />
           )}
 
-          {hasPolygon &&
-            polygon.map((point, index) => {
-              const nextPoint = polygon[(index + 1) % polygon.length];
-
-              const startPx = { x: mmToPx(point.x), y: mmToPx(point.y) };
-              const endPx = { x: mmToPx(nextPoint.x), y: mmToPx(nextPoint.y) };
-
-              const dxPx = endPx.x - startPx.x;
-              const dyPx = endPx.y - startPx.y;
-              const lengthPx = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
-              const lengthMm = Math.sqrt(
-                Math.pow(nextPoint.x - point.x, 2) + Math.pow(nextPoint.y - point.y, 2)
-              );
-
-              if (lengthPx === 0 || lengthMm === 0) return null;
-
-              const midPoint = {
-                x: (startPx.x + endPx.x) / 2,
-                y: (startPx.y + endPx.y) / 2,
-              };
-
-              const perpX = -dyPx / lengthPx;
-              const perpY = dxPx / lengthPx;
-              const labelOffset = 14;
-
-              const labelPoint = {
-                x: midPoint.x + perpX * labelOffset,
-                y: midPoint.y + perpY * labelOffset,
-              };
-
-              const text = `${(lengthMm / 1000).toFixed(2)}m`;
-              const fontSize = 12;
-              const padding = 4;
-              const estimatedWidth = text.length * fontSize * 0.6 + padding * 2;
-              const estimatedHeight = fontSize + padding * 2;
-
-              const angleDeg = (Math.atan2(dyPx, dxPx) * 180) / Math.PI;
-              const readableAngle = angleDeg > 90 || angleDeg < -90 ? angleDeg + 180 : angleDeg;
-
-              return (
-                <Label
-                  key={`edge-label-${index}`}
-                  x={labelPoint.x}
-                  y={labelPoint.y}
-                  offsetX={estimatedWidth / 2}
-                  offsetY={estimatedHeight / 2}
-                  rotation={readableAngle}
-                  listening
-                  onClick={(e) => handleLabelClick(index, lengthMm, e)}
-                >
-                  <Tag
-                    fill="rgba(255,255,255,0.9)"
-                    stroke="rgba(15,23,42,0.35)"
-                    strokeWidth={1}
-                    cornerRadius={4}
-                    pointerDirection="none"
-                    padding={padding}
-                  />
-                  <Text text={text} fontSize={fontSize} fill="#1e293b" padding={padding} />
-                </Label>
-              );
-            })}
-
           {boards.map((board) => (
             <Line
               key={board.id}
@@ -365,6 +472,33 @@ export function DeckingCanvasStage() {
               data-testid={`board-${board.id}`}
             />
           ))}
+        </Layer>
+
+        <Layer listening>
+          {polygonSegments.map((segment, index) =>
+            renderDimensionLabel(
+              segment,
+              `polygon-label-${index}`,
+              polygonCentroid,
+              { edgeIndex: index }
+            )
+          )}
+
+          {drawingSegments.map((segment, index) =>
+            renderDimensionLabel(
+              segment,
+              `drawing-label-${index}`,
+              drawingCentre
+            )
+          )}
+
+          {previewPoint && points.length > 0 &&
+            renderDimensionLabel(
+              { start: points[points.length - 1], end: previewPoint },
+              "preview-label",
+              drawingCentre,
+              { isPreview: true }
+            )}
         </Layer>
       </Stage>
 
