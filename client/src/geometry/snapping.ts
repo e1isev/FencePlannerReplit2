@@ -40,6 +40,29 @@ export function getDistance(start: Point, end: Point): number {
   );
 }
 
+export function snapToAngle(
+  anchor: Point,
+  point: Point,
+  stepDeg: number = 15
+): Point {
+  const dx = point.x - anchor.x;
+  const dy = point.y - anchor.y;
+
+  const angle = Math.atan2(dy, dx);
+  const step = (stepDeg * Math.PI) / 180;
+  const snappedAngle = Math.round(angle / step) * step;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance === 0) {
+    return point;
+  }
+
+  return {
+    x: anchor.x + Math.cos(snappedAngle) * distance,
+    y: anchor.y + Math.sin(snappedAngle) * distance,
+  };
+}
+
 export function getAllLineEndpoints(lines: any[]): Point[] {
   const endpoints: Point[] = [];
   lines.forEach((line) => {
