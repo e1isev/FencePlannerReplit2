@@ -16,6 +16,10 @@ import type {
   Point,
 } from "@/types/decking";
 import { applyCornerAngleRotateForward } from "@/geometry/deckingAngles";
+import {
+  findBottomEdgeIndex,
+  rotatePolygonToHorizontalBaseline,
+} from "@/geometry/deckingBaseline";
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -84,10 +88,12 @@ interface DeckingState {
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
   cornerConstraints: Record<number, CornerConstraint>;
+  baselineEdgeIndex: number | null;
   history: Array<{
     polygon: Point[];
     boardDirection: BoardDirection;
     cornerConstraints: Record<number, CornerConstraint>;
+    baselineEdgeIndex: number | null;
   }>;
   historyIndex: number;
 
@@ -114,6 +120,7 @@ export const useDeckingStore = create<DeckingState>()(
       boardDirection: "horizontal",
       boardPlan: null,
       cornerConstraints: {},
+      baselineEdgeIndex: null,
       history: [],
       historyIndex: -1,
 
@@ -128,7 +135,18 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       setPolygon: (points) => {
-        set({ polygon: points, cornerConstraints: {} });
+        const baselineEdgeIndex =
+          points.length >= 3 ? findBottomEdgeIndex(points) : null;
+        const normalizedPolygon =
+          baselineEdgeIndex === null
+            ? points
+            : rotatePolygonToHorizontalBaseline(points, baselineEdgeIndex);
+
+        set({
+          polygon: normalizedPolygon,
+          cornerConstraints: {},
+          baselineEdgeIndex,
+        });
         get().calculateBoards();
         get().saveHistory();
       },
@@ -136,7 +154,7 @@ export const useDeckingStore = create<DeckingState>()(
       updateEdgeLength: (edgeIndex, lengthMm) => {
         if (lengthMm <= 0) return;
 
-        const { polygon } = get();
+        const { polygon, baselineEdgeIndex } = get();
         const n = polygon.length;
         if (n < 2) return;
 
@@ -169,23 +187,47 @@ export const useDeckingStore = create<DeckingState>()(
           k = (k + 1) % n;
         }
 
-        set({ polygon: newPolygon });
+        let nextBaselineEdgeIndex = baselineEdgeIndex;
+        if (nextBaselineEdgeIndex === null && newPolygon.length >= 3) {
+          nextBaselineEdgeIndex = findBottomEdgeIndex(newPolygon);
+        }
+
+        const normalizedPolygon =
+          nextBaselineEdgeIndex === null
+            ? newPolygon
+            : rotatePolygonToHorizontalBaseline(newPolygon, nextBaselineEdgeIndex);
+
+        set({ polygon: normalizedPolygon, baselineEdgeIndex: nextBaselineEdgeIndex });
         get().calculateBoards();
         get().saveHistory();
       },
 
       setCornerAngle: (vertexIndex, angleDeg) => {
-        const { polygon, cornerConstraints } = get();
+        const { polygon, cornerConstraints, baselineEdgeIndex } = get();
         if (polygon.length < 3) return;
         if (angleDeg <= 0 || angleDeg >= 360) return;
 
-        const newPolygon = applyCornerAngleRotateForward(polygon, vertexIndex, angleDeg);
+        let newPolygon = applyCornerAngleRotateForward(polygon, vertexIndex, angleDeg);
         const newConstraints = {
           ...cornerConstraints,
           [vertexIndex]: { locked: true, angleDeg },
         };
 
-        set({ polygon: newPolygon, cornerConstraints: newConstraints });
+        let nextBaselineEdgeIndex = baselineEdgeIndex;
+        if (nextBaselineEdgeIndex === null && newPolygon.length >= 3) {
+          nextBaselineEdgeIndex = findBottomEdgeIndex(newPolygon);
+        }
+
+        newPolygon =
+          nextBaselineEdgeIndex === null
+            ? newPolygon
+            : rotatePolygonToHorizontalBaseline(newPolygon, nextBaselineEdgeIndex);
+
+        set({
+          polygon: newPolygon,
+          cornerConstraints: newConstraints,
+          baselineEdgeIndex: nextBaselineEdgeIndex,
+        });
         get().calculateBoards();
         get().saveHistory();
       },
@@ -318,7 +360,13 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       clear: () => {
-        set({ polygon: [], boards: [], boardPlan: null, cornerConstraints: {} });
+        set({
+          polygon: [],
+          boards: [],
+          boardPlan: null,
+          cornerConstraints: {},
+          baselineEdgeIndex: null,
+        });
         get().saveHistory();
       },
 
@@ -331,6 +379,7 @@ export const useDeckingStore = create<DeckingState>()(
             polygon: snapshot.polygon,
             boardDirection: snapshot.boardDirection,
             cornerConstraints: snapshot.cornerConstraints,
+            baselineEdgeIndex: snapshot.baselineEdgeIndex,
             historyIndex: newIndex,
           });
           get().calculateBoards();
@@ -346,6 +395,7 @@ export const useDeckingStore = create<DeckingState>()(
             polygon: snapshot.polygon,
             boardDirection: snapshot.boardDirection,
             cornerConstraints: snapshot.cornerConstraints,
+            baselineEdgeIndex: snapshot.baselineEdgeIndex,
             historyIndex: newIndex,
           });
           get().calculateBoards();
@@ -353,11 +403,19 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       saveHistory: () => {
-        const { polygon, boardDirection, history, historyIndex, cornerConstraints } = get();
+        const {
+          polygon,
+          boardDirection,
+          history,
+          historyIndex,
+          cornerConstraints,
+          baselineEdgeIndex,
+        } = get();
         const snapshot = {
           polygon: JSON.parse(JSON.stringify(polygon)),
           boardDirection,
           cornerConstraints: JSON.parse(JSON.stringify(cornerConstraints)),
+          baselineEdgeIndex,
         };
         const newHistory = history.slice(0, historyIndex + 1);
         newHistory.push(snapshot);
