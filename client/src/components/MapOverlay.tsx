@@ -55,7 +55,8 @@ const FALLBACK_SATELLITE_TILES =
 
 // Highest zoom at which satellite tiles are expected to exist globally.
 // This should match the raster source "maxzoom" you use for satellite imagery.
-const SATELLITE_NATIVE_MAX_ZOOM = 21;
+// Keep conservative to avoid 404 gaps from providers that top out around z20.
+const SATELLITE_NATIVE_MAX_ZOOM = 20;
 
 // How many levels of over-zoom we normally allow on top of the native max.
 // Nearmap supports up to zoom 21, so do not over-zoom.
@@ -218,6 +219,8 @@ function buildMapStyle(
     type: "raster" as const,
     tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
     tileSize: 256,
+    minzoom: 0,
+    maxzoom: 19,
     attribution: "© OpenStreetMap contributors",
   };
 
@@ -227,7 +230,9 @@ function buildMapStyle(
           type: "raster" as const,
           tiles: satelliteSource.tiles,
           tileSize: satelliteSource.tileSize,
+          minzoom: 0,
           maxzoom: SATELLITE_NATIVE_MAX_ZOOM,
+          scheme: "xyz",
           attribution: satelliteSource.attribution,
         },
         osm: osmSource,
@@ -239,21 +244,45 @@ function buildMapStyle(
   const layers: StyleSpecification["layers"] = isSatellite
     ? [
         {
+          id: "background",
+          type: "background" as const,
+          paint: {
+            "background-color": "#eaf2ff",
+          },
+        },
+        {
           id: "osm",
           type: "raster" as const,
           source: "osm",
+          paint: {
+            "raster-opacity": 1,
+          },
         },
         {
           id: "satellite",
           type: "raster" as const,
           source: "satellite",
+          paint: {
+            "raster-opacity": 1,
+            "raster-fade-duration": 0,
+          },
         },
       ]
     : [
         {
+          id: "background",
+          type: "background" as const,
+          paint: {
+            "background-color": "#eaf2ff",
+          },
+        },
+        {
           id: "osm",
           type: "raster" as const,
           source: "osm",
+          paint: {
+            "raster-opacity": 1,
+          },
         },
       ];
 
@@ -414,6 +443,7 @@ export function MapOverlay({
       style: buildMapStyle(mapMode, satelliteProviderRef.current),
       center: initialCenter,
       zoom: initialZoom,
+      minZoom: 0,
       maxZoom: GLOBAL_HARD_MAX_ZOOM,
       attributionControl: false,
       dragRotate: false,
@@ -446,6 +476,16 @@ export function MapOverlay({
       }
 
       const status = e?.error?.status || e?.error?.statusCode;
+      const url = e?.error?.url || e?.tile?.url;
+      const message = e?.error?.message || e?.message;
+
+      console.warn("[MapOverlay] Satellite tile error", {
+        message,
+        status,
+        url,
+        sourceId,
+      });
+
       if (
         mapModeRef.current === "satellite" &&
         typeof status === "number" &&
@@ -573,6 +613,7 @@ export function MapOverlay({
     if (!map) return;
 
     map.setMaxZoom(GLOBAL_HARD_MAX_ZOOM);
+    map.setMinZoom(0);
     map.setStyle(buildMapStyle(mapMode, satelliteProvider));
   }, [mapMode, satelliteProvider]);
 
@@ -745,7 +786,7 @@ export function MapOverlay({
       <div
         ref={mapContainerRef}
         className={cn(
-          "absolute inset-0 transition-opacity opacity-90 pointer-events-none"
+          "absolute inset-0 transition-opacity opacity-90 pointer-events-none bg-[#eaf2ff]"
         )}
       />
 
