@@ -485,10 +485,8 @@ export function MapOverlay({
     () => (mapCenter ? { lng: mapCenter[0], lat: mapCenter[1] } : null),
     [mapCenter]
   );
-  const { suggestions, isLoading: isSearchLoading, error } = useAddressAutocomplete(
-    query,
-    mapCenterValue
-  );
+  const { suggestions, isLoading: isSearchLoading, error: searchError } =
+    useAddressAutocomplete(query, mapCenterValue);
   const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
 
@@ -909,7 +907,20 @@ export function MapOverlay({
       moveEndHandlerRef.current = unlock;
       map.on("moveend", unlock);
 
-      moveWhenReady(map, [lon, lat], safeZoom);
+      const performMove = () => {
+        try {
+          map.flyTo({ center: [lon, lat], zoom: safeZoom, essential: true });
+        } catch (error) {
+          console.error("[MapOverlay] flyTo failed, jumping instead", error);
+          moveMapInstant(map, [lon, lat], safeZoom);
+        }
+      };
+
+      if (map.loaded()) {
+        performMove();
+      } else {
+        map.once("load", performMove);
+      }
     },
     [onPanOffsetChange, onPanReferenceReset]
   );
@@ -924,7 +935,7 @@ export function MapOverlay({
     const lat = Number(result.lat);
     const lon = Number(result.lon);
 
-    setQuery(result.display_name);
+    setQuery(result.label);
     setIsDropdownOpen(false);
     setActiveIndex(-1);
 
@@ -1107,7 +1118,7 @@ export function MapOverlay({
             {isDropdownOpen &&
               (isSearchLoading ||
                 suggestions.length > 0 ||
-                error ||
+                searchError ||
                 query.trim().length >= MIN_QUERY_LENGTH) && (
               <div
                 ref={resultsListRef}
@@ -1117,11 +1128,7 @@ export function MapOverlay({
                   <div className="px-3 py-2 text-sm text-slate-600">Searching…</div>
                 )}
 
-                {error && (
-                  <div className="px-3 py-2 text-sm text-red-600">{error}</div>
-                )}
-
-                {!isSearchLoading && suggestions.length === 0 && !error && (
+                {!isSearchLoading && suggestions.length === 0 && !searchError && (
                   <div className="px-3 py-2 text-sm text-slate-500">
                     Refining suggestions…
                   </div>
@@ -1130,7 +1137,7 @@ export function MapOverlay({
                 {suggestions.map((result, index) => (
                   <button
                     type="button"
-                    key={`${result.place_id ?? index}-${result.lat}-${result.lon}`}
+                    key={result.id ?? `${index}-${result.lat}-${result.lon}`}
                     onClick={() => handleResultSelect(result)}
                     onMouseDown={(e) => e.preventDefault()}
                     className={cn(
@@ -1138,12 +1145,18 @@ export function MapOverlay({
                       activeIndex === index ? "bg-slate-100" : "hover:bg-slate-50"
                     )}
                   >
-                    {result.display_name}
+                    {result.label}
                   </button>
                 ))}
               </div>
             )}
           </form>
+
+          {searchError && (
+            <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+              {searchError}
+            </div>
+          )}
 
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
             Right click and drag on the canvas to pan. Use the mouse wheel to zoom while keeping your

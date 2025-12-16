@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
+import { geocode, type GeocodeSuggestion } from "@/lib/geocode";
+import { isDebugSearch } from "@/lib/searchDebug";
+
 type MapCenter = { lng: number; lat: number } | null;
 
-export interface AddressSuggestion {
-  display_name: string;
-  lat: string;
-  lon: string;
-  place_id?: number;
-}
+export interface AddressSuggestion extends GeocodeSuggestion {}
 
 export const MIN_QUERY_LENGTH = 3;
-const DEBOUNCE_MS = 350;
-const MAX_RESULTS = 5;
+const DEBOUNCE_MS = 300;
+const MAX_RESULTS = 8;
 const BIAS_DELTA = 0.35;
 const CACHE_LIMIT = 15;
 
@@ -30,9 +28,17 @@ function haversineDistanceKm(a: { lat: number; lon: number }, b: { lat: number; 
   return R * c;
 }
 
-function scoreSuggestion(s: AddressSuggestion, mapCenter: MapCenter) {
-  const parsed = { lat: Number(s.lat), lon: Number(s.lon) };
-  const hasStreetNumber = /\b\d+\b/.test(s.display_name.split(",")[0] ?? "");
+function scoreSuggestion(s: AddressSuggestion, mapCenter: MapCenter, query: string) {
+  const tokens = query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean);
+  const label = s.label.toLowerCase();
+  const hasStreetNumber = /\b\d+/.test(label);
+  const queryHasNumber = tokens.some((token) => /\d/.test(token));
+
+  const tokenMatches = tokens.reduce((acc, token) => acc + (label.includes(token) ? 1 : 0), 0);
+  const parsed = { lat: s.lat, lon: s.lon };
   const nearCenter =
     mapCenter &&
     Math.abs(parsed.lat - mapCenter.lat) <= BIAS_DELTA &&
@@ -43,20 +49,34 @@ function scoreSuggestion(s: AddressSuggestion, mapCenter: MapCenter) {
     : null;
   const distanceScore = distanceKm == null ? 0 : Math.max(0, 1.5 - Math.min(distanceKm, 50) / 50);
 
-  return (hasStreetNumber ? 3 : 0) + (nearCenter ? 2 : 0) + distanceScore;
+  const suburbComponents = s.label.split(",").slice(1).join(",").toLowerCase();
+  const suburbMatches = tokens.reduce(
+    (acc, token) => acc + (suburbComponents.includes(token) ? 0.5 : 0),
+    0
+  );
+
+  let score = tokenMatches * 2 + suburbMatches + distanceScore;
+  if (queryHasNumber && hasStreetNumber) {
+    score += 3;
+  }
+  if (nearCenter) {
+    score += 2;
+  }
+
+  return score;
 }
 
-function rankSuggestions(suggestions: AddressSuggestion[], mapCenter: MapCenter) {
+function rankSuggestions(suggestions: AddressSuggestion[], mapCenter: MapCenter, query: string) {
   const seen = new Set<string>();
 
   return [...suggestions]
     .filter((s) => {
-      const key = `${s.display_name}`.toLowerCase();
+      const key = s.label.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     })
-    .map((s) => ({ suggestion: s, score: scoreSuggestion(s, mapCenter) }))
+    .map((s) => ({ suggestion: s, score: scoreSuggestion(s, mapCenter, query) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_RESULTS)
     .map((entry) => entry.suggestion);
@@ -95,7 +115,7 @@ export function useAddressAutocomplete(
 
       const cached = cacheRef.current.get(trimmed);
       if (cached && cached.length > 0) {
-        setSuggestions(rankSuggestions(cached, mapCenter));
+        setSuggestions(rankSuggestions(cached, mapCenter, trimmed));
       }
 
       abortRef.current?.abort();
@@ -106,44 +126,10 @@ export function useAddressAutocomplete(
       setError(null);
 
       try {
-        const params = new URLSearchParams({
-          format: "json",
-          limit: "10",
-          q: trimmed,
-          countrycodes: "au",
-          bounded: "1",
-          addressdetails: "1",
-          dedupe: "1",
-        });
-
-        if (mapCenter) {
-          const lngDelta = BIAS_DELTA;
-          const latDelta = BIAS_DELTA;
-          params.set(
-            "viewbox",
-            `${mapCenter.lng - lngDelta},${mapCenter.lat + latDelta},${mapCenter.lng + lngDelta},${mapCenter.lat - latDelta}`
-          );
-        }
-
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-          {
-            headers: { Accept: "application/json", "Accept-Language": "en-AU" },
-            signal: controller.signal,
-          }
-        );
-
-        if (!res.ok) {
-          if (requestIdRef.current === requestId) {
-            setError("Search request failed. Please try again.");
-          }
-          return;
-        }
-
-        const data = (await res.json()) as AddressSuggestion[];
+        const data = await geocode(trimmed, { signal: controller.signal });
 
         if (requestIdRef.current === requestId) {
-          const ranked = rankSuggestions(Array.isArray(data) ? data : [], mapCenter);
+          const ranked = rankSuggestions(Array.isArray(data) ? data : [], mapCenter, trimmed);
           cacheRef.current.set(trimmed, ranked);
           cacheOrderRef.current.push(trimmed);
 
@@ -165,10 +151,13 @@ export function useAddressAutocomplete(
           return;
         }
 
+        if (isDebugSearch()) {
+          console.error("[useAddressAutocomplete] search failed", err);
+        }
+
         if (requestIdRef.current === requestId) {
-          setError(
-            err instanceof Error ? err.message : "Unable to search right now."
-          );
+          setSuggestions([]);
+          setError("Search unavailable, check API key or network");
         }
       } finally {
         if (requestIdRef.current === requestId) {
