@@ -3,12 +3,7 @@ import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { findSnapPoint } from "@/geometry/snapping";
-import {
-  DEFAULT_SNAP_TOLERANCE,
-  FENCE_THICKNESS_MM,
-  LINE_HIT_SLOP_PX,
-  SNAP_RADIUS_MM,
-} from "@/constants/geometry";
+import { DEFAULT_SNAP_TOLERANCE, FENCE_THICKNESS_MM, SNAP_RADIUS_MM } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
 import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
@@ -22,7 +17,7 @@ const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 const LABEL_OFFSET_PX = 14;
-const LINE_HIT_SLOP_MM = 10; // 0.5m either side of the line
+const MIN_LINE_HIT_PX = 4;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
@@ -615,17 +610,9 @@ export function CanvasStage() {
 
               const isInteractive = !isGate;
 
-              const dx = line.b.x - line.a.x;
-              const dy = line.b.y - line.a.y;
-              const lineLength_px = Math.sqrt(dx * dx + dy * dy);
-              const unitX = dx / lineLength_px;
-              const unitY = dy / lineLength_px;
-              const perpX = -unitY;
-              const perpY = unitX;
-
               const baseStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
               const outlineStrokeWidth = baseStrokeWidth + mmToPx(6);
-              const hitStrokeWidth = baseStrokeWidth + LINE_HIT_SLOP_PX * 2;
+              const linePoints = [line.a.x, line.a.y, line.b.x, line.b.y];
 
               const mainStroke = isGate
                 ? "#fbbf24"
@@ -640,40 +627,42 @@ export function CanvasStage() {
               return (
                 <Group key={line.id}>
                   <Line
-                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
-                    stroke="rgba(0,0,0,0)"
-                    strokeWidth={hitStrokeWidth}
-                    hitStrokeWidth={hitStrokeWidth}
-                    listening={isInteractive}
-                    perfectDrawEnabled={false}
-                    onMouseEnter={(e) => {
-                      const stage = e.target.getStage();
-                      if (stage) stage.container().style.cursor = isInteractive ? "pointer" : "default";
-                    }}
-                    onMouseLeave={(e) => {
-                      const stage = e.target.getStage();
-                      if (stage) stage.container().style.cursor = "default";
-                    }}
-                    onClick={(e) => handleLineClick(line.id, e)}
-                    onTap={(e) => handleLineClick(line.id, e)}
-                  />
-                  <Line
-                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
+                    points={linePoints}
                     stroke={outlineStroke}
                     strokeWidth={outlineStrokeWidth}
                     opacity={isGate ? 0.8 : mapMode === "satellite" ? 0.75 : 0.9}
                     listening={false}
                   />
                   <Line
-                    points={[line.a.x, line.a.y, line.b.x, line.b.y]}
+                    points={linePoints}
                     stroke={mainStroke}
                     strokeWidth={baseStrokeWidth}
-                    hitStrokeWidth={mmToPx(LINE_HIT_SLOP_MM)}
                     opacity={isGate ? 0.8 : 1}
                     listening={false}
                     shadowColor={mapMode === "satellite" ? "rgba(0,0,0,0.6)" : undefined}
                     shadowBlur={mapMode === "satellite" ? 2 : undefined}
                   />
+                  {isInteractive && (
+                    <Line
+                      points={linePoints}
+                      stroke="rgba(0,0,0,0)"
+                      strokeWidth={1}
+                      hitStrokeWidth={MIN_LINE_HIT_PX}
+                      listening
+                      perfectDrawEnabled={false}
+                      strokeScaleEnabled={false}
+                      onMouseEnter={(e) => {
+                        const stage = e.target.getStage();
+                        if (stage) stage.container().style.cursor = "pointer";
+                      }}
+                      onMouseLeave={(e) => {
+                        const stage = e.target.getStage();
+                        if (stage) stage.container().style.cursor = "default";
+                      }}
+                      onClick={(e) => handleLineClick(line.id, e)}
+                      onTap={(e) => handleLineClick(line.id, e)}
+                    />
+                  )}
 
                   {(() => {
                     const dx = line.b.x - line.a.x;
