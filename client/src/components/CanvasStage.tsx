@@ -22,7 +22,7 @@ const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 const LABEL_OFFSET_PX = 14;
-const LINE_HIT_SLOP_MM = 100; // 0.5m either side of the line
+const LINE_HIT_SLOP_MM = 10; // 0.5m either side of the line
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
