@@ -14,9 +14,113 @@ import {
 } from "@/types/models";
 import { generateId } from "@/lib/ids";
 import { generatePosts } from "@/geometry/posts";
-import { fitPanels } from "@/geometry/panels";
+import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
+
+const SNAP_TOLERANCE_PX = 0.1;
+const ANGLE_TOLERANCE_DEG = 2;
+
+const pointsMatch = (p1: Point, p2: Point) => {
+  return Math.abs(p1.x - p2.x) < SNAP_TOLERANCE_PX && Math.abs(p1.y - p2.y) < SNAP_TOLERANCE_PX;
+};
+
+const angleBetweenDeg = (ax: number, ay: number, bx: number, by: number) => {
+  const adotb = ax * bx + ay * by;
+  const amag = Math.hypot(ax, ay);
+  const bmag = Math.hypot(bx, by);
+  if (amag === 0 || bmag === 0) return 180;
+  const cos = Math.min(1, Math.max(-1, adotb / (amag * bmag)));
+  return (Math.acos(cos) * 180) / Math.PI;
+};
+
+const farthestPair = (points: Point[]): [Point, Point] => {
+  let maxDistSq = -Infinity;
+  let pair: [Point, Point] = [points[0], points[0]];
+
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const dx = points[i].x - points[j].x;
+      const dy = points[i].y - points[j].y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > maxDistSq) {
+        maxDistSq = distSq;
+        pair = [points[i], points[j]];
+      }
+    }
+  }
+
+  return pair;
+};
+
+const findSharedPoint = (a: FenceLine, b: FenceLine): Point | null => {
+  if (pointsMatch(a.a, b.a)) return a.a;
+  if (pointsMatch(a.a, b.b)) return a.a;
+  if (pointsMatch(a.b, b.a)) return a.b;
+  if (pointsMatch(a.b, b.b)) return a.b;
+  return null;
+};
+
+const mergeCollinearLines = (
+  lines: FenceLine[],
+  primaryId: string,
+  mmPerPixel: number
+): FenceLine[] => {
+  let updatedLines = [...lines];
+  let merged = true;
+
+  while (merged) {
+    merged = false;
+    const primary = updatedLines.find((l) => l.id === primaryId);
+    if (!primary) break;
+
+    const candidates = updatedLines.filter(
+      (l) =>
+        l.id !== primaryId &&
+        !l.gateId &&
+        (pointsMatch(l.a, primary.a) ||
+          pointsMatch(l.a, primary.b) ||
+          pointsMatch(l.b, primary.a) ||
+          pointsMatch(l.b, primary.b))
+    );
+
+    for (const candidate of candidates) {
+      const sharedPoint = findSharedPoint(primary, candidate);
+      if (!sharedPoint) continue;
+
+      const primaryOther = pointsMatch(primary.a, sharedPoint) ? primary.b : primary.a;
+      const candidateOther = pointsMatch(candidate.a, sharedPoint) ? candidate.b : candidate.a;
+
+      const ax = primaryOther.x - sharedPoint.x;
+      const ay = primaryOther.y - sharedPoint.y;
+      const bx = candidateOther.x - sharedPoint.x;
+      const by = candidateOther.y - sharedPoint.y;
+
+      const angle = angleBetweenDeg(ax, ay, bx, by);
+      const isCollinear = angle < ANGLE_TOLERANCE_DEG || Math.abs(angle - 180) < ANGLE_TOLERANCE_DEG;
+      if (!isCollinear) continue;
+
+      const [p1, p2] = farthestPair([primary.a, primary.b, candidate.a, candidate.b]);
+      const length_px = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+
+      const mergedLine: FenceLine = {
+        ...primary,
+        a: p1,
+        b: p2,
+        length_mm: length_px * mmPerPixel,
+      };
+
+      updatedLines = updatedLines
+        .filter((l) => l.id !== primary.id && l.id !== candidate.id)
+        .concat(mergedLine);
+
+      merged = true;
+      break;
+    }
+  }
+
+  return updatedLines;
+};
 
 interface AppState {
   productKind: ProductKind;
@@ -181,10 +285,6 @@ updateLine: (id, length_mm) => {
           y: targetLine.a.y + dy * scale,
         };
         
-        const pointsMatch = (p1: Point, p2: Point) => {
-          return Math.abs(p1.x - p2.x) < 0.1 && Math.abs(p1.y - p2.y) < 0.1;
-        };
-        
         const pointKey = (p: Point) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
         const processedLines = new Set<string>();
         const movedPoints = new Map<string, Point>();
@@ -207,7 +307,7 @@ updateLine: (id, length_mm) => {
           hasChanges = false;
           const newUpdatedLines = updatedLines.map((line) => {
             if (processedLines.has(line.id)) return line;
-            
+
             let foundMatch = false;
             let newLine = { ...line };
             
@@ -267,7 +367,9 @@ updateLine: (id, length_mm) => {
           
           updatedLines = newUpdatedLines;
         }
-        
+
+        updatedLines = mergeCollinearLines(updatedLines, id, get().mmPerPixel);
+
         set({ lines: updatedLines });
         get().saveToHistory();
         get().recalculate();
@@ -484,14 +586,19 @@ recalculate: () => {
         
         lines.forEach((line) => {
           if (line.gateId) return;
-          
+
+          const remainder = line.length_mm % PANEL_LENGTH_MM;
+          const normalizedRemainder = remainder < 0.5 ? 0 : remainder;
+          const autoEvenSpacing = normalizedRemainder > 0 && normalizedRemainder < MIN_LEFTOVER_MM;
+          const shouldEvenSpace = line.even_spacing || autoEvenSpacing;
+
           const result = fitPanels(
             line.id,
             line.length_mm,
-            line.even_spacing,
+            shouldEvenSpace,
             allNewLeftovers
           );
-          
+
           allPanels.push(...result.segments);
           allNewLeftovers.push(...result.newLeftovers);
           panelPositionsMap.set(line.id, result.panelPositions);
