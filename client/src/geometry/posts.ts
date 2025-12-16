@@ -5,55 +5,8 @@ function makePointKey(p: Point, decimals = 2): string {
   return `${p.x.toFixed(decimals)},${p.y.toFixed(decimals)}`;
 }
 
-export function pointsEqual(a: Point, b: Point): boolean {
+function pointsEqual(a: Point, b: Point): boolean {
   return makePointKey(a) === makePointKey(b);
-}
-
-function radToDeg(r: number) {
-  return (r * 180) / Math.PI;
-}
-
-function normalise(x: number, y: number) {
-  const len = Math.hypot(x, y);
-  if (len < 1e-9) return { x: 0, y: 0 };
-  return { x: x / len, y: y / len };
-}
-
-export function getPostNeighbours(
-  pos: Point,
-  lines: FenceLine[]
-): Point[] {
-  return lines
-    .filter((line) => pointsEqual(line.a, pos) || pointsEqual(line.b, pos))
-    .map((line) => (pointsEqual(line.a, pos) ? line.b : line.a));
-}
-
-export function getPostAngleDeg(
-  post: Point,
-  neighbours: Array<Point>
-): number {
-  if (neighbours.length === 0) return 0;
-
-  if (neighbours.length === 1) {
-    const dx = neighbours[0].x - post.x;
-    const dy = neighbours[0].y - post.y;
-    return radToDeg(Math.atan2(dy, dx));
-  }
-
-  const a = neighbours[0];
-  const b = neighbours[1];
-
-  const v1 = normalise(a.x - post.x, a.y - post.y);
-  const v2 = normalise(b.x - post.x, b.y - post.y);
-
-  const sx = v1.x + v2.x;
-  const sy = v1.y + v2.y;
-
-  if (Math.hypot(sx, sy) < 1e-6) {
-    return radToDeg(Math.atan2(v1.y, v1.x));
-  }
-
-  return radToDeg(Math.atan2(sy, sx));
 }
 
 export function categorizePost(
