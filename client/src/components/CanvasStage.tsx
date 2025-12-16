@@ -678,12 +678,10 @@ export function CanvasStage() {
                   key={post.id}
                   x={post.pos.x}
                   y={post.pos.y}
-                  radius={6 / viewScale}
-                  fill={colors[post.category]}
-                  stroke={colors[post.category]}
-                  strokeWidth={2}
-                  strokeScaleEnabled={false}
-                  name="post"
+                  neighbours={neighbours}
+                  mmPerPixel={mmPerPixel}
+                  category={post.category}
+                  isSatelliteMode={mapMode === "satellite"}
                 />
               );
             })}

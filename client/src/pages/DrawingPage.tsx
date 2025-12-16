@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
+import { Stage, Layer, Line, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { useLocation } from "wouter";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { calculateCosts } from "@/lib/pricing";
+import { PostShape } from "@/components/PostShape";
+import { getPostNeighbours } from "@/geometry/posts";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
@@ -129,22 +131,21 @@ export default function DrawingPage() {
                 })}
 
                 {posts.map((post) => {
-                  const colors = {
-                    end: "#10b981",
-                    corner: "#ef4444",
-                    line: "#3b82f6",
-                  };
-                  const p = transform(post.pos);
+                  const transformedPost = transform(post.pos);
+                  const neighbours = getPostNeighbours(post.pos, lines).map(transform);
+
+                  const effectiveMmPerPixel = mmPerPixel
+                    ? mmPerPixel / drawingScale
+                    : 1;
 
                   return (
-                    <Circle
+                    <PostShape
                       key={post.id}
-                      x={p.x}
-                      y={p.y}
-                      radius={4}
-                      fill={colors[post.category]}
-                      stroke={colors[post.category]}
-                      strokeWidth={1.5}
+                      x={transformedPost.x}
+                      y={transformedPost.y}
+                      neighbours={neighbours}
+                      mmPerPixel={effectiveMmPerPixel}
+                      category={post.category}
                     />
                   );
                 })}
