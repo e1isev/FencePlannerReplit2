@@ -15,6 +15,11 @@ export interface Point {
   y: number;
 }
 
+export interface CornerConstraint {
+  locked: boolean;
+  angleDeg: number;
+}
+
 export interface Board {
   id: string;
   start: Point;
