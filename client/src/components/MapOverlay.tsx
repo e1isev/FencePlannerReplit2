@@ -250,6 +250,7 @@ export function MapOverlay({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const flyLockRef = useRef(false);
   const [query, setQuery] = useState("");
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -402,6 +403,7 @@ export function MapOverlay({
 
     return () => {
       map.remove();
+      mapRef.current = null;
     };
     // Don't include mapMode, so only freshly creates on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -569,6 +571,51 @@ export function MapOverlay({
     map.setBearing(0);
   }, [onPanOffsetChange, onPanReferenceReset]);
 
+  const flyToSearchResult = useCallback(
+    (lon: number, lat: number, desiredZoom = 18) => {
+      const map = mapRef.current;
+      if (!map) {
+        console.warn("[MapOverlay] flyToSearchResult: mapRef is null");
+        return;
+      }
+
+      if (flyLockRef.current) {
+        return;
+      }
+
+      flyLockRef.current = true;
+
+      const safeZoom = Math.min(desiredZoom ?? 18, 18);
+
+      map.stop();
+
+      if (moveEndHandlerRef.current) {
+        map.off("moveend", moveEndHandlerRef.current);
+        moveEndHandlerRef.current = null;
+      }
+
+      const unlock = () => {
+        const settledCenter = map.getCenter();
+        initialCenterRef.current = settledCenter;
+        onPanReferenceReset?.();
+        onPanOffsetChange?.({ x: 0, y: 0 });
+        flyLockRef.current = false;
+        map.off("moveend", unlock);
+        moveEndHandlerRef.current = null;
+      };
+
+      moveEndHandlerRef.current = unlock;
+      map.on("moveend", unlock);
+
+      map.flyTo({
+        center: [lon, lat],
+        zoom: safeZoom,
+        essential: true,
+      });
+    },
+    [onPanOffsetChange, onPanReferenceReset]
+  );
+
   const recenterToResult = (result: SearchResult) => {
     const map = mapRef.current;
     if (!map) {
@@ -578,8 +625,6 @@ export function MapOverlay({
 
     const lat = Number(result.lat);
     const lon = Number(result.lon);
-    const targetCenter = new maplibregl.LngLat(lon, lat);
-    const targetZoom = 18;
 
     setQuery(result.display_name);
     setResults([]);
@@ -592,28 +637,7 @@ export function MapOverlay({
       .setLngLat([lon, lat])
       .addTo(map);
 
-    map.stop();
-    if (moveEndHandlerRef.current) {
-      map.off("moveend", moveEndHandlerRef.current);
-      moveEndHandlerRef.current = null;
-    }
-
-    const handleMoveEnd = () => {
-      const settledCenter = map.getCenter();
-      initialCenterRef.current = settledCenter;
-      onPanReferenceReset?.();
-      onPanOffsetChange?.({ x: 0, y: 0 });
-      map.off("moveend", handleMoveEnd);
-      moveEndHandlerRef.current = null;
-    };
-
-    moveEndHandlerRef.current = handleMoveEnd;
-    map.on("moveend", handleMoveEnd);
-
-    map.flyTo({
-      center: targetCenter,
-      zoom: targetZoom,
-    });
+    flyToSearchResult(lon, lat, 18);
   };
 
   const handleSearchChange = async (value: string, reselectFirst = false) => {
