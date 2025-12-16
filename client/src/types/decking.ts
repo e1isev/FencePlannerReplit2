@@ -15,9 +15,11 @@ export interface Point {
   y: number;
 }
 
+export type CornerConstraintMode = "user" | "auto" | "unlocked";
+
 export interface CornerConstraint {
-  locked: boolean;
-  angleDeg: number;
+  mode: CornerConstraintMode;
+  angleDeg?: number;
 }
 
 export type EdgeLockMode = "locked" | "unlocked";

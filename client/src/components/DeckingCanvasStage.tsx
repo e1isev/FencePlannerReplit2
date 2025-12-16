@@ -259,7 +259,14 @@ export function DeckingCanvasStage() {
   const hasPolygon = polygon.length >= 3;
   const drawingPoints = previewPoint ? [...points, previewPoint] : points;
   const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+  const polygonPointsPxCoords = useMemo(
+    () => polygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) })),
+    [polygon]
+  );
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+  const boardOverlapMm = 1;
+  const boardRenderWidthMm = BOARD_WIDTH_MM + boardOverlapMm;
+  const boardPitchMm = BOARD_WIDTH_MM;
   const gridLines: JSX.Element[] = [];
 
   const getSnappedPointer = (
@@ -316,6 +323,53 @@ export function DeckingCanvasStage() {
     () => getSegments(points, false),
     [points]
   );
+
+  const boardRects = useMemo(() => {
+    if (polygon.length < 3) return [];
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    polygon.forEach((p) => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    });
+
+    const bleedMm = BOARD_WIDTH_MM * 2;
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const rects: { x: number; y: number; width: number; height: number }[] = [];
+
+    if (boardDirection === "horizontal") {
+      const startX = minX - bleedMm - boardRenderWidthMm;
+      const totalWidth = spanX + bleedMm * 2 + boardRenderWidthMm * 2;
+      const startY = minY - bleedMm - boardRenderWidthMm;
+      const totalHeight = spanY + bleedMm * 2 + boardRenderWidthMm * 2;
+      const rows = Math.ceil(totalHeight / boardPitchMm) + 1;
+
+      for (let i = 0; i < rows; i++) {
+        const y = startY + i * boardPitchMm;
+        rects.push({ x: startX, y, width: totalWidth, height: boardRenderWidthMm });
+      }
+    } else {
+      const startY = minY - bleedMm - boardRenderWidthMm;
+      const totalHeight = spanY + bleedMm * 2 + boardRenderWidthMm * 2;
+      const startX = minX - bleedMm - boardRenderWidthMm;
+      const totalWidth = spanX + bleedMm * 2 + boardRenderWidthMm * 2;
+      const columns = Math.ceil(totalWidth / boardPitchMm) + 1;
+
+      for (let i = 0; i < columns; i++) {
+        const x = startX + i * boardPitchMm;
+        rects.push({ x, y: startY, width: boardRenderWidthMm, height: totalHeight });
+      }
+    }
+
+    return rects;
+  }, [polygon, boardDirection, boardPitchMm, boardRenderWidthMm]);
 
   const computeLabelPosition = (
     segment: Segment,
@@ -465,7 +519,8 @@ export function DeckingCanvasStage() {
 
       const angleDeg = angleDegAtVertex(polygon, i);
       const isRightAngle = Math.abs(angleDeg - 90) < 1;
-      const locked = cornerConstraints[i]?.locked;
+      const locked =
+        cornerConstraints[i]?.mode === "user" || cornerConstraints[i]?.mode === "auto";
       const stroke = locked ? "#b45309" : "#0f172a";
       const strokeWidth = locked ? 2 / stageScale : strokeWidthBase;
 
@@ -754,22 +809,30 @@ export function DeckingCanvasStage() {
             />
           )}
 
-          {boards.map((board) => (
-            <Line
-              key={board.id}
-              points={[
-                mmToPx(board.start.x),
-                mmToPx(board.start.y),
-                mmToPx(board.end.x),
-                mmToPx(board.end.y),
-              ]}
-              stroke={fillColor}
-              strokeWidth={mmToPx(BOARD_WIDTH_MM)}
-              opacity={0.6}
-              lineCap="butt"
-              data-testid={`board-${board.id}`}
-            />
-          ))}
+          {hasPolygon && boardRects.length > 0 && (
+            <Group
+              clipFunc={(ctx) => {
+                if (polygonPointsPxCoords.length === 0) return;
+                ctx.beginPath();
+                ctx.moveTo(polygonPointsPxCoords[0].x, polygonPointsPxCoords[0].y);
+                polygonPointsPxCoords.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+              }}
+            >
+              {boardRects.map((rect, index) => (
+                <Rect
+                  key={`board-${index}`}
+                  x={mmToPx(rect.x)}
+                  y={mmToPx(rect.y)}
+                  width={mmToPx(rect.width)}
+                  height={mmToPx(rect.height)}
+                  fill={fillColor}
+                  opacity={0.6}
+                  data-testid={`board-${index}`}
+                />
+              ))}
+            </Group>
+          )}
         </Layer>
 
         <Layer listening>{renderCornerMarkers()}</Layer>

@@ -1,4 +1,4 @@
-import { Point } from "@/types/decking";
+import { CornerConstraint, Point } from "@/types/decking";
 
 export function normalise(v: Point): Point {
   const mag = Math.hypot(v.x, v.y);
@@ -85,6 +85,49 @@ export function applyCornerAngleRotateForward(
   while (k !== i) {
     newPolygon[k] = rotatePointAroundMm(newPolygon[k], curr, deltaAngle);
     k = (k + 1) % n;
+  }
+
+  return newPolygon;
+}
+
+export function enforceLockedAngles(
+  polygonMm: Point[],
+  cornerConstraints: Record<number, CornerConstraint>
+): Point[] {
+  const n = polygonMm.length;
+  if (n < 3) return polygonMm;
+
+  const newPolygon = polygonMm.map((p) => ({ ...p }));
+
+  for (let i = 0; i < n; i++) {
+    const constraint = cornerConstraints[i];
+    if (!constraint || constraint.mode === "unlocked") continue;
+
+    const targetAngleDeg = constraint.mode === "auto" ? 90 : constraint.angleDeg;
+    if (!targetAngleDeg) continue;
+
+    const prev = newPolygon[(i - 1 + n) % n];
+    const curr = newPolygon[i];
+    const nextIndex = (i + 1) % n;
+    const next = newPolygon[nextIndex];
+
+    const vPrev = normalise({ x: prev.x - curr.x, y: prev.y - curr.y });
+    const vNext = normalise({ x: next.x - curr.x, y: next.y - curr.y });
+
+    const currentSigned = signedAngleRad(vPrev, vNext);
+    if (currentSigned === 0) continue;
+
+    const targetAbsRad = (targetAngleDeg * Math.PI) / 180;
+    const targetSigned = (Math.sign(currentSigned) || 1) * targetAbsRad;
+    const delta = targetSigned - currentSigned;
+
+    if (delta === 0) continue;
+
+    let k = nextIndex;
+    while (k !== i) {
+      newPolygon[k] = rotatePointAroundMm(newPolygon[k], curr, delta);
+      k = (k + 1) % n;
+    }
   }
 
   return newPolygon;
