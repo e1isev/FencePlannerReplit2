@@ -55,10 +55,11 @@ const FALLBACK_SATELLITE_TILES =
 
 // Highest zoom at which satellite tiles are expected to exist globally.
 // This should match the raster source "maxzoom" you use for satellite imagery.
-const SATELLITE_NATIVE_MAX_ZOOM = 20;
+const SATELLITE_NATIVE_MAX_ZOOM = 21;
 
 // How many levels of over-zoom we normally allow on top of the native max.
-const GLOBAL_OVERZOOM = 2;
+// Nearmap supports up to zoom 21, so do not over-zoom.
+const GLOBAL_OVERZOOM = 0;
 
 // Hard ceiling on the map zoom in any area.
 const GLOBAL_HARD_MAX_ZOOM = SATELLITE_NATIVE_MAX_ZOOM + GLOBAL_OVERZOOM;
@@ -213,28 +214,53 @@ function buildMapStyle(
   const isSatellite = mode === "satellite";
   const satelliteSource = satelliteSourceForProvider(satelliteProvider);
 
+  const osmSource = {
+    type: "raster" as const,
+    tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+    tileSize: 256,
+    attribution: "© OpenStreetMap contributors",
+  };
+
+  const sources: StyleSpecification["sources"] = isSatellite
+    ? {
+        satellite: {
+          type: "raster" as const,
+          tiles: satelliteSource.tiles,
+          tileSize: satelliteSource.tileSize,
+          maxzoom: SATELLITE_NATIVE_MAX_ZOOM,
+          attribution: satelliteSource.attribution,
+        },
+        osm: osmSource,
+      }
+    : {
+        osm: osmSource,
+      };
+
+  const layers: StyleSpecification["layers"] = isSatellite
+    ? [
+        {
+          id: "osm",
+          type: "raster" as const,
+          source: "osm",
+        },
+        {
+          id: "satellite",
+          type: "raster" as const,
+          source: "satellite",
+        },
+      ]
+    : [
+        {
+          id: "osm",
+          type: "raster" as const,
+          source: "osm",
+        },
+      ];
+
   return {
     version: 8,
-    sources: {
-      [isSatellite ? "satellite" : "osm"]: {
-        type: "raster" as const,
-        tiles: isSatellite
-          ? satelliteSource.tiles
-          : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: isSatellite ? satelliteSource.tileSize : 256,
-        ...(isSatellite ? { maxzoom: SATELLITE_NATIVE_MAX_ZOOM } : {}),
-        attribution: isSatellite
-          ? satelliteSource.attribution
-          : "© OpenStreetMap contributors",
-      },
-    },
-    layers: [
-      {
-        id: isSatellite ? "satellite" : "osm",
-        type: "raster" as const,
-        source: isSatellite ? "satellite" : "osm",
-      },
-    ],
+    sources,
+    layers,
   };
 }
 
