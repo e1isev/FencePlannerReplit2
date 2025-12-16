@@ -159,22 +159,27 @@ export default function DrawingPage() {
                     const geometry = getSlidingReturnRect(gate, gateLine, mmPerPixel);
                     if (!geometry) return null;
 
-                    const [x1, y1, x2, y2] = geometry.points;
-                    const start = transform({ x: x1, y: y1 });
-                    const end = transform({ x: x2, y: y2 });
-                    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+                    const center = transform(geometry.center);
+                    const width = geometry.width * drawingScale;
+                    const height = geometry.height * drawingScale;
 
                     return (
-                      <Group key={gate.id}>
-                        <Line
-                          points={[start.x, start.y, end.x, end.y]}
+                      <Group key={gate.id} rotation={geometry.rotation} x={center.x} y={center.y}>
+                        <Rect
+                          x={0}
+                          y={0}
+                          width={width}
+                          height={height}
+                          offsetX={width / 2}
+                          offsetY={height / 2}
                           stroke="#ef4444"
-                          strokeWidth={geometry.strokeWidth * drawingScale}
+                          strokeWidth={2}
                           dash={[6, 3]}
+                          fill="rgba(239, 68, 68, 0.12)"
                         />
                         <Text
-                          x={mid.x + 6}
-                          y={mid.y - 6}
+                          x={height / 2 + 4}
+                          y={-8}
                           text="Return"
                           fontSize={8}
                           fill="#ef4444"
