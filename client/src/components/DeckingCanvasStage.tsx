@@ -108,9 +108,6 @@ export function DeckingCanvasStage() {
   const [editValue, setEditValue] = useState("");
   const [edgeEditorPos, setEdgeEditorPos] = useState<{ x: number; y: number } | null>(null);
   const [lockAfterApply, setLockAfterApply] = useState(false);
-  const [selectedCornerIndex, setSelectedCornerIndex] = useState<number | null>(null);
-  const [editingCornerIndex, setEditingCornerIndex] = useState<number | null>(null);
-  const [angleEditValue, setAngleEditValue] = useState("");
 
   const {
     boards,
@@ -121,20 +118,10 @@ export function DeckingCanvasStage() {
     updateEdgeLength,
     lockEdgeLength,
     unlockEdgeLength,
-    cornerConstraints,
     edgeConstraints,
-    setCornerAngle,
-    clearCornerAngle,
   } = useDeckingStore();
 
   const stageScale = scale;
-
-  useEffect(() => {
-    if (polygon.length < 3 || (selectedCornerIndex !== null && selectedCornerIndex >= polygon.length)) {
-      setSelectedCornerIndex(null);
-      setEditingCornerIndex(null);
-    }
-  }, [polygon, selectedCornerIndex]);
 
   useEffect(() => {
     const updateSize = () => {
@@ -290,29 +277,6 @@ export function DeckingCanvasStage() {
     }
 
     return candidate;
-  };
-
-  const getCornerScreenPosition = (vertexIndex: number) => {
-    const corner = polygon[vertexIndex];
-    if (!corner) return null;
-    return {
-      x: stagePos.x + mmToPx(corner.x) * scale,
-      y: stagePos.y + mmToPx(corner.y) * scale,
-    };
-  };
-
-  const cornerScreenPos =
-    editingCornerIndex !== null && polygon[editingCornerIndex]
-      ? getCornerScreenPosition(editingCornerIndex)
-      : null;
-
-  const handleCornerClick = (vertexIndex: number, e?: any) => {
-    if (e) e.cancelBubble = true;
-    if (!hasPolygon) return;
-    const baseAngle = cornerConstraints[vertexIndex]?.angleDeg ?? angleDegAtVertex(polygon, vertexIndex);
-    setSelectedCornerIndex(vertexIndex);
-    setEditingCornerIndex(vertexIndex);
-    setAngleEditValue(baseAngle ? baseAngle.toFixed(0) : "");
   };
 
   const polygonCentroid = useMemo(() => computeCentroid(polygon), [polygon]);
@@ -502,7 +466,7 @@ export function DeckingCanvasStage() {
     const r = BASE_MARKER_RADIUS / stageScale;
     const hitR = BASE_HIT_RADIUS / stageScale;
     const fontSize = BASE_ANGLE_FONT_SIZE / stageScale;
-    const strokeWidthBase = 1 / stageScale;
+    const strokeWidth = 1 / stageScale;
 
     return polygon.map((_, i) => {
       const n = polygon.length;
@@ -519,10 +483,7 @@ export function DeckingCanvasStage() {
 
       const angleDeg = angleDegAtVertex(polygon, i);
       const isRightAngle = Math.abs(angleDeg - 90) < 1;
-      const locked =
-        cornerConstraints[i]?.mode === "user" || cornerConstraints[i]?.mode === "auto";
-      const stroke = locked ? "#b45309" : "#0f172a";
-      const strokeWidth = locked ? 2 / stageScale : strokeWidthBase;
+      const stroke = isRightAngle ? "#0ea5e9" : "#0f172a";
 
       const pA = { x: u1.x * r, y: u1.y * r };
       const pB = { x: u2.x * r, y: u2.y * r };
@@ -548,9 +509,7 @@ export function DeckingCanvasStage() {
           key={`corner-${i}`}
           x={currPx.x}
           y={currPx.y}
-          listening
-          onClick={(e) => handleCornerClick(i, e)}
-          onTap={(e) => handleCornerClick(i, e)}
+          listening={false}
         >
           <Circle radius={hitR} opacity={0} />
           {isRightAngle ? (
@@ -569,13 +528,12 @@ export function DeckingCanvasStage() {
           <Text
             x={labelPos.x}
             y={labelPos.y}
-            text={`${Math.round(angleDeg)}°${locked ? " 🔒" : ""}`}
+            text={`${Math.round(angleDeg)}°`}
             fontSize={fontSize}
-            fill={locked ? "#b45309" : "#0f172a"}
+            fill={stroke}
             offsetX={(labelDir.x * fontSize) / 2}
             offsetY={(labelDir.y * fontSize) / 2}
           />
-          {selectedCornerIndex === i && <Circle radius={4 / stageScale} fill="#2563eb" />}
         </Group>
       );
     });
@@ -603,27 +561,6 @@ export function DeckingCanvasStage() {
     const length = edgeLengthMm(polygon, editingEdgeIndex);
     setEditValue((length / 1000).toFixed(2));
     setLockAfterApply(false);
-  };
-
-  const handleCornerSubmit = () => {
-    if (editingCornerIndex === null) return;
-    const value = parseFloat(angleEditValue);
-    if (isNaN(value)) return;
-    const clamped = Math.min(Math.max(value, 1), 359);
-    setCornerAngle(editingCornerIndex, clamped);
-    setEditingCornerIndex(null);
-  };
-
-  const handleCornerCancel = () => {
-    setEditingCornerIndex(null);
-    setSelectedCornerIndex(null);
-  };
-
-  const handleCornerUnlock = () => {
-    if (editingCornerIndex === null) return;
-    clearCornerAngle(editingCornerIndex);
-    setEditingCornerIndex(null);
-    setSelectedCornerIndex(null);
   };
 
   const editingLocked =
@@ -722,40 +659,6 @@ export function DeckingCanvasStage() {
         </div>
       )}
 
-      {cornerScreenPos && (
-        <div
-          className="absolute z-50 bg-white p-3 rounded-lg shadow-lg border border-slate-200"
-          style={{ left: cornerScreenPos.x + 12, top: cornerScreenPos.y - 12 }}
-        >
-          <div className="text-xs text-slate-600 mb-2">Set corner angle</div>
-          <input
-            type="number"
-            step="1"
-            min="1"
-            max="359"
-            value={angleEditValue}
-            onChange={(e) => setAngleEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCornerSubmit();
-              if (e.key === "Escape") handleCornerCancel();
-            }}
-            className="px-3 py-2 border border-slate-300 rounded-md text-sm font-mono w-24"
-            autoFocus
-          />
-          <div className="flex gap-2 mt-2 items-center">
-            <button onClick={handleCornerSubmit} className="px-3 py-1 bg-blue-600 text-white rounded text-xs">
-              Apply
-            </button>
-            <button onClick={handleCornerCancel} className="px-3 py-1 bg-slate-200 rounded text-xs">
-              Cancel
-            </button>
-            <button onClick={handleCornerUnlock} className="px-3 py-1 bg-amber-100 text-amber-700 rounded text-xs">
-              Unlock
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white px-4 py-2 rounded shadow text-xs text-slate-600">
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
@@ -835,7 +738,7 @@ export function DeckingCanvasStage() {
           )}
         </Layer>
 
-        <Layer listening>{renderCornerMarkers()}</Layer>
+        <Layer listening={false}>{renderCornerMarkers()}</Layer>
 
         <Layer listening>
           {polygonSegments.map((segment, index) =>
