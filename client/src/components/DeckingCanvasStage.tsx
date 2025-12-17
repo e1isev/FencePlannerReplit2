@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
-import { mmToPx, pxToMm, BOARD_GAP_MM, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
+import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
 import {
   CLOSE_SHAPE_SNAP_RADIUS_MM,
   ENDPOINT_SNAP_RADIUS_MM,
@@ -12,6 +12,7 @@ import {
 } from "@/geometry/snapping";
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
 import { edgeLengthMm, isEdgeLocked } from "@/geometry/deckingEdges";
+import type { DeckEntity } from "@/types/decking";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -93,6 +94,10 @@ const COLOR_MAP: Record<string, string> = {
   "coastal-sandstone": "#d6d3d1",
 };
 
+function getFillColor(deck: DeckEntity) {
+  return COLOR_MAP[deck.selectedColor] || "#92400e";
+}
+
 export function DeckingCanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
@@ -110,22 +115,20 @@ export function DeckingCanvasStage() {
   const [lockAfterApply, setLockAfterApply] = useState(false);
 
   const {
-    boards,
-    polygon,
-    infillPolygon,
-    selectedColor,
-    setPolygon,
-    boardDirection,
+    decks,
+    activeDeckId,
+    addDeck,
+    deleteDeck,
     updateEdgeLength,
     lockEdgeLength,
     unlockEdgeLength,
-    edgeConstraints,
-    setCornerAngle,
-    clearCornerAngle,
-    pictureFramePieces,
-    fasciaPieces,
   } = useDeckingStore();
 
+  const activeDeck = useMemo(
+    () => decks.find((deck) => deck.id === activeDeckId) ?? null,
+    [activeDeckId, decks]
+  );
+  const allBoards = useMemo(() => decks.flatMap((deck) => deck.boards), [decks]);
   const stageScale = scale;
 
   useEffect(() => {
@@ -179,7 +182,6 @@ export function DeckingCanvasStage() {
       });
       return;
     }
-
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -234,7 +236,7 @@ export function DeckingCanvasStage() {
       if (distanceToStart <= CLOSE_SHAPE_SNAP_RADIUS_MM) {
         const newPolygon = [...points];
         if (newPolygon.length >= 3) {
-          setPolygon(newPolygon);
+          addDeck(newPolygon);
         }
         setPoints([]);
         setPreviewPoint(null);
@@ -247,17 +249,10 @@ export function DeckingCanvasStage() {
     setPreviewPoint(snapped);
   };
 
-  const fillColor = COLOR_MAP[selectedColor] || "#92400e";
-  const hasPolygon = polygon.length >= 3;
+  const hasPolygon = Boolean(activeDeck && activeDeck.polygon.length >= 3);
   const drawingPoints = previewPoint ? [...points, previewPoint] : points;
-  const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
-  const polygonPointsPxCoords = useMemo(
-    () => polygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) })),
-    [polygon]
-  );
   const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const boardRenderWidthMm = BOARD_WIDTH_MM + 0.5;
-  const EDGE_BLEED_MM = 30;
   const gridLines: JSX.Element[] = [];
 
   const getSnappedPointer = (
@@ -270,8 +265,9 @@ export function DeckingCanvasStage() {
       y: pxToMm((pointer.y - stagePos.y) / scale),
     };
 
-    const boardEndpoints = boards.flatMap((board) => [board.start, board.end]);
-    const allPoints = [...points, ...polygon, ...boardEndpoints];
+    const boardEndpoints = allBoards.flatMap((board) => [board.start, board.end]);
+    const polygonPoints = decks.flatMap((deck) => deck.polygon);
+    const allPoints = [...points, ...polygonPoints, ...boardEndpoints];
     const snapPoint = findSnapPoint(worldPosMm, allPoints, ENDPOINT_SNAP_RADIUS_MM);
     const snappedToPoint = Boolean(snapPoint);
     let candidate = snapPoint || worldPosMm;
@@ -283,23 +279,17 @@ export function DeckingCanvasStage() {
     return candidate;
   };
 
-  const polygonCentroid = useMemo(() => computeCentroid(polygon), [polygon]);
+  const polygonCentroid = useMemo(
+    () => computeCentroid(activeDeck?.polygon ?? []),
+    [activeDeck?.polygon]
+  );
   const drawingCentre = useMemo(() => computeCentroid(points, false), [points]);
 
-  const polygonSegments = useMemo(() => getSegments(polygon, true), [polygon]);
-  const drawingSegments = useMemo(
-    () => getSegments(points, false),
-    [points]
+  const polygonSegments = useMemo(
+    () => getSegments(activeDeck?.polygon ?? [], true),
+    [activeDeck?.polygon]
   );
-
-  const boardClippingPolygon = useMemo(
-    () => (infillPolygon.length >= 3 ? infillPolygon : polygon),
-    [infillPolygon, polygon]
-  );
-  const boardClipPointsPxCoords = useMemo(
-    () => boardClippingPolygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) })),
-    [boardClippingPolygon]
-  );
+  const drawingSegments = useMemo(() => getSegments(points, false), [points]);
 
   const computeLabelPosition = (
     segment: Segment,
@@ -319,9 +309,7 @@ export function DeckingCanvasStage() {
     };
 
     const perp = { x: -dyPx / lengthPx, y: dxPx / lengthPx };
-    const centrePx = center
-      ? { x: mmToPx(center.x), y: mmToPx(center.y) }
-      : midPoint;
+    const centrePx = center ? { x: mmToPx(center.x), y: mmToPx(center.y) } : midPoint;
     const toMid = { x: midPoint.x - centrePx.x, y: midPoint.y - centrePx.y };
 
     const dot1 = perp.x * toMid.x + perp.y * toMid.y;
@@ -370,11 +358,11 @@ export function DeckingCanvasStage() {
     const rectHeight = contentHeight + hitPadding * 2;
 
     const locked = options?.edgeIndex !== undefined
-      ? isEdgeLocked(edgeConstraints, options.edgeIndex)
+      ? isEdgeLocked(activeDeck?.edgeConstraints ?? {}, options.edgeIndex)
       : false;
 
     const handleClick = options?.edgeIndex !== undefined
-      ? (e: any) => handleLabelClick(options.edgeIndex as number, lengthMm, labelPos, e)
+      ? (event: any) => handleLabelClick(options.edgeIndex as number, lengthMm, labelPos, event)
       : undefined;
 
     return (
@@ -419,7 +407,7 @@ export function DeckingCanvasStage() {
     e.cancelBubble = true;
     setEditingEdgeIndex(edgeIndex);
     setEditValue((lengthMm / 1000).toFixed(2));
-    setLockAfterApply(isEdgeLocked(edgeConstraints, edgeIndex));
+    setLockAfterApply(isEdgeLocked(activeDeck?.edgeConstraints ?? {}, edgeIndex));
     setEdgeEditorPos({
       x: stagePos.x + labelPos.x * scale,
       y: stagePos.y + labelPos.y * scale,
@@ -427,18 +415,18 @@ export function DeckingCanvasStage() {
   };
 
   const renderCornerMarkers = () => {
-    if (!hasPolygon) return null;
+    if (!hasPolygon || !activeDeck) return null;
 
     const r = BASE_MARKER_RADIUS / stageScale;
     const hitR = BASE_HIT_RADIUS / stageScale;
     const fontSize = BASE_ANGLE_FONT_SIZE / stageScale;
     const strokeWidth = 1 / stageScale;
 
-    return polygon.map((_, i) => {
-      const n = polygon.length;
-      const prev = polygon[(i - 1 + n) % n];
-      const curr = polygon[i];
-      const next = polygon[(i + 1) % n];
+    return activeDeck.polygon.map((_, i) => {
+      const n = activeDeck.polygon.length;
+      const prev = activeDeck.polygon[(i - 1 + n) % n];
+      const curr = activeDeck.polygon[i];
+      const next = activeDeck.polygon[(i + 1) % n];
 
       const currPx = { x: mmToPx(curr.x), y: mmToPx(curr.y) };
       const prevPx = { x: mmToPx(prev.x), y: mmToPx(prev.y) };
@@ -447,7 +435,7 @@ export function DeckingCanvasStage() {
       const u1 = normalise({ x: prevPx.x - currPx.x, y: prevPx.y - currPx.y });
       const u2 = normalise({ x: nextPx.x - currPx.x, y: nextPx.y - currPx.y });
 
-      const angleDeg = angleDegAtVertex(polygon, i);
+      const angleDeg = angleDegAtVertex(activeDeck.polygon, i);
       const isRightAngle = Math.abs(angleDeg - 90) < 1;
       const stroke = isRightAngle ? "#0ea5e9" : "#0f172a";
 
@@ -524,18 +512,138 @@ export function DeckingCanvasStage() {
   const handleUnlockEdge = () => {
     if (editingEdgeIndex === null) return;
     unlockEdgeLength(editingEdgeIndex);
-    const length = edgeLengthMm(polygon, editingEdgeIndex);
-    setEditValue((length / 1000).toFixed(2));
+    if (activeDeck) {
+      const length = edgeLengthMm(activeDeck.polygon, editingEdgeIndex);
+      setEditValue((length / 1000).toFixed(2));
+    }
     setLockAfterApply(false);
   };
 
   const editingLocked =
-    editingEdgeIndex !== null && isEdgeLocked(edgeConstraints, editingEdgeIndex);
+    editingEdgeIndex !== null && isEdgeLocked(activeDeck?.edgeConstraints ?? {}, editingEdgeIndex);
   const editingEdgeLengthMm =
-    editingEdgeIndex !== null ? edgeLengthMm(polygon, editingEdgeIndex) : 0;
+    editingEdgeIndex !== null && activeDeck ? edgeLengthMm(activeDeck.polygon, editingEdgeIndex) : 0;
   const editorPosition = edgeEditorPos || {
     x: stageSize.width / 2,
     y: 32,
+  };
+
+  const renderBoardRects = (deck: DeckEntity) => {
+    if (deck.infillPolygon.length < 3 || deck.boards.length === 0) return null;
+    const boardClipPointsPxCoords = deck.infillPolygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) }));
+    const joinLines: JSX.Element[] = [];
+
+    const boardRects = deck.boards.map((board) => {
+      const isHorizontal = board.start.y === board.end.y;
+      if (isHorizontal) {
+        const xStart = Math.min(board.start.x, board.end.x);
+        const widthMm = Math.abs(board.end.x - board.start.x);
+        const yTopMm = board.start.y - BOARD_WIDTH_MM / 2;
+
+        if (board.segmentIndex !== undefined && board.segmentCount !== undefined && board.segmentIndex < board.segmentCount - 1) {
+          const xJoin = Math.max(board.start.x, board.end.x);
+          joinLines.push(
+            <Line
+              key={`join-${board.id}`}
+              points={[mmToPx(xJoin), mmToPx(board.start.y - BOARD_WIDTH_MM / 2), mmToPx(xJoin), mmToPx(board.start.y + BOARD_WIDTH_MM / 2)]}
+              stroke="#0f172a"
+              strokeWidth={1.25 / stageScale}
+            />
+          );
+        }
+
+        return (
+          <Rect
+            key={board.id}
+            x={mmToPx(xStart)}
+            y={mmToPx(yTopMm)}
+            width={mmToPx(widthMm)}
+            height={mmToPx(boardRenderWidthMm)}
+            fill={getFillColor(deck)}
+            opacity={0.7}
+          />
+        );
+      }
+
+      const yStart = Math.min(board.start.y, board.end.y);
+      const heightMm = Math.abs(board.end.y - board.start.y);
+      const xLeftMm = board.start.x - BOARD_WIDTH_MM / 2;
+
+      if (board.segmentIndex !== undefined && board.segmentCount !== undefined && board.segmentIndex < board.segmentCount - 1) {
+        const yJoin = Math.max(board.start.y, board.end.y);
+        joinLines.push(
+          <Line
+            key={`join-${board.id}`}
+            points={[mmToPx(board.start.x - BOARD_WIDTH_MM / 2), mmToPx(yJoin), mmToPx(board.start.x + BOARD_WIDTH_MM / 2), mmToPx(yJoin)]}
+            stroke="#0f172a"
+            strokeWidth={1.25 / stageScale}
+          />
+        );
+      }
+
+      return (
+        <Rect
+          key={board.id}
+          x={mmToPx(xLeftMm)}
+          y={mmToPx(yStart)}
+          width={mmToPx(boardRenderWidthMm)}
+          height={mmToPx(heightMm)}
+          fill={getFillColor(deck)}
+          opacity={0.7}
+        />
+      );
+    });
+
+    const breakerRects = deck.breakerBoards.map((board) => {
+      const isVertical = board.start.x === board.end.x;
+      if (isVertical) {
+        const yStart = Math.min(board.start.y, board.end.y);
+        const heightMm = Math.abs(board.end.y - board.start.y);
+        const xLeftMm = board.start.x - BOARD_WIDTH_MM / 2;
+        return (
+          <Rect
+            key={board.id}
+            x={mmToPx(xLeftMm)}
+            y={mmToPx(yStart)}
+            width={mmToPx(boardRenderWidthMm)}
+            height={mmToPx(heightMm)}
+            fill="#0f172a"
+            opacity={0.65}
+          />
+        );
+      }
+
+      const xStart = Math.min(board.start.x, board.end.x);
+      const widthMm = Math.abs(board.end.x - board.start.x);
+      const yTopMm = board.start.y - BOARD_WIDTH_MM / 2;
+      return (
+        <Rect
+          key={board.id}
+          x={mmToPx(xStart)}
+          y={mmToPx(yTopMm)}
+          width={mmToPx(widthMm)}
+          height={mmToPx(boardRenderWidthMm)}
+          fill="#0f172a"
+          opacity={0.65}
+        />
+      );
+    });
+
+    return (
+      <Group
+        clipFunc={(ctx) => {
+          if (boardClipPointsPxCoords.length === 0) return;
+          ctx.beginPath();
+          ctx.moveTo(boardClipPointsPxCoords[0].x, boardClipPointsPxCoords[0].y);
+          boardClipPointsPxCoords.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+          ctx.closePath();
+        }}
+      >
+        {boardRects}
+        {joinLines}
+        {breakerRects}
+      </Group>
+    );
   };
 
   return (
@@ -647,7 +755,7 @@ export function DeckingCanvasStage() {
         <Layer listening={false}>{gridLines}</Layer>
 
         <Layer>
-          {!hasPolygon && !isDrawing && (
+          {decks.length === 0 && !isDrawing && (
             <Text
               x={stageSize.width / (2 * scale) - stagePos.x / scale - 140}
               y={stageSize.height / (2 * scale) - stagePos.y / scale - 10}
@@ -657,16 +765,68 @@ export function DeckingCanvasStage() {
             />
           )}
 
-          {hasPolygon && (
-            <Line
-              points={polygonPointsPx}
-              closed
-              fill={fillColor}
-              opacity={0.35}
-              stroke={fillColor}
-              strokeWidth={2}
-            />
-          )}
+          {decks.map((deck) => {
+            const polygonPointsPx = deck.polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+            const fill = getFillColor(deck);
+
+            return (
+              <Group
+                key={deck.id}
+                listening
+                onClick={(event) => {
+                  if (isDrawing) return;
+                  event.cancelBubble = true;
+                  deleteDeck(deck.id);
+                }}
+              >
+                {deck.polygon.length >= 3 && (
+                  <Line
+                    points={polygonPointsPx}
+                    closed
+                    fill={fill}
+                    opacity={deck.id === activeDeckId ? 0.35 : 0.2}
+                    stroke={fill}
+                    strokeWidth={2}
+                    listening
+                  />
+                )}
+
+                {renderBoardRects(deck)}
+
+                {deck.pictureFramePieces.length > 0 && (
+                  <Group listening={false}>
+                    {deck.pictureFramePieces.map((piece, index) => (
+                      <Line
+                        key={`picture-frame-${deck.id}-${index}`}
+                        points={piece.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)])}
+                        closed
+                        fill={fill}
+                        opacity={0.85}
+                        stroke="rgba(0,0,0,0.25)"
+                        strokeWidth={2 / stageScale}
+                      />
+                    ))}
+                  </Group>
+                )}
+
+                {deck.fasciaPieces.length > 0 && (
+                  <Group listening={false}>
+                    {deck.fasciaPieces.map((piece, index) => (
+                      <Line
+                        key={`fascia-${deck.id}-${index}`}
+                        points={piece.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)])}
+                        closed
+                        fill={fill}
+                        opacity={0.4}
+                        stroke="rgba(15,23,42,0.3)"
+                        strokeWidth={2 / stageScale}
+                      />
+                    ))}
+                  </Group>
+                )}
+              </Group>
+            );
+          })}
 
           {drawingPoints.length > 0 && (
             <Line
@@ -676,92 +836,6 @@ export function DeckingCanvasStage() {
               dash={[6, 6]}
               closed={false}
             />
-          )}
-
-          {hasPolygon && boardClippingPolygon.length >= 3 && boards.length > 0 && (
-            <Group
-              clipFunc={(ctx) => {
-                if (boardClipPointsPxCoords.length === 0) return;
-                ctx.beginPath();
-                ctx.moveTo(boardClipPointsPxCoords[0].x, boardClipPointsPxCoords[0].y);
-                boardClipPointsPxCoords.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-                ctx.closePath();
-              }}
-            >
-              {boards.map((board) => {
-                if (boardDirection === "horizontal") {
-                  const bleedStart = board.isRunStart ? EDGE_BLEED_MM : 0;
-                  const bleedEnd = board.isRunEnd ? EDGE_BLEED_MM : 0;
-                  const xStart = Math.min(board.start.x, board.end.x) - bleedStart;
-                  const xEnd = Math.max(board.start.x, board.end.x) + bleedEnd;
-                  const widthMm = xEnd - xStart;
-                  const yTopMm = board.start.y - BOARD_WIDTH_MM / 2;
-
-                  return (
-                    <Rect
-                      key={board.id}
-                      x={mmToPx(xStart)}
-                      y={mmToPx(yTopMm)}
-                      width={mmToPx(widthMm)}
-                      height={mmToPx(boardRenderWidthMm)}
-                      fill={fillColor}
-                      opacity={0.7}
-                    />
-                  );
-                }
-
-                const bleedStart = board.isRunStart ? EDGE_BLEED_MM : 0;
-                const bleedEnd = board.isRunEnd ? EDGE_BLEED_MM : 0;
-                const yStart = Math.min(board.start.y, board.end.y) - bleedStart;
-                const yEnd = Math.max(board.start.y, board.end.y) + bleedEnd;
-                const heightMm = yEnd - yStart;
-                const xLeftMm = board.start.x - BOARD_WIDTH_MM / 2;
-
-                return (
-                  <Rect
-                    key={board.id}
-                    x={mmToPx(xLeftMm)}
-                    y={mmToPx(yStart)}
-                    width={mmToPx(boardRenderWidthMm)}
-                    height={mmToPx(heightMm)}
-                    fill={fillColor}
-                    opacity={0.7}
-                  />
-                );
-              })}
-            </Group>
-          )}
-
-          {pictureFramePieces.length > 0 && (
-            <Group>
-              {pictureFramePieces.map((piece, index) => (
-                <Line
-                  key={`picture-frame-${index}`}
-                  points={piece.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)])}
-                  closed
-                  fill={fillColor}
-                  opacity={0.85}
-                  stroke="rgba(0,0,0,0.25)"
-                  strokeWidth={2 / stageScale}
-                />
-              ))}
-            </Group>
-          )}
-
-          {fasciaPieces.length > 0 && (
-            <Group>
-              {fasciaPieces.map((piece, index) => (
-                <Line
-                  key={`fascia-${index}`}
-                  points={piece.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)])}
-                  closed
-                  fill={fillColor}
-                  opacity={0.4}
-                  stroke="rgba(15,23,42,0.3)"
-                  strokeWidth={2 / stageScale}
-                />
-              ))}
-            </Group>
           )}
         </Layer>
 
@@ -799,7 +873,7 @@ export function DeckingCanvasStage() {
         <div className="font-semibold text-slate-700">Controls</div>
         <div>Left click to add points.</div>
         <div>Right click + drag to pan. Scroll to zoom.</div>
-        <div>Board direction: {boardDirection === "horizontal" ? "Horizontal" : "Vertical"}</div>
+        <div>Board direction: {activeDeck?.boardDirection === "vertical" ? "Vertical" : "Horizontal"}</div>
       </div>
     </div>
   );
