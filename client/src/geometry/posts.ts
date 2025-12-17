@@ -242,20 +242,29 @@ export function generatePosts(
   });
 
   const classify = (entry: Adjacency): PostCategory => {
-    if (entry.gateBlocked) return "end";
-
     const edgeCount = entry.edges.length;
     if (edgeCount <= 1) return "end";
+
+    if (edgeCount >= 3) {
+      return "t";
+    }
+
+    const RIGHT_ANGLE = Math.PI / 2;
+    const CORNER_ANGLE_EPS = Math.PI / 12;
+
     if (edgeCount === 2) {
       const [a1, a2] = entry.edges.map((e) => e.angle);
       const diff = Math.abs(a1 - a2);
       const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
       const isStraight =
         normalizedDiff < STRAIGHT_EPS || Math.abs(normalizedDiff - Math.PI) < STRAIGHT_EPS;
-      return isStraight ? "line" : "corner";
+      if (isStraight) return "line";
+
+      const isCorner = Math.abs(normalizedDiff - RIGHT_ANGLE) <= CORNER_ANGLE_EPS;
+      return isCorner ? "corner" : "line";
     }
 
-    return "t";
+    return "line";
   };
 
   return Array.from(adjacency.values()).map((entry) => ({
