@@ -397,7 +397,12 @@ interface AppState {
 
   splitLineAtPoint: (lineId: string, splitPoint: Point) => Point | null;
   addLine: (a: Point, b: Point) => void;
-  updateLine: (id: string, length_mm: number, fromEnd?: "a" | "b") => void;
+  updateLine: (
+    id: string,
+    length_mm: number,
+    fromEnd?: "a" | "b",
+    options?: { allowMerge?: boolean }
+  ) => void;
   toggleEvenSpacing: (id: string) => void;
   deleteLine: (id: string) => void;
   
@@ -559,7 +564,8 @@ export const useAppStore = create<AppState>()(
         get().recalculate();
       },
       
-      updateLine: (id, length_mm, fromEnd = "b") => {
+      updateLine: (id, length_mm, fromEnd = "b", options = {}) => {
+        const { allowMerge = true } = options;
         if (!Number.isFinite(length_mm)) {
           throw new Error("Length must be a finite number.");
         }
@@ -584,6 +590,7 @@ export const useAppStore = create<AppState>()(
           throw new Error("Value exceeds maximum length.");
         }
         
+        const isDev = process.env.NODE_ENV === "development";
         const mmPerPixel = get().mmPerPixel;
         const existingLines = get().lines;
         const lineOrder = new Map(existingLines.map((line, index) => [line.id, index]));
@@ -648,11 +655,18 @@ export const useAppStore = create<AppState>()(
           return updatedLine;
         });
 
-        const welded = weldSharedEndpoints(updatedLines, id, lineOrder, mmPerPixel);
-        const connected = mergeConnectedLines(welded, id, lineOrder, mmPerPixel);
-        const mergeResult = mergeCollinearLines(connected, id, mmPerPixel);
+        let nextLines = updatedLines;
 
-        set({ lines: mergeResult.lines });
+        if (allowMerge) {
+          const welded = weldSharedEndpoints(updatedLines, id, lineOrder, mmPerPixel);
+          if (isDev) console.time("mergeConnectedLines");
+          const connected = mergeConnectedLines(welded, id, lineOrder, mmPerPixel);
+          if (isDev) console.timeEnd("mergeConnectedLines");
+          const mergeResult = mergeCollinearLines(connected, id, mmPerPixel);
+          nextLines = mergeResult.lines;
+        }
+
+        set({ lines: nextLines });
         get().saveToHistory();
         get().recalculate();
       },
@@ -859,17 +873,29 @@ export const useAppStore = create<AppState>()(
       },
       
       recalculate: () => {
-        if (process.env.NODE_ENV === "development") {
+        const isDev = process.env.NODE_ENV === "development";
+        if (isDev) {
           console.time("recalculate");
         }
 
-        const { lines, gates } = get();
+        const { lines, gates, mmPerPixel } = get();
+
+        let effectiveMmPerPixel = mmPerPixel;
+        if (!Number.isFinite(effectiveMmPerPixel) || effectiveMmPerPixel <= 0) {
+          console.warn("Invalid mmPerPixel detected, resetting to 1");
+          effectiveMmPerPixel = 1;
+          set({ mmPerPixel: effectiveMmPerPixel });
+        }
         
         const allPanels: PanelSegment[] = [];
         const allNewLeftovers: Leftover[] = [];
         const allWarnings: WarningMsg[] = [];
         const panelPositionsMap = new Map<string, number[]>();
         
+        if (isDev) {
+          console.time("fitPanels");
+        }
+
         lines.forEach((line) => {
           if (line.gateId) return;
 
@@ -898,6 +924,10 @@ export const useAppStore = create<AppState>()(
           });
         });
         
+        if (isDev) {
+          console.timeEnd("fitPanels");
+        }
+        
         gates.forEach((gate) => {
           const line = lines.find((l) => l.id === gate.runId);
           if (!line) return;
@@ -913,18 +943,15 @@ export const useAppStore = create<AppState>()(
           }
         });
         
+        if (isDev) {
+          console.time("generatePosts");
+        }
         const posts = generatePosts(lines, gates, panelPositionsMap);
+        if (isDev) {
+          console.timeEnd("generatePosts");
+        }
         
-        const tJunctions = posts.filter((post) => {
-          const connectingLines = lines.filter(
-            (line) =>
-              (Math.abs(line.a.x - post.pos.x) < 1 &&
-                Math.abs(line.a.y - post.pos.y) < 1) ||
-              (Math.abs(line.b.x - post.pos.x) < 1 &&
-                Math.abs(line.b.y - post.pos.y) < 1)
-          );
-          return connectingLines.length > 2;
-        });
+        const tJunctions = posts.filter((post) => post.category === "t");
         
         tJunctions.forEach((post) => {
           allWarnings.push({
@@ -934,7 +961,7 @@ export const useAppStore = create<AppState>()(
           });
         });
         
-        if (process.env.NODE_ENV === "development") {
+        if (isDev) {
           console.timeEnd("recalculate");
           console.debug("recalculate stats", {
             lines: lines.length,
@@ -1024,27 +1051,27 @@ export const useAppStore = create<AppState>()(
         getItem: (name) => {
           const str = localStorage.getItem(name);
           if (!str) return null;
-          const parsed = JSON.parse(str);
+          const parsed = JSON.parse(str) as any;
           if (parsed.state?.panelPositionsMap) {
             parsed.state.panelPositionsMap = new Map(Object.entries(parsed.state.panelPositionsMap));
           }
           return parsed;
         },
-        setItem: (name, value) => {
+        setItem: (name, value: any) => {
           const serialized = {
-            ...value,
+            ...(value ?? {}),
             state: {
-              ...value.state,
-              panelPositionsMap: value.state.panelPositionsMap instanceof Map
+              ...(value?.state ?? {}),
+              panelPositionsMap: value?.state?.panelPositionsMap instanceof Map
                 ? Object.fromEntries(value.state.panelPositionsMap)
-                : value.state.panelPositionsMap,
+                : value?.state?.panelPositionsMap,
             },
-          };
+          } as any;
           localStorage.setItem(name, JSON.stringify(serialized));
         },
         removeItem: (name) => localStorage.removeItem(name),
       },
-      migrate: (persistedState, version) => {
+      migrate: (persistedState: any, version) => {
         if (version < 1) {
           return {
             ...persistedState,
@@ -1073,7 +1100,7 @@ export const useAppStore = create<AppState>()(
         mmPerPixel: state.mmPerPixel,
         selectedLineId: state.selectedLineId,
       }),
-      onRehydrateStorage: () => (state, error) => {
+      onRehydrateStorage: () => (state: AppState | undefined, error?: unknown) => {
         if (error) return;
         state?.recalculate();
       },

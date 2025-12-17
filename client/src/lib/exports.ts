@@ -34,8 +34,6 @@ const rows: string[][] = [
     t: posts.filter((p) => p.category === "t").length,
     line: posts.filter((p) => p.category === "line").length,
   };
-
-  const cornerTotal = postCounts.corner + postCounts.t;
   
   if (postCounts.end > 0) {
     rows.push([
@@ -47,13 +45,23 @@ const rows: string[][] = [
     ]);
   }
   
-  if (cornerTotal > 0) {
+  if (postCounts.corner > 0) {
     rows.push([
       `POST-CORNER-${fenceStyleId.toUpperCase()}`,
       `Corner Post (${pricing.name})`,
-      cornerTotal.toString(),
+      postCounts.corner.toString(),
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(cornerTotal * pricing.post_unit_price).toFixed(2)}`,
+      `$${(postCounts.corner * pricing.post_unit_price).toFixed(2)}`,
+    ]);
+  }
+
+  if (postCounts.t > 0) {
+    rows.push([
+      `POST-T-${fenceStyleId.toUpperCase()}`,
+      `T Post (${pricing.name})`,
+      postCounts.t.toString(),
+      `$${pricing.post_unit_price.toFixed(2)}`,
+      `$${(postCounts.t * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
@@ -135,8 +143,6 @@ doc.setFontSize(20);
     t: posts.filter((p) => p.category === "t").length,
     line: posts.filter((p) => p.category === "line").length,
   };
-
-  const cornerTotal = postCounts.corner + postCounts.t;
   
   if (postCounts.end > 0) {
     tableData.push([
@@ -148,13 +154,23 @@ doc.setFontSize(20);
     ]);
   }
   
-  if (cornerTotal > 0) {
+  if (postCounts.corner > 0) {
     tableData.push([
       `POST-CORNER`,
       `Corner Post`,
-      cornerTotal,
+      postCounts.corner,
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(cornerTotal * pricing.post_unit_price).toFixed(2)}`,
+      `$${(postCounts.corner * pricing.post_unit_price).toFixed(2)}`,
+    ]);
+  }
+
+  if (postCounts.t > 0) {
+    tableData.push([
+      `POST-T`,
+      `T Post`,
+      postCounts.t,
+      `$${pricing.post_unit_price.toFixed(2)}`,
+      `$${(postCounts.t * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   

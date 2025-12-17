@@ -11,6 +11,7 @@ export interface CostBreakdown {
   posts: {
     end: { quantity: number; unitPrice: number; total: number };
     corner: { quantity: number; unitPrice: number; total: number };
+    t: { quantity: number; unitPrice: number; total: number };
     line: { quantity: number; unitPrice: number; total: number };
   };
   gates: {
@@ -42,7 +43,6 @@ export function calculateCosts(
   const cornerPosts = posts.filter((p) => p.category === "corner").length;
   const tPosts = posts.filter((p) => p.category === "t").length;
   const linePosts = posts.filter((p) => p.category === "line").length;
-  const combinedCornerPosts = cornerPosts + tPosts;
   
   const gatesByType = {
     single_900: gates.filter((g) => g.type === "single_900").length,
@@ -60,7 +60,8 @@ export function calculateCosts(
   
   const panelCost = toCurrency(numPanels * pricing.panel_unit_price);
   const endPostCost = toCurrency(endPosts * pricing.post_unit_price);
-  const cornerPostCost = toCurrency(combinedCornerPosts * pricing.post_unit_price);
+  const cornerPostCost = toCurrency(cornerPosts * pricing.post_unit_price);
+  const tPostCost = toCurrency(tPosts * pricing.post_unit_price);
   const linePostCost = toCurrency(linePosts * pricing.post_unit_price);
 
   const gateCosts = {
@@ -86,6 +87,7 @@ export function calculateCosts(
     panelCost +
       endPostCost +
       cornerPostCost +
+      tPostCost +
       linePostCost +
       Object.values(gateCosts).reduce((sum, cost) => sum + cost, 0)
   );
@@ -94,7 +96,8 @@ export function calculateCosts(
     panels: { quantity: numPanels, unitPrice: pricing.panel_unit_price, total: panelCost },
     posts: {
       end: { quantity: endPosts, unitPrice: pricing.post_unit_price, total: endPostCost },
-      corner: { quantity: combinedCornerPosts, unitPrice: pricing.post_unit_price, total: cornerPostCost },
+      corner: { quantity: cornerPosts, unitPrice: pricing.post_unit_price, total: cornerPostCost },
+      t: { quantity: tPosts, unitPrice: pricing.post_unit_price, total: tPostCost },
       line: { quantity: linePosts, unitPrice: pricing.post_unit_price, total: linePostCost },
     },
     gates: {

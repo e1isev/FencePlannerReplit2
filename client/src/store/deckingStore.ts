@@ -9,18 +9,12 @@ import {
 import type {
   Board,
   BoardDirection,
-  CornerConstraint,
   DeckColor,
   DeckingBoardPlan,
   DeckingCuttingList,
   EdgeConstraint,
   Point,
 } from "@/types/decking";
-import {
-  angleDegAtVertex,
-  applyCornerAngleRotateForward,
-  enforceLockedAngles,
-} from "@/geometry/deckingAngles";
 import {
   findBottomEdgeIndex,
   rotatePolygonToHorizontalBaseline,
@@ -46,6 +40,27 @@ function polygonArea(points: Point[]): number {
     area += points[i].x * points[j].y - points[j].x * points[i].y;
   }
   return Math.abs(area) / 2;
+}
+
+function hasInvalidNumbers(points: Point[]): boolean {
+  return points.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y));
+}
+
+function hasDegenerateEdges(polygon: Point[]): boolean {
+  if (polygon.length < 2) return false;
+
+  return polygon.some((point, idx) => {
+    const next = polygon[(idx + 1) % polygon.length];
+    return point.x === next.x && point.y === next.y;
+  });
+}
+
+function isPolygonValid(polygon: Point[]): boolean {
+  if (polygon.length < 3) return false;
+  if (hasInvalidNumbers(polygon) || hasDegenerateEdges(polygon)) return false;
+
+  const area = polygonArea(polygon);
+  return Number.isFinite(area) && area > 0;
 }
 
 function getBounds(points: Point[]) {
@@ -95,56 +110,6 @@ function getVerticalIntersections(polygon: Point[], x: number): number[] {
 }
 
 const LOCKED_EDGE_TOLERANCE_MM = 0.5;
-const LOCKED_ANGLE_TOLERANCE_DEG = 0.25;
-
-function refreshAutoCornerLocks(
-  polygon: Point[],
-  cornerConstraints: Record<number, CornerConstraint>
-): Record<number, CornerConstraint> {
-  const nextConstraints: Record<number, CornerConstraint> = {
-    ...cornerConstraints,
-  };
-
-  for (let i = 0; i < polygon.length; i++) {
-    const existing = cornerConstraints[i];
-    if (existing && existing.mode === undefined && existing.angleDeg !== undefined) {
-      nextConstraints[i] = { ...existing, mode: "user" };
-      continue;
-    }
-    if (existing?.mode === "user" || existing?.mode === "unlocked") continue;
-
-    const angleDeg = angleDegAtVertex(polygon, i);
-    const isRightAngle = Math.abs(angleDeg - 90) <= LOCKED_ANGLE_TOLERANCE_DEG;
-
-    if (isRightAngle) {
-      nextConstraints[i] = { mode: "auto", angleDeg: 90 };
-    } else if (existing?.mode === "auto") {
-      delete nextConstraints[i];
-    }
-  }
-
-  return nextConstraints;
-}
-
-function enforceAnglesAndNormalize(
-  polygon: Point[],
-  cornerConstraints: Record<number, CornerConstraint>,
-  baselineEdgeIndex: number | null
-): { polygon: Point[]; baselineEdgeIndex: number | null } {
-  let nextPolygon = enforceLockedAngles(polygon, cornerConstraints);
-
-  let nextBaselineEdgeIndex = baselineEdgeIndex;
-  if (nextBaselineEdgeIndex === null && nextPolygon.length >= 3) {
-    nextBaselineEdgeIndex = findBottomEdgeIndex(nextPolygon);
-  }
-
-  nextPolygon =
-    nextBaselineEdgeIndex === null
-      ? nextPolygon
-      : rotatePolygonToHorizontalBaseline(nextPolygon, nextBaselineEdgeIndex);
-
-  return { polygon: nextPolygon, baselineEdgeIndex: nextBaselineEdgeIndex };
-}
 
 function findConflictingLockedEdge(
   polygon: Point[],
@@ -157,26 +122,6 @@ function findConflictingLockedEdge(
     const actualLength = edgeLengthMm(polygon, lockedIndex);
     if (Math.abs(actualLength - constraint.lengthMm) > LOCKED_EDGE_TOLERANCE_MM) {
       return lockedIndex;
-    }
-  }
-
-  return null;
-}
-
-function validateLockedAngles(
-  polygon: Point[],
-  cornerConstraints: Record<number, CornerConstraint>
-): number | null {
-  for (const [vertexIndexStr, constraint] of Object.entries(cornerConstraints)) {
-    const vertexIndex = Number(vertexIndexStr);
-    if (constraint.mode === "unlocked") continue;
-
-    const targetDeg = constraint.mode === "auto" ? 90 : constraint.angleDeg;
-    if (!targetDeg) continue;
-
-    const angleDeg = angleDegAtVertex(polygon, vertexIndex);
-    if (Math.abs(angleDeg - targetDeg) > LOCKED_ANGLE_TOLERANCE_DEG) {
-      return vertexIndex;
     }
   }
 
@@ -232,8 +177,6 @@ interface DeckingState {
   updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
   lockEdgeLength: (edgeIndex: number) => void;
   unlockEdgeLength: (edgeIndex: number) => void;
-  setCornerAngle: (vertexIndex: number, angleDeg: number) => void;
-  clearCornerAngle: (vertexIndex: number) => void;
   clear: () => void;
   undo: () => void;
   redo: () => void;
@@ -329,12 +272,7 @@ export const useDeckingStore = create<DeckingState>()(
       updateEdgeLength: (edgeIndex, lengthMm) => {
         if (lengthMm <= 0) return;
 
-        const {
-          polygon,
-          baselineEdgeIndex,
-          edgeConstraints,
-          cornerConstraints,
-        } = get();
+        const { polygon, edgeConstraints } = get();
         const n = polygon.length;
         if (n < 2) return;
 
@@ -342,8 +280,6 @@ export const useDeckingStore = create<DeckingState>()(
           window.alert("Edge length is locked, unlock to edit");
           return;
         }
-
-        const constraintsForEdit = refreshAutoCornerLocks(polygon, cornerConstraints);
 
         const startIndex = ((edgeIndex % n) + n) % n;
         const endIndex = (startIndex + 1) % n;
@@ -374,13 +310,17 @@ export const useDeckingStore = create<DeckingState>()(
           k = (k + 1) % n;
         }
 
-        const { polygon: normalizedPolygon, baselineEdgeIndex: nextBaselineEdgeIndex } =
-          enforceAnglesAndNormalize(newPolygon, constraintsForEdit, baselineEdgeIndex);
+        const nextBaselineEdgeIndex =
+          newPolygon.length >= 3 ? findBottomEdgeIndex(newPolygon) : null;
+        const normalizedPolygon =
+          nextBaselineEdgeIndex === null
+            ? newPolygon
+            : rotatePolygonToHorizontalBaseline(newPolygon, nextBaselineEdgeIndex);
 
-        const refreshedCornerConstraints = refreshAutoCornerLocks(
-          normalizedPolygon,
-          constraintsForEdit
-        );
+        if (!isPolygonValid(normalizedPolygon)) {
+          console.warn("Aborting edge length update due to invalid geometry");
+          return;
+        }
 
         const conflictingEdge = findConflictingLockedEdge(
           normalizedPolygon,
@@ -395,19 +335,9 @@ export const useDeckingStore = create<DeckingState>()(
           return;
         }
 
-        const conflictingAngle = validateLockedAngles(
-          normalizedPolygon,
-          refreshedCornerConstraints
-        );
-        if (conflictingAngle !== null) {
-          window.alert("Edit would change a locked angle, unlock it first");
-          return;
-        }
-
         set({
           polygon: normalizedPolygon,
           baselineEdgeIndex: nextBaselineEdgeIndex,
-          cornerConstraints: refreshedCornerConstraints,
         });
         get().calculateBoards();
         get().saveHistory();
@@ -427,74 +357,6 @@ export const useDeckingStore = create<DeckingState>()(
         if (!edgeConstraints[edgeIndex]) return;
         const nextConstraints = unlockEdge(edgeConstraints, edgeIndex);
         set({ edgeConstraints: nextConstraints });
-        get().saveHistory();
-      },
-
-      setCornerAngle: (vertexIndex, angleDeg) => {
-        const { polygon, cornerConstraints, baselineEdgeIndex, edgeConstraints } = get();
-        if (polygon.length < 3) return;
-        if (angleDeg <= 0 || angleDeg >= 360) return;
-
-        const constraintsForEdit = refreshAutoCornerLocks(polygon, cornerConstraints);
-
-        const newCornerConstraints = {
-          ...constraintsForEdit,
-          [vertexIndex]: { mode: "user" as const, angleDeg },
-        } satisfies Record<number, CornerConstraint>;
-
-        const rotatedPolygon = applyCornerAngleRotateForward(
-          polygon,
-          vertexIndex,
-          angleDeg
-        );
-
-        const { polygon: normalizedPolygon, baselineEdgeIndex: nextBaselineEdgeIndex } =
-          enforceAnglesAndNormalize(rotatedPolygon, newCornerConstraints, baselineEdgeIndex);
-
-        const refreshedCornerConstraints = refreshAutoCornerLocks(
-          normalizedPolygon,
-          newCornerConstraints
-        );
-
-        const conflictingEdge = findConflictingLockedEdge(
-          normalizedPolygon,
-          edgeConstraints
-        );
-        if (conflictingEdge !== null) {
-          window.alert(
-            `This edit would change locked edge length on edge ${
-              conflictingEdge + 1
-            }, unlock that dimension to proceed.`
-          );
-          return;
-        }
-
-        const conflictingAngle = validateLockedAngles(
-          normalizedPolygon,
-          refreshedCornerConstraints
-        );
-        if (conflictingAngle !== null) {
-          window.alert("Edit would change a locked angle, unlock it first");
-          return;
-        }
-
-        set({
-          polygon: normalizedPolygon,
-          cornerConstraints: refreshedCornerConstraints,
-          baselineEdgeIndex: nextBaselineEdgeIndex,
-        });
-        get().calculateBoards();
-        get().saveHistory();
-      },
-
-      clearCornerAngle: (vertexIndex) => {
-        const { cornerConstraints } = get();
-        if (!cornerConstraints[vertexIndex]) return;
-        const newConstraints = {
-          ...cornerConstraints,
-          [vertexIndex]: { mode: "unlocked" as const },
-        } satisfies Record<number, CornerConstraint>;
-        set({ cornerConstraints: newConstraints });
         get().saveHistory();
       },
 
@@ -736,7 +598,6 @@ export const useDeckingStore = create<DeckingState>()(
           pictureFramePieces: [],
           fasciaPieces: [],
           boardPlan: null,
-          cornerConstraints: {},
           edgeConstraints: {},
           baselineEdgeIndex: null,
           pictureFrameEnabled: false,
@@ -840,6 +701,48 @@ export const useDeckingStore = create<DeckingState>()(
     }),
     {
       name: "decking-storage",
+      merge: (persistedState, currentState) => {
+        const incomingState = (persistedState as { state?: Partial<DeckingState> }).state ??
+          (persistedState as Partial<DeckingState>);
+
+        if (!incomingState || typeof incomingState !== "object") {
+          return currentState;
+        }
+
+        const { cornerConstraints: _legacyCornerConstraints, history, ...rest } =
+          incomingState as Partial<DeckingState> & { cornerConstraints?: unknown };
+
+        const sanitizedHistory = Array.isArray(history)
+          ? history.map((snapshot) => {
+              const { cornerConstraints: _legacyCornerConstraintsSnapshot, ...restSnapshot } =
+                (snapshot ?? {}) as { cornerConstraints?: unknown } &
+                  Partial<DeckingState["history"][number]>;
+              return {
+                polygon: restSnapshot.polygon ?? currentState.polygon,
+                boardDirection: restSnapshot.boardDirection ?? currentState.boardDirection,
+                edgeConstraints: restSnapshot.edgeConstraints ?? {},
+                baselineEdgeIndex: restSnapshot.baselineEdgeIndex ?? null,
+              };
+            })
+          : currentState.history;
+
+        return {
+          ...currentState,
+          ...rest,
+          polygon: rest.polygon ?? currentState.polygon,
+          boards: rest.boards ?? currentState.boards,
+          boardPlan: rest.boardPlan ?? currentState.boardPlan,
+          selectedColor: rest.selectedColor ?? currentState.selectedColor,
+          boardDirection: rest.boardDirection ?? currentState.boardDirection,
+          edgeConstraints: rest.edgeConstraints ?? currentState.edgeConstraints,
+          baselineEdgeIndex: rest.baselineEdgeIndex ?? currentState.baselineEdgeIndex,
+          history: sanitizedHistory as DeckingState["history"],
+          historyIndex:
+            typeof incomingState.historyIndex === "number"
+              ? incomingState.historyIndex
+              : currentState.historyIndex,
+        };
+      },
     }
   )
 );
