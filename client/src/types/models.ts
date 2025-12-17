@@ -70,6 +70,7 @@ export interface Post {
   id: string;
   pos: Point;
   category: PostCategory;
+  source: "vertex" | "panel";
 }
 
 export interface Gate {

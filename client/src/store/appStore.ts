@@ -13,6 +13,7 @@ import {
   GateType,
 } from "@/types/models";
 import { generateId } from "@/lib/ids";
+import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
 import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
@@ -24,6 +25,8 @@ export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
 export const MAX_RUN_MM = 200_000;
 const HISTORY_LIMIT = 100;
 const LEFTOVER_WARN_THRESHOLD = 1_000;
+const quantizePoint = (point: Point, mmPerPixel: number) =>
+  quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
 
 const pointsMatch = (p1: Point, p2: Point) => {
   return (
@@ -114,14 +117,16 @@ const buildMergedLine = (
 ): FenceLine => {
   const baseOther = sharedEndpoint.line1End === "a" ? baseLine.b : baseLine.a;
   const otherOther = sharedEndpoint.line2End === "a" ? otherLine.b : otherLine.a;
-  const mergedDx = otherOther.x - baseOther.x;
-  const mergedDy = otherOther.y - baseOther.y;
+  const quantizedA = quantizePoint(baseOther, mmPerPixel);
+  const quantizedB = quantizePoint(otherOther, mmPerPixel);
+  const mergedDx = quantizedB.x - quantizedA.x;
+  const mergedDy = quantizedB.y - quantizedA.y;
   const mergedOrthogonal = Math.abs(mergedDx) < 0.01 || Math.abs(mergedDy) < 0.01;
 
   return {
     ...baseLine,
-    a: baseOther,
-    b: otherOther,
+    a: quantizedA,
+    b: quantizedB,
     length_mm: Math.hypot(mergedDx, mergedDy) * mmPerPixel,
     even_spacing: baseLine.even_spacing || otherLine.even_spacing,
     locked_90: mergedOrthogonal,
@@ -151,8 +156,9 @@ const snapLineEndpoint = (
   mmPerPixel: number
 ): FenceLine => {
   const otherPoint = end === "a" ? line.b : line.a;
-  const newA = end === "a" ? point : otherPoint;
-  const newB = end === "b" ? point : otherPoint;
+  const quantizedPoint = quantizePoint(point, mmPerPixel);
+  const newA = end === "a" ? quantizedPoint : otherPoint;
+  const newB = end === "b" ? quantizedPoint : otherPoint;
   const length_px = Math.hypot(newB.x - newA.x, newB.y - newA.y);
 
   return {
@@ -328,6 +334,7 @@ const weldSharedEndpoints = (
 ) => {
   const lineLookup = new Map(lines.map((line) => [line.id, line]));
   const canonicalPoints: Array<{ point: Point; lineIds: Set<string> }> = [];
+  const quantize = (point: Point) => quantizePoint(point, mmPerPixel);
 
   const canShareWith = (lineIds: Set<string>, line: FenceLine) => {
     let allowed = true;
@@ -342,19 +349,20 @@ const weldSharedEndpoints = (
   };
 
   const findOrCreateCanonical = (point: Point, line: FenceLine): Point => {
+    const quantizedPoint = quantize(point);
     for (const canonical of canonicalPoints) {
       if (!canShareWith(canonical.lineIds, line)) continue;
 
-      const dist = Math.hypot(canonical.point.x - point.x, canonical.point.y - point.y);
+      const dist = Math.hypot(canonical.point.x - quantizedPoint.x, canonical.point.y - quantizedPoint.y);
       if (dist <= ENDPOINT_WELD_EPS_PX) {
         canonical.lineIds.add(line.id);
         return canonical.point;
       }
     }
 
-    const newCanonical = { point, lineIds: new Set<string>([line.id]) };
+    const newCanonical = { point: quantizedPoint, lineIds: new Set<string>([line.id]) };
     canonicalPoints.push(newCanonical);
-    return point;
+    return quantizedPoint;
   };
 
   const snappedLines = lines.map((line) => {
@@ -496,13 +504,14 @@ export const useAppStore = create<AppState>()(
         if (targetIndex === -1) return null;
 
         const target = lines[targetIndex];
+        const quantizedSplit = quantizePoint(splitPoint, mmPerPixel);
 
-        const distToA = Math.hypot(splitPoint.x - target.a.x, splitPoint.y - target.a.y);
+        const distToA = Math.hypot(quantizedSplit.x - target.a.x, quantizedSplit.y - target.a.y);
         if (distToA <= ENDPOINT_WELD_EPS_PX) {
           return target.a;
         }
 
-        const distToB = Math.hypot(splitPoint.x - target.b.x, splitPoint.y - target.b.y);
+        const distToB = Math.hypot(quantizedSplit.x - target.b.x, quantizedSplit.y - target.b.y);
         if (distToB <= ENDPOINT_WELD_EPS_PX) {
           return target.b;
         }
@@ -514,15 +523,15 @@ export const useAppStore = create<AppState>()(
         const newLineA: FenceLine = {
           ...target,
           id: generateId("line"),
-          b: splitPoint,
-          length_mm: Math.hypot(splitPoint.x - target.a.x, splitPoint.y - target.a.y) * mmPerPixel,
+          b: quantizedSplit,
+          length_mm: Math.hypot(quantizedSplit.x - target.a.x, quantizedSplit.y - target.a.y) * mmPerPixel,
         };
 
         const newLineB: FenceLine = {
           ...target,
           id: generateId("line"),
-          a: splitPoint,
-          length_mm: Math.hypot(target.b.x - splitPoint.x, target.b.y - splitPoint.y) * mmPerPixel,
+          a: quantizedSplit,
+          length_mm: Math.hypot(target.b.x - quantizedSplit.x, target.b.y - quantizedSplit.y) * mmPerPixel,
         };
 
         const newLines = [
@@ -534,14 +543,17 @@ export const useAppStore = create<AppState>()(
 
         set({ lines: newLines });
 
-        return splitPoint;
+        return quantizedSplit;
       },
 
       addLine: (a, b) => {
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
+        const mmPerPixel = get().mmPerPixel;
+        const quantizedA = quantizePoint(a, mmPerPixel);
+        const quantizedB = quantizePoint(b, mmPerPixel);
+        const dx = quantizedB.x - quantizedA.x;
+        const dy = quantizedB.y - quantizedA.y;
         const length_px = Math.hypot(dx, dy);
-        const length_mm = length_px * get().mmPerPixel;
+        const length_mm = length_px * mmPerPixel;
 
         if (length_mm < MIN_LINE_LENGTH_MM) {
           const warning: WarningMsg = {
@@ -557,8 +569,8 @@ export const useAppStore = create<AppState>()(
 
         const newLine: FenceLine = {
           id: generateId("line"),
-          a,
-          b,
+          a: quantizedA,
+          b: quantizedB,
           length_mm,
           locked_90: isOrthogonal,
           even_spacing: false,
@@ -615,6 +627,7 @@ export const useAppStore = create<AppState>()(
 
         const desiredLengthPx = length_mm / mmPerPixel;
         const scale = desiredLengthPx / currentLength;
+        const quantize = (point: Point) => quantizePoint(point, mmPerPixel);
 
         let oldMovedPoint = targetLine.b;
         let newMovedPoint = {
@@ -622,8 +635,9 @@ export const useAppStore = create<AppState>()(
           y: targetLine.a.y + dy * scale,
         };
 
-        let newA = targetLine.a;
-        let newB = newMovedPoint;
+        const stationaryPoint = targetLine.a;
+        let newA = quantize(stationaryPoint);
+        let newB = quantize(newMovedPoint);
 
         if (fromEnd === "a") {
           const reverseDx = targetLine.a.x - targetLine.b.x;
@@ -633,9 +647,13 @@ export const useAppStore = create<AppState>()(
             x: targetLine.b.x + reverseDx * scale,
             y: targetLine.b.y + reverseDy * scale,
           };
-          newA = newMovedPoint;
-          newB = targetLine.b;
+          newA = quantize(newMovedPoint);
+          newB = quantize(targetLine.b);
+        } else {
+          newB = quantize(newMovedPoint);
         }
+
+        const quantizedMovedPoint = quantize(newMovedPoint);
 
         const updatedLines = existingLines.map((line) => {
           if (line.id === id) {
@@ -649,13 +667,15 @@ export const useAppStore = create<AppState>()(
 
           const updatedLine = { ...line };
           if (pointsMatch(line.a, oldMovedPoint)) {
-            updatedLine.a = newMovedPoint;
+            updatedLine.a = quantizedMovedPoint;
           }
           if (pointsMatch(line.b, oldMovedPoint)) {
-            updatedLine.b = newMovedPoint;
+            updatedLine.b = quantizedMovedPoint;
           }
 
           if (updatedLine.a !== line.a || updatedLine.b !== line.b) {
+            updatedLine.a = quantize(updatedLine.a);
+            updatedLine.b = quantize(updatedLine.b);
             const segDx = updatedLine.b.x - updatedLine.a.x;
             const segDy = updatedLine.b.y - updatedLine.a.y;
             const segLengthPx = Math.hypot(segDx, segDy);
@@ -816,15 +836,21 @@ export const useAppStore = create<AppState>()(
         const beforeEnd_px = beforeLength_mm / mmPerPixel;
         const gateEnd_px = (beforeLength_mm + opening_mm) / mmPerPixel;
 
-        const beforeEndPoint = {
-          x: line.a.x + unitX * beforeEnd_px,
-          y: line.a.y + unitY * beforeEnd_px,
-        };
+        const beforeEndPoint = quantizePoint(
+          {
+            x: line.a.x + unitX * beforeEnd_px,
+            y: line.a.y + unitY * beforeEnd_px,
+          },
+          mmPerPixel
+        );
 
-        const gateEndPoint = {
-          x: line.a.x + unitX * gateEnd_px,
-          y: line.a.y + unitY * gateEnd_px,
-        };
+        const gateEndPoint = quantizePoint(
+          {
+            x: line.a.x + unitX * gateEnd_px,
+            y: line.a.y + unitY * gateEnd_px,
+          },
+          mmPerPixel
+        );
         
         const gateLine: FenceLine = {
           id: generateId("line"),
@@ -842,7 +868,7 @@ export const useAppStore = create<AppState>()(
         if (beforeLength_mm > 0) {
           const beforeLine: FenceLine = {
             id: generateId("line"),
-            a: line.a,
+            a: quantizePoint(line.a, mmPerPixel),
             b: beforeEndPoint,
             length_mm: beforeLength_mm,
             locked_90: line.locked_90,
@@ -855,7 +881,7 @@ export const useAppStore = create<AppState>()(
           const afterLine: FenceLine = {
             id: generateId("line"),
             a: gateEndPoint,
-            b: line.b,
+            b: quantizePoint(line.b, mmPerPixel),
             length_mm: afterLength_mm,
             locked_90: line.locked_90,
             even_spacing: line.even_spacing,
@@ -965,7 +991,7 @@ export const useAppStore = create<AppState>()(
         if (isDev) {
           console.time("generatePosts");
         }
-        const posts = generatePosts(lines, gates, panelPositionsMap);
+        const posts = generatePosts(lines, gates, panelPositionsMap, effectiveMmPerPixel);
         if (isDev) {
           console.timeEnd("generatePosts");
         }

@@ -1,13 +1,8 @@
 import { FenceLine, Point, Post, PostCategory, Gate } from "@/types/models";
 import { generateId } from "@/lib/ids";
+import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 
-function makePointKey(p: Point, decimals = 2): string {
-  return `${p.x.toFixed(decimals)},${p.y.toFixed(decimals)}`;
-}
-
-export function pointsEqual(a: Point, b: Point): boolean {
-  return makePointKey(a) === makePointKey(b);
-}
+type PointKeyFn = (point: Point) => string;
 
 function radToDeg(r: number) {
   return (r * 180) / Math.PI;
@@ -40,7 +35,7 @@ const projectPointToSegment = (p: Point, a: Point, b: Point) => {
 export function getPostNeighbours(pos: Point, lines: FenceLine[]): Point[] {
   const neighbours: Point[] = [];
   const seen = new Set<string>();
-  const keyForPoint = (p: Point) => makePointKey(p);
+  const keyForPoint: PointKeyFn = (p: Point) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
 
   lines.forEach((line) => {
     const { t, distanceSq } = projectPointToSegment(pos, line.a, line.b);
@@ -162,7 +157,8 @@ export function getPostAngleDeg(
 export function generatePosts(
   lines: FenceLine[],
   _gates: Gate[],
-  panelPositionsMap: Map<string, number[]> = new Map()
+  panelPositionsMap: Map<string, number[]> = new Map(),
+  mmPerPixel: number = 1
 ): Post[] {
   const STRAIGHT_EPS = 0.1;
   const SEGMENT_TOLERANCE = 0.5;
@@ -171,6 +167,8 @@ export function generatePosts(
     pos: Point;
     edges: Array<{ lineId: string; angle: number }>;
     gateBlocked: boolean;
+    source: Post["source"];
+    category?: PostCategory;
   };
 
   const lineHasBlockingFeatures = (line: FenceLine): boolean => {
@@ -187,11 +185,23 @@ export function generatePosts(
     );
   };
 
+  const quantize = (point: Point) =>
+    quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
+  const makePointKey: PointKeyFn = (p: Point) => {
+    const quantized = quantize(p);
+    return `${quantized.x.toFixed(2)},${quantized.y.toFixed(2)}`;
+  };
   const angleCache = new Map<string, number>();
   const adjacency = new Map<string, Adjacency>();
 
-  const addEdge = (point: Point, line: FenceLine) => {
-    const key = makePointKey(point);
+  const addEdge = (
+    point: Point,
+    line: FenceLine,
+    source: Post["source"] = "vertex",
+    category?: PostCategory
+  ) => {
+    const quantized = quantize(point);
+    const key = makePointKey(quantized);
     const angle =
       angleCache.get(line.id) ??
       (() => {
@@ -207,13 +217,22 @@ export function generatePosts(
       if (!existing.edges.some((e) => e.lineId === line.id)) {
         existing.edges.push({ lineId: line.id, angle });
       }
+      if (source === "vertex" && existing.source === "panel") {
+        existing.source = "vertex";
+        existing.category = undefined;
+      }
+      if (source === "panel" && existing.source === "panel" && category) {
+        existing.category = category;
+      }
       return;
     }
 
     adjacency.set(key, {
-      pos: point,
+      pos: quantized,
       edges: [{ lineId: line.id, angle }],
       gateBlocked,
+      source,
+      category,
     });
   };
 
@@ -223,7 +242,7 @@ export function generatePosts(
 
     const panelPositions = panelPositionsMap.get(line.id) || [];
     const linePosts = getLinePosts(line, panelPositions);
-    linePosts.forEach((point) => addEdge(point, line));
+    linePosts.forEach((point) => addEdge(point, line, "panel", "line"));
   });
 
   lines.forEach((line, index) => {
@@ -267,11 +286,30 @@ export function generatePosts(
     return "line";
   };
 
-  return Array.from(adjacency.values()).map((entry) => ({
-    id: generateId("post"),
-    pos: entry.pos,
-    category: classify(entry),
-  }));
+  const posts = Array.from(adjacency.values()).map((entry) => {
+    const category = entry.source === "panel" ? entry.category ?? "line" : classify(entry);
+    return {
+      id: generateId("post"),
+      pos: entry.pos,
+      category,
+      source: entry.source,
+    };
+  });
+
+  posts.forEach((post) => {
+    if (post.source === "panel" && post.category !== "line") {
+      const key = makePointKey(post.pos);
+      const connectingLines = adjacency.get(key)?.edges.length ?? 0;
+      console.debug("Post category mismatch at panel boundary", {
+        key,
+        connectingLines,
+        category: post.category,
+        source: post.source,
+      });
+    }
+  });
+
+  return posts;
 }
 
 export function getLinePosts(
