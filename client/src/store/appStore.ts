@@ -19,74 +19,143 @@ import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 
 const SNAP_TOLERANCE_PX = 0.1;
-const MERGE_ANGLE_TOL_DEG = 7.5;
-const MERGE_MAX_OFFLINE_MM = 40;
-const MERGE_ENDPOINT_TOL_MM = 75;
+const MERGE_ANGLE_TOL_DEG = 2;
+const MERGE_ENDPOINT_EPS_PX = 0.25;
 
 const pointsMatch = (p1: Point, p2: Point) => {
   return Math.abs(p1.x - p2.x) < SNAP_TOLERANCE_PX && Math.abs(p1.y - p2.y) < SNAP_TOLERANCE_PX;
 };
 
-const pointsWithinPx = (p1: Point, p2: Point, tolPx: number) => {
-  return Math.hypot(p1.x - p2.x, p1.y - p2.y) <= tolPx;
+const degToRad = (deg: number) => (deg * Math.PI) / 180;
+
+const normalise = (v: { x: number; y: number }) => {
+  const mag = Math.hypot(v.x, v.y);
+  if (mag === 0) return { x: 0, y: 0 };
+  return { x: v.x / mag, y: v.y / mag };
 };
 
-const clamp = (value: number, min: number, max: number) => {
-  return Math.min(max, Math.max(min, value));
+const angleBetweenLinesAbs = (l1: FenceLine, l2: FenceLine) => {
+  const d1 = normalise({ x: l1.b.x - l1.a.x, y: l1.b.y - l1.a.y });
+  const d2 = normalise({ x: l2.b.x - l2.a.x, y: l2.b.y - l2.a.y });
+  const dot = d1.x * d2.x + d1.y * d2.y;
+  const clamped = Math.min(1, Math.max(-1, Math.abs(dot)));
+  return Math.acos(clamped);
 };
 
-const angleBetweenDeg = (ax: number, ay: number, bx: number, by: number) => {
-  const adotb = ax * bx + ay * by;
-  const amag = Math.hypot(ax, ay);
-  const bmag = Math.hypot(bx, by);
-  if (amag === 0 || bmag === 0) return 180;
-  const cos = Math.min(1, Math.max(-1, adotb / (amag * bmag)));
-  return (Math.acos(cos) * 180) / Math.PI;
-};
+type SharedEndpointResult =
+  | { shared: false }
+  | {
+      shared: true;
+      sharedPoint: Point;
+      line1End: "a" | "b";
+      line2End: "a" | "b";
+    };
 
-const pointToLineDistance = (
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number
-) => {
-  const abx = bx - ax;
-  const aby = by - ay;
-  const apx = px - ax;
-  const apy = py - ay;
-  const abLen = Math.hypot(abx, aby);
-  if (abLen === 0) return Infinity;
-  const cross = Math.abs(abx * apy - aby * apx);
-  return cross / abLen;
-};
+const linesShareEndpoint = (l1: FenceLine, l2: FenceLine, epsPx: number): SharedEndpointResult => {
+  const pairs: Array<{
+    line1End: "a" | "b";
+    line2End: "a" | "b";
+    p1: Point;
+    p2: Point;
+  }> = [
+    { line1End: "a", line2End: "a", p1: l1.a, p2: l2.a },
+    { line1End: "a", line2End: "b", p1: l1.a, p2: l2.b },
+    { line1End: "b", line2End: "a", p1: l1.b, p2: l2.a },
+    { line1End: "b", line2End: "b", p1: l1.b, p2: l2.b },
+  ];
 
-const farthestPair = (points: Point[]): [Point, Point] => {
-  let maxDistSq = -Infinity;
-  let pair: [Point, Point] = [points[0], points[0]];
+  let bestMatch: SharedEndpointResult = { shared: false };
+  let bestDist = Infinity;
 
-  for (let i = 0; i < points.length; i++) {
-    for (let j = i + 1; j < points.length; j++) {
-      const dx = points[i].x - points[j].x;
-      const dy = points[i].y - points[j].y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq > maxDistSq) {
-        maxDistSq = distSq;
-        pair = [points[i], points[j]];
-      }
+  for (const pair of pairs) {
+    const dist = Math.hypot(pair.p1.x - pair.p2.x, pair.p1.y - pair.p2.y);
+    if (dist <= epsPx && dist < bestDist) {
+      bestDist = dist;
+      bestMatch = {
+        shared: true,
+        sharedPoint: pair.p1,
+        line1End: pair.line1End,
+        line2End: pair.line2End,
+      };
     }
   }
 
-  return pair;
+  return bestMatch;
 };
 
-const findSharedPoint = (a: FenceLine, b: FenceLine, tolPx: number): Point | null => {
-  if (pointsWithinPx(a.a, b.a, tolPx)) return a.a;
-  if (pointsWithinPx(a.a, b.b, tolPx)) return a.a;
-  if (pointsWithinPx(a.b, b.a, tolPx)) return a.b;
-  if (pointsWithinPx(a.b, b.b, tolPx)) return a.b;
-  return null;
+const isMergeBlocked = (l1: FenceLine, l2: FenceLine) => Boolean(l1.gateId || l2.gateId);
+
+const segmentsOverlapOnLine = (l1: FenceLine, l2: FenceLine, tolPx: number) => {
+  const direction = normalise({ x: l1.b.x - l1.a.x, y: l1.b.y - l1.a.y });
+  if (direction.x === 0 && direction.y === 0) return false;
+
+  const project = (p: Point) => p.x * direction.x + p.y * direction.y;
+  const l1Proj = [project(l1.a), project(l1.b)];
+  const l2Proj = [project(l2.a), project(l2.b)];
+
+  const l1Min = Math.min(...l1Proj);
+  const l1Max = Math.max(...l1Proj);
+  const l2Min = Math.min(...l2Proj);
+  const l2Max = Math.max(...l2Proj);
+
+  return l1Max >= l2Min - tolPx && l2Max >= l1Min - tolPx;
+};
+
+const buildMergedLine = (
+  baseLine: FenceLine,
+  otherLine: FenceLine,
+  sharedEndpoint: Extract<SharedEndpointResult, { shared: true }>,
+  mmPerPixel: number
+): FenceLine => {
+  const baseOther = sharedEndpoint.line1End === "a" ? baseLine.b : baseLine.a;
+  const otherOther = sharedEndpoint.line2End === "a" ? otherLine.b : otherLine.a;
+  const mergedDx = otherOther.x - baseOther.x;
+  const mergedDy = otherOther.y - baseOther.y;
+  const mergedOrthogonal = Math.abs(mergedDx) < 0.01 || Math.abs(mergedDy) < 0.01;
+
+  return {
+    ...baseLine,
+    a: baseOther,
+    b: otherOther,
+    length_mm: Math.hypot(mergedDx, mergedDy) * mmPerPixel,
+    even_spacing: baseLine.even_spacing || otherLine.even_spacing,
+    locked_90: mergedOrthogonal,
+    gateId: undefined,
+  };
+};
+
+const orderLinesForMerge = (
+  lineA: FenceLine,
+  lineB: FenceLine,
+  primaryId: string,
+  lineOrder: Map<string, number>
+): [FenceLine, FenceLine] => {
+  if (lineA.id === primaryId) return [lineA, lineB];
+  if (lineB.id === primaryId) return [lineB, lineA];
+
+  const orderA = lineOrder.get(lineA.id) ?? Infinity;
+  const orderB = lineOrder.get(lineB.id) ?? Infinity;
+
+  return orderA <= orderB ? [lineA, lineB] : [lineB, lineA];
+};
+
+const snapLineEndpoint = (
+  line: FenceLine,
+  end: "a" | "b",
+  point: Point,
+  mmPerPixel: number
+): FenceLine => {
+  const otherPoint = end === "a" ? line.b : line.a;
+  const newA = end === "a" ? point : otherPoint;
+  const newB = end === "b" ? point : otherPoint;
+  const length_px = Math.hypot(newB.x - newA.x, newB.y - newA.y);
+
+  return {
+    ...line,
+    a: newA,
+    b: newB,
+    length_mm: length_px * mmPerPixel,
+  };
 };
 
 // Invariant: Lines containing any openings or gates are non-mergeable. Adjacent lines may align
@@ -153,112 +222,31 @@ const mergeCollinearLines = (
     const primary = updatedLines.find((l) => l.id === primaryId);
     if (!primary) break;
 
-    if (lineHasGateOrOpening(primary)) {
+    if (lineHasGateOrOpening(primary) || isMergeBlocked(primary, primary)) {
       console.debug("mergeCollinearLines blocked - primary has gate/opening", {
         primaryId: primary.id,
       });
       break;
     }
 
-    const mergeEndpointTolPx = clamp(MERGE_ENDPOINT_TOL_MM / mmPerPixel, 4, 16);
-
-    const candidates = updatedLines.filter(
-      (l) =>
-        l.id !== primaryId &&
-        (pointsWithinPx(l.a, primary.a, mergeEndpointTolPx) ||
-          pointsWithinPx(l.a, primary.b, mergeEndpointTolPx) ||
-          pointsWithinPx(l.b, primary.a, mergeEndpointTolPx) ||
-          pointsWithinPx(l.b, primary.b, mergeEndpointTolPx))
-    );
+    const candidates = updatedLines.filter((l) => l.id !== primaryId);
 
     for (const candidate of candidates) {
-      if (lineHasGateOrOpening(candidate)) {
-        console.debug("mergeCollinearLines blocked - candidate has gate/opening", {
-          primaryId: primary.id,
-          candidateId: candidate.id,
-        });
+      if (lineHasGateOrOpening(candidate) || isMergeBlocked(primary, candidate)) {
         continue;
       }
 
-      const sharedPoint = findSharedPoint(primary, candidate, mergeEndpointTolPx);
-      if (!sharedPoint) {
-        console.debug("mergeCollinearLines blocked - no shared point", {
-          primaryId: primary.id,
-          candidateId: candidate.id,
-        });
+      const sharedEndpoint = linesShareEndpoint(primary, candidate, MERGE_ENDPOINT_EPS_PX);
+      if (!sharedEndpoint.shared) {
         continue;
       }
 
-      const primaryOther = pointsWithinPx(primary.a, sharedPoint, mergeEndpointTolPx)
-        ? primary.b
-        : primary.a;
-      const candidateOther = pointsWithinPx(candidate.a, sharedPoint, mergeEndpointTolPx)
-        ? candidate.b
-        : candidate.a;
-
-      const ax = primaryOther.x - sharedPoint.x;
-      const ay = primaryOther.y - sharedPoint.y;
-      const bx = candidateOther.x - sharedPoint.x;
-      const by = candidateOther.y - sharedPoint.y;
-
-      const angle = angleBetweenDeg(ax, ay, bx, by);
-      const delta = Math.abs(angle - 180);
-      const isCollinear = delta <= MERGE_ANGLE_TOL_DEG;
-
-      const offlineDistPx1 = pointToLineDistance(
-        primaryOther.x,
-        primaryOther.y,
-        sharedPoint.x,
-        sharedPoint.y,
-        candidateOther.x,
-        candidateOther.y
-      );
-      const offlineDistPx2 = pointToLineDistance(
-        candidateOther.x,
-        candidateOther.y,
-        sharedPoint.x,
-        sharedPoint.y,
-        primaryOther.x,
-        primaryOther.y
-      );
-
-      const offlineDistMm1 = offlineDistPx1 * mmPerPixel;
-      const offlineDistMm2 = offlineDistPx2 * mmPerPixel;
-      const nearSameLine =
-        offlineDistMm1 <= MERGE_MAX_OFFLINE_MM && offlineDistMm2 <= MERGE_MAX_OFFLINE_MM;
-
-      if (!(isCollinear && nearSameLine)) {
-        console.debug("mergeCollinearLines blocked", {
-          primaryId: primary.id,
-          candidateId: candidate.id,
-          sharedPoint,
-          angle,
-          delta,
-          offlineDistMm1,
-          offlineDistMm2,
-          isCollinear,
-          nearSameLine,
-          mergeEndpointTolPx,
-          angleToleranceDeg: MERGE_ANGLE_TOL_DEG,
-          offlineToleranceMm: MERGE_MAX_OFFLINE_MM,
-        });
+      const angle = angleBetweenLinesAbs(primary, candidate);
+      if (angle > degToRad(MERGE_ANGLE_TOL_DEG)) {
         continue;
       }
 
-      const [p1, p2] = farthestPair([primary.a, primary.b, candidate.a, candidate.b]);
-      const length_px = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-
-      const mergedDx = p2.x - p1.x;
-      const mergedDy = p2.y - p1.y;
-      const mergedOrthogonal = Math.abs(mergedDx) < 0.01 || Math.abs(mergedDy) < 0.01;
-      const mergedLine: FenceLine = {
-        ...primary,
-        a: p1,
-        b: p2,
-        length_mm: length_px * mmPerPixel,
-        even_spacing: primary.even_spacing || candidate.even_spacing,
-        locked_90: mergedOrthogonal,
-      };
+      const mergedLine = buildMergedLine(primary, candidate, sharedEndpoint, mmPerPixel);
 
       updatedLines = updatedLines
         .filter((l) => l.id !== primary.id && l.id !== candidate.id)
@@ -271,6 +259,93 @@ const mergeCollinearLines = (
   }
 
   return { lines: updatedLines, merged: mergedAny, primaryId };
+};
+
+const mergeConnectedLines = (
+  lines: FenceLine[],
+  primaryId: string,
+  lineOrder: Map<string, number>,
+  mmPerPixel: number
+) => {
+  let updatedLines = [...lines];
+  let merged = true;
+
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < updatedLines.length; i++) {
+      for (let j = i + 1; j < updatedLines.length; j++) {
+        const lineA = updatedLines[i];
+        const lineB = updatedLines[j];
+
+        if (isMergeBlocked(lineA, lineB) || lineHasGateOrOpening(lineA) || lineHasGateOrOpening(lineB)) {
+          continue;
+        }
+
+        const [baseLine, otherLine] = orderLinesForMerge(lineA, lineB, primaryId, lineOrder);
+        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, MERGE_ENDPOINT_EPS_PX);
+        if (!sharedEndpoint.shared) continue;
+
+        if (angleBetweenLinesAbs(baseLine, otherLine) > degToRad(MERGE_ANGLE_TOL_DEG)) continue;
+        if (!segmentsOverlapOnLine(baseLine, otherLine, MERGE_ENDPOINT_EPS_PX)) continue;
+
+        const mergedLine = buildMergedLine(baseLine, otherLine, sharedEndpoint, mmPerPixel);
+        updatedLines = updatedLines
+          .filter((line) => line.id !== baseLine.id && line.id !== otherLine.id)
+          .concat(mergedLine);
+
+        merged = true;
+        break outer;
+      }
+    }
+  }
+
+  return updatedLines;
+};
+
+const weldSharedEndpoints = (
+  lines: FenceLine[],
+  primaryId: string,
+  lineOrder: Map<string, number>,
+  mmPerPixel: number
+) => {
+  let weldedLines = [...lines];
+  let updated = true;
+
+  while (updated) {
+    updated = false;
+    outer: for (let i = 0; i < weldedLines.length; i++) {
+      for (let j = i + 1; j < weldedLines.length; j++) {
+        const lineA = weldedLines[i];
+        const lineB = weldedLines[j];
+
+        if (isMergeBlocked(lineA, lineB)) continue;
+
+        const [baseLine, otherLine] = orderLinesForMerge(lineA, lineB, primaryId, lineOrder);
+        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, MERGE_ENDPOINT_EPS_PX);
+        if (!sharedEndpoint.shared) continue;
+
+        const canonicalPoint = sharedEndpoint.line1End === "a" ? baseLine.a : baseLine.b;
+        const snappedBase = snapLineEndpoint(baseLine, sharedEndpoint.line1End, canonicalPoint, mmPerPixel);
+        const snappedOther = snapLineEndpoint(
+          otherLine,
+          sharedEndpoint.line2End,
+          canonicalPoint,
+          mmPerPixel
+        );
+
+        weldedLines = weldedLines.map((line) => {
+          if (line.id === snappedBase.id) return snappedBase;
+          if (line.id === snappedOther.id) return snappedOther;
+          return line;
+        });
+
+        updated = true;
+        break outer;
+      }
+    }
+  }
+
+  return weldedLines;
 };
 
 interface AppState {
@@ -421,7 +496,7 @@ export const useAppStore = create<AppState>()(
         get().recalculate();
       },
       
-updateLine: (id, length_mm) => {
+      updateLine: (id, length_mm) => {
         if (length_mm < MIN_LINE_LENGTH_MM) {
           const warning: WarningMsg = {
             id: generateId("warn"),
@@ -432,13 +507,17 @@ updateLine: (id, length_mm) => {
           return;
         }
         
-        const targetLine = get().lines.find((l) => l.id === id);
+        const mmPerPixel = get().mmPerPixel;
+        const existingLines = get().lines;
+        const lineOrder = new Map(existingLines.map((line, index) => [line.id, index]));
+
+        const targetLine = existingLines.find((l) => l.id === id);
         if (!targetLine || targetLine.gateId) return;
         
         const dx = targetLine.b.x - targetLine.a.x;
         const dy = targetLine.b.y - targetLine.a.y;
-        const currentLength = Math.sqrt(dx * dx + dy * dy);
-        const scale = (length_mm / get().mmPerPixel) / currentLength;
+        const currentLength = Math.hypot(dx, dy);
+        const scale = (length_mm / mmPerPixel) / currentLength;
         
         const oldEndpoint = targetLine.b;
         const newEndpoint = {
@@ -451,7 +530,7 @@ updateLine: (id, length_mm) => {
         const movedPoints = new Map<string, Point>();
         movedPoints.set(pointKey(oldEndpoint), newEndpoint);
         
-        let updatedLines = get().lines.map((line) => {
+        let updatedLines = existingLines.map((line) => {
           if (line.id === id) {
             processedLines.add(line.id);
             return {
@@ -488,13 +567,13 @@ updateLine: (id, length_mm) => {
                 
                 const dx = newB.x - newA.x;
                 const dy = newB.y - newA.y;
-                const length_px = Math.sqrt(dx * dx + dy * dy);
+                const length_px = Math.hypot(dx, dy);
 
                 newLine = {
                   ...line,
                   a: newA,
                   b: newB,
-                  length_mm: length_px * get().mmPerPixel,
+                  length_mm: length_px * mmPerPixel,
                 };
                 processedLines.add(line.id);
                 foundMatch = true;
@@ -509,13 +588,13 @@ updateLine: (id, length_mm) => {
                 
                 const dx = newB.x - newA.x;
                 const dy = newB.y - newA.y;
-                const length_px = Math.sqrt(dx * dx + dy * dy);
+                const length_px = Math.hypot(dx, dy);
 
                 newLine = {
                   ...line,
                   a: newA,
                   b: newB,
-                  length_mm: length_px * get().mmPerPixel,
+                  length_mm: length_px * mmPerPixel,
                 };
                 processedLines.add(line.id);
                 foundMatch = true;
@@ -529,9 +608,11 @@ updateLine: (id, length_mm) => {
           updatedLines = newUpdatedLines;
         }
 
-        const mergeResult = mergeCollinearLines(updatedLines, id, get().mmPerPixel);
+        const globallyMerged = mergeConnectedLines(updatedLines, id, lineOrder, mmPerPixel);
+        const mergeResult = mergeCollinearLines(globallyMerged, id, mmPerPixel);
+        const weldedLines = weldSharedEndpoints(mergeResult.lines, id, lineOrder, mmPerPixel);
 
-        set({ lines: mergeResult.lines });
+        set({ lines: weldedLines });
         get().saveToHistory();
         get().recalculate();
       },
