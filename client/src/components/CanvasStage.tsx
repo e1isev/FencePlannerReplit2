@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
-import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint } from "@/geometry/snapping";
+import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint, snapToLineSegments } from "@/geometry/snapping";
 import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
@@ -21,6 +21,11 @@ const MIN_LINE_HIT_PX = 10;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
+
+type SnapTarget =
+  | { type: "endpoint"; point: Point }
+  | { type: "segment"; point: Point; lineId: string; t: number }
+  | { type: "free"; point: Point };
 
 function worldToScreen(point: Point, camera: CameraState): ScreenPoint {
   return {
@@ -54,6 +59,8 @@ export function CanvasStage() {
   const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
   const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
+  const [startSnap, setStartSnap] = useState<SnapTarget | null>(null);
+  const [currentSnap, setCurrentSnap] = useState<SnapTarget | null>(null);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [labelUnit, setLabelUnit] = useState<"mm" | "m">("mm");
@@ -71,6 +78,7 @@ export function CanvasStage() {
     posts,
     gates,
     addLine,
+    splitLineAtPoint,
     selectedGateType,
     addGate,
     updateLine,
@@ -201,6 +209,33 @@ export function CanvasStage() {
   const snapTolerance =
     mmPerPixel > 0 ? ENDPOINT_SNAP_RADIUS_MM / mmPerPixel : ENDPOINT_SNAP_RADIUS_MM;
 
+  const resolveSnapTarget = useCallback(
+    (point: Point): SnapTarget => {
+      const allPoints = [
+        ...lines.flatMap((l) => [l.a, l.b]),
+        ...posts.map((p) => p.pos),
+      ];
+
+      const snappedEndpoint = findSnapPoint(point, allPoints, snapTolerance);
+      if (snappedEndpoint) {
+        return { type: "endpoint", point: snappedEndpoint };
+      }
+
+      const snappedSegment = snapToLineSegments(point, lines, snapTolerance);
+      if (snappedSegment) {
+        return {
+          type: "segment",
+          point: snappedSegment.point,
+          lineId: snappedSegment.lineId,
+          t: snappedSegment.t,
+        };
+      }
+
+      return { type: "free", point };
+    },
+    [lines, posts, snapTolerance]
+  );
+
   const handleCalibrationComplete = useCallback(
     (a: Point, b: Point) => {
       const dx = b.x - a.x;
@@ -273,14 +308,13 @@ export function CanvasStage() {
       setIsDrawing(false);
       setStartPoint(null);
       setCurrentPoint(null);
+      setStartSnap(null);
+      setCurrentSnap(null);
       return;
     }
 
-    const allPoints = [
-      ...lines.flatMap((l) => [l.a, l.b]),
-      ...posts.map((p) => p.pos),
-    ];
-    const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
+    const snap = resolveSnapTarget(point);
+    const snappedPoint = snap.point;
 
     if (selectedGateType) {
       const clickedLine = lines.find((line) => {
@@ -295,8 +329,10 @@ export function CanvasStage() {
     }
 
     setIsDrawing(true);
-    setStartPoint(snapped);
-    setCurrentPoint(snapped);
+    setStartPoint(snappedPoint);
+    setCurrentPoint(snappedPoint);
+    setStartSnap(snap);
+    setCurrentSnap(snap);
   };
 
   const handleMouseMove = (e: any) => {
@@ -324,14 +360,103 @@ export function CanvasStage() {
 
     const point = screenToWorld(pointerScreen, cameraState);
 
-    const allPoints = [
-      ...lines.flatMap((l) => [l.a, l.b]),
-      ...posts.map((p) => p.pos),
-    ];
-    const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
+    const snap = resolveSnapTarget(point);
 
-    setCurrentPoint(snapped);
+    setCurrentPoint(snap.point);
+    setCurrentSnap(snap);
   };
+
+  const finalizeDrawing = useCallback(() => {
+    if (!isDrawing || !startPoint || !currentPoint) {
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+      setStartSnap(null);
+      setCurrentSnap(null);
+      return;
+    }
+
+    const hasMovement =
+      startPoint.x !== currentPoint.x || startPoint.y !== currentPoint.y;
+
+    if (!hasMovement) {
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+      setStartSnap(null);
+      setCurrentSnap(null);
+      return;
+    }
+
+    let latestLines = useAppStore.getState().lines;
+
+    const applySegmentSnap = (snap: SnapTarget | null, fallbackPoint: Point) => {
+      if (!snap || snap.type !== "segment") {
+        return snap ? snap.point : fallbackPoint;
+      }
+
+      const result = splitLineAtPoint(snap.lineId, snap.point);
+      latestLines = useAppStore.getState().lines;
+
+      if (result) {
+        return result;
+      }
+
+      const line = latestLines.find((l) => l.id === snap.lineId);
+      if (line) {
+        const distA = Math.hypot(snap.point.x - line.a.x, snap.point.y - line.a.y);
+        const distB = Math.hypot(snap.point.x - line.b.x, snap.point.y - line.b.y);
+        return distA <= distB ? line.a : line.b;
+      }
+
+      return fallbackPoint;
+    };
+
+    let resolvedStart = startPoint;
+    let endSnap = currentSnap;
+
+    if (startSnap?.type === "segment") {
+      resolvedStart = applySegmentSnap(startSnap, startPoint);
+
+      if (currentSnap?.type === "segment" && currentSnap.lineId === startSnap.lineId) {
+        const refreshed = snapToLineSegments(currentSnap.point, latestLines, snapTolerance);
+        if (refreshed) {
+          endSnap = {
+            type: "segment",
+            point: refreshed.point,
+            lineId: refreshed.lineId,
+            t: refreshed.t,
+          };
+        }
+      }
+    }
+
+    const resolvedEnd =
+      endSnap?.type === "segment"
+        ? applySegmentSnap(endSnap, currentPoint)
+        : endSnap
+          ? endSnap.point
+          : currentPoint;
+
+    if (resolvedStart.x !== resolvedEnd.x || resolvedStart.y !== resolvedEnd.y) {
+      addLine(resolvedStart, resolvedEnd);
+    }
+
+    setIsDrawing(false);
+    setStartPoint(null);
+    setCurrentPoint(null);
+    setStartSnap(null);
+    setCurrentSnap(null);
+  }, [
+    addLine,
+    currentPoint,
+    currentSnap,
+    isDrawing,
+    snapTolerance,
+    splitLineAtPoint,
+    startPoint,
+    startSnap,
+  ]);
 
   const handleMouseUp = () => {
     if (isPanning) {
@@ -341,20 +466,7 @@ export function CanvasStage() {
       return;
     }
 
-    if (!isDrawing || !startPoint || !currentPoint) {
-      setIsDrawing(false);
-      setStartPoint(null);
-      setCurrentPoint(null);
-      return;
-    }
-
-    if (startPoint.x !== currentPoint.x || startPoint.y !== currentPoint.y) {
-      addLine(startPoint, currentPoint);
-    }
-
-    setIsDrawing(false);
-    setStartPoint(null);
-    setCurrentPoint(null);
+    finalizeDrawing();
   };
 
   const getTouchDistance = (touch1: any, touch2: any) => {
@@ -409,14 +521,13 @@ export function CanvasStage() {
         setIsDrawing(false);
         setStartPoint(null);
         setCurrentPoint(null);
+        setStartSnap(null);
+        setCurrentSnap(null);
         return;
       }
 
-      const allPoints = [
-        ...lines.flatMap((l) => [l.a, l.b]),
-        ...posts.map((p) => p.pos),
-      ];
-      const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
+      const snap = resolveSnapTarget(point);
+      const snapped = snap.point;
 
       if (selectedGateType) {
         const clickedLine = lines.find((line) => {
@@ -433,6 +544,8 @@ export function CanvasStage() {
       setIsDrawing(true);
       setStartPoint(snapped);
       setCurrentPoint(snapped);
+      setStartSnap(snap);
+      setCurrentSnap(snap);
     }
   };
 
@@ -483,13 +596,10 @@ export function CanvasStage() {
       if (isDrawing && startPoint) {
         const point = screenToWorld(pointer, cameraState);
 
-        const allPoints = [
-          ...lines.flatMap((l) => [l.a, l.b]),
-          ...posts.map((p) => p.pos),
-        ];
-        const snapped = findSnapPoint(point, allPoints, snapTolerance) || point;
+        const snap = resolveSnapTarget(point);
 
-        setCurrentPoint(snapped);
+        setCurrentPoint(snap.point);
+        setCurrentSnap(snap);
       }
     }
   };
@@ -498,22 +608,12 @@ export function CanvasStage() {
     const touches = e.evt.touches;
     
     if (touches.length === 0) {
-      if (
-        isDrawing &&
-        startPoint &&
-        currentPoint &&
-        (startPoint.x !== currentPoint.x || startPoint.y !== currentPoint.y)
-      ) {
-        addLine(startPoint, currentPoint);
-      }
+      finalizeDrawing();
       setLastTouchDistance(null);
       setLastTouchCenter(null);
       setIsPanning(false);
       setLastPanPos(null);
       setPanByDelta(null);
-      setIsDrawing(false);
-      setStartPoint(null);
-      setCurrentPoint(null);
     } else if (touches.length === 1) {
       setLastTouchDistance(null);
       setLastTouchCenter(null);

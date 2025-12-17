@@ -37,6 +37,8 @@ export function PostShape({
         return { fill: "#10b981", stroke: "#059669" };
       case "corner":
         return { fill: "#ef4444", stroke: "#dc2626" };
+      case "t":
+        return { fill: "#f97316", stroke: "#ea580c" };
       case "line":
       default:
         return { fill: "#3b82f6", stroke: "#2563eb" };

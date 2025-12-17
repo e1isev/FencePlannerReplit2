@@ -210,6 +210,14 @@ export const linesShareAnyGateOrOpening = (lineA: FenceLine, lineB: FenceLine): 
   return Array.from(aIds).some((id) => bIds.has(id));
 };
 
+const countLinesAtPoint = (lines: FenceLine[], point: Point, epsPx: number): number => {
+  return lines.reduce((count, line) => {
+    const atA = Math.hypot(line.a.x - point.x, line.a.y - point.y) <= epsPx;
+    const atB = Math.hypot(line.b.x - point.x, line.b.y - point.y) <= epsPx;
+    return count + (atA || atB ? 1 : 0);
+  }, 0);
+};
+
 const mergeCollinearLines = (
   lines: FenceLine[],
   primaryId: string,
@@ -245,6 +253,11 @@ const mergeCollinearLines = (
 
       const angle = angleBetweenLinesAbs(primary, candidate);
       if (angle > degToRad(MERGE_ANGLE_TOL_DEG)) {
+        continue;
+      }
+
+      const junctionDegree = countLinesAtPoint(updatedLines, sharedEndpoint.sharedPoint, MERGE_ENDPOINT_EPS_PX);
+      if (junctionDegree !== 2) {
         continue;
       }
 
@@ -382,6 +395,7 @@ interface AppState {
   setPreviewLine: (line: { start: Point; end: Point } | null) => void;
   setMmPerPixel: (mmPerPixel: number) => void;
 
+  splitLineAtPoint: (lineId: string, splitPoint: Point) => Point | null;
   addLine: (a: Point, b: Point) => void;
   updateLine: (id: string, length_mm: number, fromEnd?: "a" | "b") => void;
   toggleEvenSpacing: (id: string) => void;
@@ -459,6 +473,53 @@ export const useAppStore = create<AppState>()(
         }));
 
         get().recalculate();
+      },
+
+      splitLineAtPoint: (lineId, splitPoint) => {
+        const { lines, mmPerPixel } = get();
+        const targetIndex = lines.findIndex((line) => line.id === lineId);
+        if (targetIndex === -1) return null;
+
+        const target = lines[targetIndex];
+
+        const distToA = Math.hypot(splitPoint.x - target.a.x, splitPoint.y - target.a.y);
+        if (distToA <= MERGE_ENDPOINT_EPS_PX) {
+          return target.a;
+        }
+
+        const distToB = Math.hypot(splitPoint.x - target.b.x, splitPoint.y - target.b.y);
+        if (distToB <= MERGE_ENDPOINT_EPS_PX) {
+          return target.b;
+        }
+
+        if (lineHasGateOrOpening(target)) {
+          return null;
+        }
+
+        const newLineA: FenceLine = {
+          ...target,
+          id: generateId("line"),
+          b: splitPoint,
+          length_mm: Math.hypot(splitPoint.x - target.a.x, splitPoint.y - target.a.y) * mmPerPixel,
+        };
+
+        const newLineB: FenceLine = {
+          ...target,
+          id: generateId("line"),
+          a: splitPoint,
+          length_mm: Math.hypot(target.b.x - splitPoint.x, target.b.y - splitPoint.y) * mmPerPixel,
+        };
+
+        const newLines = [
+          ...lines.slice(0, targetIndex),
+          newLineA,
+          newLineB,
+          ...lines.slice(targetIndex + 1),
+        ];
+
+        set({ lines: newLines });
+
+        return splitPoint;
       },
 
       addLine: (a, b) => {

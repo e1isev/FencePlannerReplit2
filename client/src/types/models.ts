@@ -25,7 +25,7 @@ export interface FenceStylePricing {
   };
 }
 
-export type PostCategory = "end" | "corner" | "line";
+export type PostCategory = "end" | "corner" | "line" | "t";
 
 export interface Point {
   x: number;

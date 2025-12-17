@@ -31,8 +31,11 @@ const rows: string[][] = [
   const postCounts = {
     end: posts.filter((p) => p.category === "end").length,
     corner: posts.filter((p) => p.category === "corner").length,
+    t: posts.filter((p) => p.category === "t").length,
     line: posts.filter((p) => p.category === "line").length,
   };
+
+  const cornerTotal = postCounts.corner + postCounts.t;
   
   if (postCounts.end > 0) {
     rows.push([
@@ -44,13 +47,13 @@ const rows: string[][] = [
     ]);
   }
   
-  if (postCounts.corner > 0) {
+  if (cornerTotal > 0) {
     rows.push([
       `POST-CORNER-${fenceStyleId.toUpperCase()}`,
       `Corner Post (${pricing.name})`,
-      postCounts.corner.toString(),
+      cornerTotal.toString(),
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.corner * pricing.post_unit_price).toFixed(2)}`,
+      `$${(cornerTotal * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
@@ -129,8 +132,11 @@ doc.setFontSize(20);
   const postCounts = {
     end: posts.filter((p) => p.category === "end").length,
     corner: posts.filter((p) => p.category === "corner").length,
+    t: posts.filter((p) => p.category === "t").length,
     line: posts.filter((p) => p.category === "line").length,
   };
+
+  const cornerTotal = postCounts.corner + postCounts.t;
   
   if (postCounts.end > 0) {
     tableData.push([
@@ -142,13 +148,13 @@ doc.setFontSize(20);
     ]);
   }
   
-  if (postCounts.corner > 0) {
+  if (cornerTotal > 0) {
     tableData.push([
       `POST-CORNER`,
       `Corner Post`,
-      postCounts.corner,
+      cornerTotal,
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.corner * pricing.post_unit_price).toFixed(2)}`,
+      `$${(cornerTotal * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   

@@ -129,9 +129,13 @@ export function categorizePost(
     if (!line.gateId) return false;
     return pointsEqual(line.a, pos) || pointsEqual(line.b, pos);
   });
-  
+
   if (isNextToGate || connectingLines.length === 1) {
     return "end";
+  }
+
+  if (connectingLines.length >= 3) {
+    return "t";
   }
 
   if (connectingLines.length >= 2) {
