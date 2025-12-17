@@ -71,6 +71,18 @@ export interface DeckingBoardPlan {
   areaM2: number;
 }
 
+export interface PolygonBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface DeckingSelectionState {
+  selectedDeckId: string | null;
+  pendingDeleteDeckId: string | null;
+}
+
 export interface DeckEntity {
   id: string;
   name: string;

@@ -16,6 +16,7 @@ import type {
   EdgeConstraint,
   CornerConstraint,
   Point,
+  DeckingSelectionState,
 } from "@/types/decking";
 import {
   findBottomEdgeIndex,
@@ -199,6 +200,8 @@ function buildBoardPlan(
 interface DeckingStoreState {
   decks: DeckEntity[];
   activeDeckId: string | null;
+  selectedDeckId: string | null;
+  pendingDeleteDeckId: string | null;
   history: Array<{ decks: DeckEntity[]; activeDeckId: string | null }>;
   historyIndex: number;
   addDeck: (polygon: Point[]) => void;
@@ -215,6 +218,10 @@ interface DeckingStoreState {
   updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
   lockEdgeLength: (edgeIndex: number) => void;
   unlockEdgeLength: (edgeIndex: number) => void;
+  setSelectedDeck: (deckId: DeckingSelectionState["selectedDeckId"]) => void;
+  requestDeleteDeck: (deckId: string) => void;
+  confirmDeleteDeck: () => void;
+  cancelDeleteDeck: () => void;
 }
 
 export const useDeckingStore = create<DeckingStoreState>()(
@@ -222,6 +229,8 @@ export const useDeckingStore = create<DeckingStoreState>()(
     (set, get) => ({
       decks: [],
       activeDeckId: null,
+      selectedDeckId: null,
+      pendingDeleteDeckId: null,
       history: [],
       historyIndex: -1,
 
@@ -230,7 +239,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
         const name = `Deck ${get().decks.length + 1}`;
         const newDeck = createDeckEntity(polygon, name);
         const nextDecks = [...get().decks, newDeck];
-        set({ decks: nextDecks, activeDeckId: newDeck.id }, false);
+        set({ decks: nextDecks, activeDeckId: newDeck.id, selectedDeckId: null }, false);
         get().calculateBoardsForDeck(newDeck.id);
         get().saveHistory();
       },
@@ -241,7 +250,14 @@ export const useDeckingStore = create<DeckingStoreState>()(
           get().activeDeckId === deckId
             ? remainingDecks[remainingDecks.length - 1]?.id ?? null
             : get().activeDeckId;
-        set({ decks: remainingDecks, activeDeckId: nextActive });
+        const nextSelected = get().selectedDeckId === deckId ? null : get().selectedDeckId;
+        const nextPending = get().pendingDeleteDeckId === deckId ? null : get().pendingDeleteDeckId;
+        set({
+          decks: remainingDecks,
+          activeDeckId: nextActive,
+          selectedDeckId: nextSelected,
+          pendingDeleteDeckId: nextPending,
+        });
         get().saveHistory();
       },
 
@@ -535,7 +551,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
       },
 
       clearAllDecks: () => {
-        set({ decks: [], activeDeckId: null });
+        set({ decks: [], activeDeckId: null, selectedDeckId: null, pendingDeleteDeckId: null });
         get().saveHistory();
       },
 
@@ -719,6 +735,33 @@ export const useDeckingStore = create<DeckingStoreState>()(
         nextDecks[idx] = { ...deck, edgeConstraints };
         set({ decks: nextDecks });
         get().saveHistory();
+      },
+
+      setSelectedDeck: (deckId) => {
+        if (deckId === null) {
+          set({ selectedDeckId: null, pendingDeleteDeckId: null });
+          return;
+        }
+        const exists = get().decks.some((deck) => deck.id === deckId);
+        if (!exists) return;
+        set({ selectedDeckId: deckId, pendingDeleteDeckId: null });
+      },
+
+      requestDeleteDeck: (deckId) => {
+        const exists = get().decks.some((deck) => deck.id === deckId);
+        if (!exists) return;
+        set({ pendingDeleteDeckId: deckId });
+      },
+
+      confirmDeleteDeck: () => {
+        const { pendingDeleteDeckId } = get();
+        if (!pendingDeleteDeckId) return;
+        get().deleteDeck(pendingDeleteDeckId);
+        set({ pendingDeleteDeckId: null, selectedDeckId: null });
+      },
+
+      cancelDeleteDeck: () => {
+        set({ pendingDeleteDeckId: null });
       },
 
       undo: () => {
