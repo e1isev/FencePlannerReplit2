@@ -89,3 +89,7 @@ export interface DeckingState {
   edgeConstraints: Record<number, EdgeConstraint>;
   baselineEdgeIndex: number | null;
 }
+
+export interface CornerConstraint {
+  angleDeg: number;
+}

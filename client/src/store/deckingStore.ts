@@ -13,6 +13,7 @@ import type {
   DeckingBoardPlan,
   DeckingCuttingList,
   EdgeConstraint,
+  CornerConstraint,
   Point,
 } from "@/types/decking";
 import {

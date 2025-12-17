@@ -12,6 +12,7 @@ import {
 } from "@/geometry/snapping";
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
 import { edgeLengthMm, isEdgeLocked } from "@/geometry/deckingEdges";
+import type { Point } from "@/types/decking";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -25,6 +26,14 @@ const BASE_ANGLE_FONT_SIZE = 12;
 type Segment = {
   start: { x: number; y: number };
   end: { x: number; y: number };
+};
+
+type PendingSegment = {
+  startIndex: number;
+  startMm: Point;
+  provisionalEndMm: Point;
+  screenX: number;
+  screenY: number;
 };
 
 function formatLength(lengthMm: number): string {
@@ -102,8 +111,13 @@ export function DeckingCanvasStage() {
     { client: { x: number; y: number }; stage: { x: number; y: number } } | null
   >(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
-  const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
+  const [draftPointsMm, setDraftPointsMm] = useState<Point[]>([]);
+  const [previewPointMm, setPreviewPointMm] = useState<Point | null>(null);
+  const [pendingSegment, setPendingSegment] = useState<PendingSegment | null>(null);
+  const [pendingLengthText, setPendingLengthText] = useState("");
+  const [isLengthPromptOpen, setIsLengthPromptOpen] = useState(false);
+  const [lengthError, setLengthError] = useState<string | null>(null);
+  const [rightClickMoved, setRightClickMoved] = useState(false);
   const [editingEdgeIndex, setEditingEdgeIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   const [edgeEditorPos, setEdgeEditorPos] = useState<{ x: number; y: number } | null>(null);
@@ -120,8 +134,6 @@ export function DeckingCanvasStage() {
     lockEdgeLength,
     unlockEdgeLength,
     edgeConstraints,
-    setCornerAngle,
-    clearCornerAngle,
     pictureFramePieces,
     fasciaPieces,
   } = useDeckingStore();
@@ -145,6 +157,11 @@ export function DeckingCanvasStage() {
   const screenToWorld = (point: { x: number; y: number }) => ({
     x: pxToMm((point.x - stagePos.x) / scale),
     y: pxToMm((point.y - stagePos.y) / scale),
+  });
+
+  const worldToScreen = (point: { x: number; y: number }) => ({
+    x: stagePos.x + mmToPx(point.x) * scale,
+    y: stagePos.y + mmToPx(point.y) * scale,
   });
 
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -173,10 +190,15 @@ export function DeckingCanvasStage() {
     if (!pointer) return;
 
     if (e.evt.button === 2) {
+      if (pendingSegment) {
+        setRightClickMoved(false);
+        return;
+      }
       setPanStart({
         client: { x: e.evt.clientX, y: e.evt.clientY },
         stage: { ...stagePos },
       });
+      setRightClickMoved(false);
       return;
     }
 
@@ -191,71 +213,216 @@ export function DeckingCanvasStage() {
         x: panStart.stage.x + deltaX,
         y: panStart.stage.y + deltaY,
       });
+      if (!rightClickMoved && (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0)) {
+        setRightClickMoved(true);
+      }
       return;
     }
     const stage = e.target.getStage();
     const pointer = stage?.getPointerPosition();
     if (!pointer) return;
 
-    if (!isDrawing || points.length === 0) return;
+    if (!isDrawing || draftPointsMm.length === 0 || pendingSegment) return;
 
-    const lastPoint = points[points.length - 1];
+    const lastPoint = draftPointsMm[draftPointsMm.length - 1];
     const snapped = getSnappedPointer(pointer, lastPoint, e.evt.altKey);
 
-    setPreviewPoint(snapped);
+    setPreviewPointMm(snapped);
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e?: Konva.KonvaEventObject<MouseEvent>) => {
     if (panStart) {
       setPanStart(null);
+    }
+
+    if (e?.evt?.button === 2) {
+      if (!rightClickMoved && pendingSegment) {
+        handleCancelPendingSegment();
+      } else if (!rightClickMoved && isDrawing) {
+        handleCancelDrawing();
+      }
+      setRightClickMoved(false);
     }
   };
 
   const handleStageClick = (e: any) => {
     if (e.evt.button === 2) return;
     if (e.target !== e.target.getStage()) return;
+    if (pendingSegment) return;
 
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    const anchor = isDrawing && points.length > 0 ? points[points.length - 1] : null;
+    const anchor =
+      isDrawing && draftPointsMm.length > 0 ? draftPointsMm[draftPointsMm.length - 1] : null;
     const snapped = getSnappedPointer(pointer, anchor, e.evt.altKey);
 
-    if (!isDrawing) {
+    if (!isDrawing || draftPointsMm.length === 0) {
       setIsDrawing(true);
-      setPoints([snapped]);
-      setPreviewPoint(snapped);
+      setDraftPointsMm([snapped]);
+      setPreviewPointMm(snapped);
       return;
     }
 
-    if (points.length >= 2) {
-      const distanceToStart = getDistance(points[0], snapped);
-      if (distanceToStart <= CLOSE_SHAPE_SNAP_RADIUS_MM) {
-        const newPolygon = [...points];
-        if (newPolygon.length >= 3) {
-          setPolygon(newPolygon);
-        }
-        setPoints([]);
-        setPreviewPoint(null);
+    const startIndex = draftPointsMm.length - 1;
+    const startMm = draftPointsMm[startIndex];
+    const midpoint = {
+      x: (startMm.x + snapped.x) / 2,
+      y: (startMm.y + snapped.y) / 2,
+    };
+    const promptPos = worldToScreen(midpoint);
+
+    setDraftPointsMm([...draftPointsMm, snapped]);
+    setPreviewPointMm(snapped);
+    setPendingSegment({
+      startIndex,
+      startMm,
+      provisionalEndMm: snapped,
+      screenX: promptPos.x,
+      screenY: promptPos.y,
+    });
+    setPendingLengthText(getDistance(startMm, snapped).toFixed(0));
+    setIsLengthPromptOpen(true);
+    setLengthError(null);
+  };
+
+  const handleCancelPendingSegment = () => {
+    if (!pendingSegment) return;
+
+    setDraftPointsMm((prev) => {
+      const next = prev.slice(0, -1);
+      if (next.length === 0) {
         setIsDrawing(false);
-        return;
+        setPreviewPointMm(null);
+      } else {
+        setIsDrawing(true);
+        setPreviewPointMm(next[next.length - 1]);
       }
+      return next;
+    });
+
+    setPendingSegment(null);
+    setIsLengthPromptOpen(false);
+    setPendingLengthText("");
+    setLengthError(null);
+  };
+
+  const handleCancelDrawing = () => {
+    setDraftPointsMm([]);
+    setPreviewPointMm(null);
+    setPendingSegment(null);
+    setPendingLengthText("");
+    setIsLengthPromptOpen(false);
+    setIsDrawing(false);
+    setLengthError(null);
+  };
+
+  const handleApplyLength = () => {
+    if (!pendingSegment) return;
+
+    const targetLengthMm = Number(pendingLengthText);
+    if (!Number.isFinite(targetLengthMm) || targetLengthMm <= 0) {
+      setLengthError("Please enter a positive length.");
+      return;
     }
 
-    setPoints([...points, snapped]);
-    setPreviewPoint(snapped);
+    const { startIndex, startMm, provisionalEndMm } = pendingSegment;
+    const direction = {
+      x: provisionalEndMm.x - startMm.x,
+      y: provisionalEndMm.y - startMm.y,
+    };
+    const currentLength = Math.hypot(direction.x, direction.y);
+
+    if (currentLength === 0) {
+      setLengthError("Cannot size a zero-length segment.");
+      return;
+    }
+
+    const unitDir = { x: direction.x / currentLength, y: direction.y / currentLength };
+    const newEnd = {
+      x: startMm.x + unitDir.x * targetLengthMm,
+      y: startMm.y + unitDir.y * targetLengthMm,
+    };
+
+    const endIndex = startIndex + 1;
+    if (endIndex >= draftPointsMm.length) {
+      setLengthError("Segment is no longer available.");
+      return;
+    }
+
+    const nextPoints = draftPointsMm.map((point, idx) => (idx === endIndex ? newEnd : point));
+
+    const closingToStart =
+      nextPoints.length >= 3 &&
+      endIndex === nextPoints.length - 1 &&
+      getDistance(newEnd, nextPoints[0]) <= CLOSE_SHAPE_SNAP_RADIUS_MM;
+
+    if (closingToStart) {
+      const newPolygon = nextPoints.slice(0, -1);
+      if (newPolygon.length >= 3) {
+        setPolygon(newPolygon);
+      }
+      setDraftPointsMm([]);
+      setPreviewPointMm(null);
+      setIsDrawing(false);
+    } else {
+      setDraftPointsMm(nextPoints);
+      setPreviewPointMm(newEnd);
+      setIsDrawing(true);
+    }
+
+    setPendingSegment(null);
+    setIsLengthPromptOpen(false);
+    setPendingLengthText("");
+    setLengthError(null);
   };
+
+  useEffect(() => {
+    if (!pendingSegment) return;
+
+    const midpoint = {
+      x: (pendingSegment.startMm.x + pendingSegment.provisionalEndMm.x) / 2,
+      y: (pendingSegment.startMm.y + pendingSegment.provisionalEndMm.y) / 2,
+    };
+    const promptPos = worldToScreen(midpoint);
+
+    if (
+      Math.abs(promptPos.x - pendingSegment.screenX) > 0.5 ||
+      Math.abs(promptPos.y - pendingSegment.screenY) > 0.5
+    ) {
+      setPendingSegment((prev) =>
+        prev
+          ? {
+              ...prev,
+              screenX: promptPos.x,
+              screenY: promptPos.y,
+            }
+          : prev
+      );
+    }
+  }, [
+    pendingSegment?.startMm.x,
+    pendingSegment?.startMm.y,
+    pendingSegment?.provisionalEndMm.x,
+    pendingSegment?.provisionalEndMm.y,
+    pendingSegment?.screenX,
+    pendingSegment?.screenY,
+    scale,
+    stagePos.x,
+    stagePos.y,
+  ]);
 
   const fillColor = COLOR_MAP[selectedColor] || "#92400e";
   const hasPolygon = polygon.length >= 3;
-  const drawingPoints = previewPoint ? [...points, previewPoint] : points;
+  const activePreviewPoint = pendingSegment ? null : previewPointMm;
+  const drawingPointsMm = activePreviewPoint ? [...draftPointsMm, activePreviewPoint] : draftPointsMm;
   const polygonPointsPx = polygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const polygonPointsPxCoords = useMemo(
     () => polygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) })),
     [polygon]
   );
-  const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+  const drawingPointsPx = drawingPointsMm.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const boardRenderWidthMm = BOARD_WIDTH_MM + 0.5;
   const EDGE_BLEED_MM = 30;
   const gridLines: JSX.Element[] = [];
@@ -271,7 +438,7 @@ export function DeckingCanvasStage() {
     };
 
     const boardEndpoints = boards.flatMap((board) => [board.start, board.end]);
-    const allPoints = [...points, ...polygon, ...boardEndpoints];
+    const allPoints = [...draftPointsMm, ...polygon, ...boardEndpoints];
     const snapPoint = findSnapPoint(worldPosMm, allPoints, ENDPOINT_SNAP_RADIUS_MM);
     const snappedToPoint = Boolean(snapPoint);
     let candidate = snapPoint || worldPosMm;
@@ -284,12 +451,12 @@ export function DeckingCanvasStage() {
   };
 
   const polygonCentroid = useMemo(() => computeCentroid(polygon), [polygon]);
-  const drawingCentre = useMemo(() => computeCentroid(points, false), [points]);
+  const drawingCentre = useMemo(() => computeCentroid(draftPointsMm, false), [draftPointsMm]);
 
   const polygonSegments = useMemo(() => getSegments(polygon, true), [polygon]);
   const drawingSegments = useMemo(
-    () => getSegments(points, false),
-    [points]
+    () => getSegments(draftPointsMm, false),
+    [draftPointsMm]
   );
 
   const boardClippingPolygon = useMemo(
@@ -625,6 +792,55 @@ export function DeckingCanvasStage() {
         </div>
       )}
 
+      {isLengthPromptOpen && pendingSegment && (
+        <div
+          className="absolute z-50"
+          style={{
+            left: pendingSegment.screenX,
+            top: pendingSegment.screenY,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200 min-w-[180px]">
+            <label className="text-xs text-slate-600 mb-1 block">Length</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="1"
+                value={pendingLengthText}
+                onChange={(e) => setPendingLengthText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleApplyLength();
+                  if (e.key === "Escape") handleCancelPendingSegment();
+                }}
+                className="px-2 py-1 border border-slate-300 rounded-md text-sm font-mono w-24"
+                autoFocus
+              />
+              <span className="text-[11px] text-slate-500">mm</span>
+            </div>
+            {lengthError && (
+              <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-2">
+                {lengthError}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end mt-2">
+              <button
+                onClick={handleApplyLength}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-xs"
+              >
+                Apply
+              </button>
+              <button
+                onClick={handleCancelPendingSegment}
+                className="px-3 py-1 bg-slate-200 rounded text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white px-4 py-2 rounded shadow text-xs text-slate-600">
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
@@ -668,7 +884,7 @@ export function DeckingCanvasStage() {
             />
           )}
 
-          {drawingPoints.length > 0 && (
+          {drawingPointsMm.length > 0 && (
             <Line
               points={drawingPointsPx}
               stroke="#2563eb"
@@ -785,9 +1001,9 @@ export function DeckingCanvasStage() {
             )
           )}
 
-          {previewPoint && points.length > 0 &&
+          {previewPointMm && draftPointsMm.length > 0 && !pendingSegment &&
             renderDimensionLabel(
-              { start: points[points.length - 1], end: previewPoint },
+              { start: draftPointsMm[draftPointsMm.length - 1], end: previewPointMm },
               "preview-label",
               drawingCentre,
               { isPreview: true }
@@ -797,8 +1013,8 @@ export function DeckingCanvasStage() {
 
       <div className="absolute bottom-4 left-4 bg-white px-3 py-2 rounded shadow text-xs text-slate-600">
         <div className="font-semibold text-slate-700">Controls</div>
-        <div>Left click to add points.</div>
-        <div>Right click + drag to pan. Scroll to zoom.</div>
+        <div>Left click to add points, then enter the length.</div>
+        <div>Right click + drag to pan. Scroll to zoom. Right click without dragging cancels.</div>
         <div>Board direction: {boardDirection === "horizontal" ? "Horizontal" : "Vertical"}</div>
       </div>
     </div>
