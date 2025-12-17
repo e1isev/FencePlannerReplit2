@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RotateCw, Ruler } from "lucide-react";
 import { useDeckingStore } from "@/store/deckingStore";
@@ -56,6 +57,17 @@ export function DeckingLeftPanel() {
     toggleBoardDirection,
     getCuttingList,
     polygon,
+    pictureFrameEnabled,
+    pictureFrameBoardWidthMm,
+    pictureFrameGapMm,
+    pictureFrameWarning,
+    fasciaEnabled,
+    fasciaThicknessMm,
+    setPictureFrameEnabled,
+    setPictureFrameWidth,
+    setPictureFrameGap,
+    setFasciaEnabled,
+    setFasciaThickness,
   } = useDeckingStore();
 
   const cuttingList = getCuttingList();
@@ -138,6 +150,91 @@ export function DeckingLeftPanel() {
 
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+            Finishes
+          </Label>
+          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3 text-xs text-slate-600">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-700">Picture frame</p>
+                <p className="text-[11px] text-slate-500">Perimeter border with mitred corners.</p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={pictureFrameEnabled}
+                onChange={(e) => setPictureFrameEnabled(e.target.checked)}
+                disabled={!hasPolygon}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 items-center">
+              <span>Picture frame board width (mm)</span>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={pictureFrameBoardWidthMm}
+                min={1}
+                step={1}
+                onChange={(e) => setPictureFrameWidth(Number(e.target.value))}
+                disabled={!hasPolygon || !pictureFrameEnabled}
+                className="h-8"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 items-center">
+              <span>Picture frame gap (mm)</span>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={pictureFrameGapMm}
+                min={0}
+                step={1}
+                onChange={(e) => setPictureFrameGap(Number(e.target.value))}
+                disabled={!hasPolygon || !pictureFrameEnabled}
+                className="h-8"
+              />
+            </div>
+
+            {pictureFrameWarning && (
+              <div className="rounded bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px]">
+                {pictureFrameWarning}
+              </div>
+            )}
+
+            <div className="border-t border-slate-100 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-700">Fascia</p>
+                  <p className="text-[11px] text-slate-500">Vertical trim band around the rim.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={fasciaEnabled}
+                  onChange={(e) => setFasciaEnabled(e.target.checked)}
+                  disabled={!hasPolygon}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 items-center mt-2">
+                <span>Fascia thickness (mm)</span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={fasciaThicknessMm}
+                  min={1}
+                  step={1}
+                  onChange={(e) => setFasciaThickness(Number(e.target.value))}
+                  disabled={!hasPolygon || !fasciaEnabled}
+                  className="h-8"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Board Plan
           </Label>
           {boardPlan ? (
@@ -197,7 +294,10 @@ export function DeckingLeftPanel() {
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {cuttingList.boards.length === 0 && cuttingList.clips === 0 ? (
+                {cuttingList.boards.length === 0 &&
+                cuttingList.pictureFrame.length === 0 &&
+                cuttingList.fascia.length === 0 &&
+                cuttingList.clips === 0 ? (
                   <tr className="border-b border-slate-100">
                     <td className="px-3 py-2 text-slate-400" colSpan={3}>
                       Draw and close a shape to see the cutting list
@@ -205,13 +305,45 @@ export function DeckingLeftPanel() {
                   </tr>
                 ) : (
                   <>
+                    {cuttingList.boards.length > 0 && (
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <td className="px-3 py-2 font-semibold" colSpan={3}>Surface boards</td>
+                      </tr>
+                    )}
                     {cuttingList.boards.map((board, index) => (
-                      <tr key={index} className="border-b border-slate-100" data-testid={`row-board-${index}`}>
+                      <tr key={`board-${index}`} className="border-b border-slate-100" data-testid={`row-board-${index}`}>
                         <td className="px-3 py-2">Board ({board.length}mm)</td>
                         <td className="px-3 py-2 text-right">{board.count}</td>
                         <td className="px-3 py-2 text-right">{board.length}</td>
                       </tr>
                     ))}
+
+                    {cuttingList.pictureFrame.length > 0 && (
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <td className="px-3 py-2 font-semibold" colSpan={3}>Picture frame</td>
+                      </tr>
+                    )}
+                    {cuttingList.pictureFrame.map((piece, index) => (
+                      <tr key={`picture-frame-${index}`} className="border-b border-slate-100">
+                        <td className="px-3 py-2">Perimeter board ({piece.length}mm)</td>
+                        <td className="px-3 py-2 text-right">{piece.count}</td>
+                        <td className="px-3 py-2 text-right">{piece.length}</td>
+                      </tr>
+                    ))}
+
+                    {cuttingList.fascia.length > 0 && (
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <td className="px-3 py-2 font-semibold" colSpan={3}>Fascia</td>
+                      </tr>
+                    )}
+                    {cuttingList.fascia.map((piece, index) => (
+                      <tr key={`fascia-${index}`} className="border-b border-slate-100">
+                        <td className="px-3 py-2">Fascia run ({piece.length}mm)</td>
+                        <td className="px-3 py-2 text-right">{piece.count}</td>
+                        <td className="px-3 py-2 text-right">{piece.length}</td>
+                      </tr>
+                    ))}
+
                     {cuttingList.clips > 0 && (
                       <tr className="border-b border-slate-100" data-testid="row-clips">
                         <td className="px-3 py-2">Clips</td>
@@ -224,6 +356,16 @@ export function DeckingLeftPanel() {
               </tbody>
             </table>
           </div>
+          {(cuttingList.boards.length > 0 || cuttingList.pictureFrame.length > 0) && (
+            <p className="text-[11px] text-slate-500 mt-2">
+              Surface board total length: {Math.round(cuttingList.totalBoardLength)} mm
+            </p>
+          )}
+          {cuttingList.fascia.length > 0 && (
+            <p className="text-[11px] text-slate-500">
+              Fascia total length: {Math.round(cuttingList.totalFasciaLength)} mm
+            </p>
+          )}
         </div>
       </div>
     </div>
