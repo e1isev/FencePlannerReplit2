@@ -89,6 +89,56 @@ const findSharedPoint = (a: FenceLine, b: FenceLine, tolPx: number): Point | nul
   return null;
 };
 
+// Invariant: Lines containing any openings or gates are non-mergeable. Adjacent lines may align
+// with them but must not merge into or through them.
+export const lineHasGateOrOpening = (line: FenceLine): boolean => {
+  const segmentHasOpening = line.segments?.some(
+    (segment) => segment?.type === "opening" || segment?.type === "gate"
+  );
+
+  return Boolean(
+    line.isGateLine === true ||
+      line.gateId ||
+      (line.openings && line.openings.length > 0) ||
+      (line.gates && line.gates.length > 0) ||
+      segmentHasOpening
+  );
+};
+
+export const linesShareAnyGateOrOpening = (lineA: FenceLine, lineB: FenceLine): boolean => {
+  const collectIds = (line: FenceLine): Set<string> => {
+    const ids = new Set<string>();
+    if (line.gateId) ids.add(line.gateId);
+    line.gates?.forEach((gate) => {
+      if (typeof gate === "string") ids.add(gate);
+      else {
+        if (gate.id) ids.add(gate.id);
+        if (gate.gateId) ids.add(gate.gateId);
+        if (gate.openingId) ids.add(gate.openingId);
+      }
+    });
+    line.openings?.forEach((opening) => {
+      if (typeof opening === "string") ids.add(opening);
+      else {
+        if (opening.id) ids.add(opening.id);
+        if (opening.gateId) ids.add(opening.gateId);
+        if (opening.openingId) ids.add(opening.openingId);
+      }
+    });
+    line.segments?.forEach((segment) => {
+      if (segment?.id) ids.add(segment.id);
+      if (segment?.gateId) ids.add(segment.gateId);
+      if (segment?.openingId) ids.add(segment.openingId);
+    });
+    return ids;
+  };
+
+  const aIds = collectIds(lineA);
+  const bIds = collectIds(lineB);
+
+  return Array.from(aIds).some((id) => bIds.has(id));
+};
+
 const mergeCollinearLines = (
   lines: FenceLine[],
   primaryId: string,
@@ -103,12 +153,18 @@ const mergeCollinearLines = (
     const primary = updatedLines.find((l) => l.id === primaryId);
     if (!primary) break;
 
+    if (lineHasGateOrOpening(primary)) {
+      console.debug("mergeCollinearLines blocked - primary has gate/opening", {
+        primaryId: primary.id,
+      });
+      break;
+    }
+
     const mergeEndpointTolPx = clamp(MERGE_ENDPOINT_TOL_MM / mmPerPixel, 4, 16);
 
     const candidates = updatedLines.filter(
       (l) =>
         l.id !== primaryId &&
-        !l.gateId &&
         (pointsWithinPx(l.a, primary.a, mergeEndpointTolPx) ||
           pointsWithinPx(l.a, primary.b, mergeEndpointTolPx) ||
           pointsWithinPx(l.b, primary.a, mergeEndpointTolPx) ||
@@ -116,6 +172,14 @@ const mergeCollinearLines = (
     );
 
     for (const candidate of candidates) {
+      if (lineHasGateOrOpening(candidate)) {
+        console.debug("mergeCollinearLines blocked - candidate has gate/opening", {
+          primaryId: primary.id,
+          candidateId: candidate.id,
+        });
+        continue;
+      }
+
       const sharedPoint = findSharedPoint(primary, candidate, mergeEndpointTolPx);
       if (!sharedPoint) {
         console.debug("mergeCollinearLines blocked - no shared point", {
