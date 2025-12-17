@@ -25,6 +25,8 @@ import {
   lockEdge,
   unlockEdge,
 } from "@/geometry/deckingEdges";
+import { offsetPolygonMiter } from "@/geometry/pictureFrame";
+import { buildFasciaPieces } from "@/geometry/fascia";
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -128,15 +130,35 @@ function findConflictingLockedEdge(
 
 interface DeckingState {
   polygon: Point[];
+  infillPolygon: Point[];
   boards: Board[];
+  pictureFramePieces: Point[][];
+  fasciaPieces: Point[][];
   selectedColor: DeckColor;
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
+  pictureFrameEnabled: boolean;
+  pictureFrameBoardWidthMm: number;
+  pictureFrameGapMm: number;
+  pictureFrameWarning: string | null;
+  fasciaEnabled: boolean;
+  fasciaThicknessMm: number;
+  cornerConstraints: Record<number, CornerConstraint>;
   edgeConstraints: Record<number, EdgeConstraint>;
   baselineEdgeIndex: number | null;
   history: Array<{
     polygon: Point[];
+    infillPolygon: Point[];
+    pictureFramePieces: Point[][];
+    fasciaPieces: Point[][];
     boardDirection: BoardDirection;
+    pictureFrameEnabled: boolean;
+    pictureFrameBoardWidthMm: number;
+    pictureFrameGapMm: number;
+    pictureFrameWarning: string | null;
+    fasciaEnabled: boolean;
+    fasciaThicknessMm: number;
+    cornerConstraints: Record<number, CornerConstraint>;
     edgeConstraints: Record<number, EdgeConstraint>;
     baselineEdgeIndex: number | null;
   }>;
@@ -147,6 +169,11 @@ interface DeckingState {
   setPolygon: (points: Point[]) => void;
   calculateBoards: () => void;
   getCuttingList: () => DeckingCuttingList;
+  setPictureFrameEnabled: (enabled: boolean) => void;
+  setPictureFrameWidth: (widthMm: number) => void;
+  setPictureFrameGap: (gapMm: number) => void;
+  setFasciaEnabled: (enabled: boolean) => void;
+  setFasciaThickness: (thicknessMm: number) => void;
   updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
   lockEdgeLength: (edgeIndex: number) => void;
   unlockEdgeLength: (edgeIndex: number) => void;
@@ -160,10 +187,20 @@ export const useDeckingStore = create<DeckingState>()(
   persist(
     (set, get) => ({
       polygon: [],
+      infillPolygon: [],
       boards: [],
+      pictureFramePieces: [],
+      fasciaPieces: [],
       selectedColor: "mallee-bark",
       boardDirection: "horizontal",
       boardPlan: null,
+      pictureFrameEnabled: false,
+      pictureFrameBoardWidthMm: BOARD_WIDTH_MM,
+      pictureFrameGapMm: BOARD_GAP_MM,
+      pictureFrameWarning: null,
+      fasciaEnabled: false,
+      fasciaThicknessMm: 20,
+      cornerConstraints: {},
       edgeConstraints: {},
       baselineEdgeIndex: null,
       history: [],
@@ -179,6 +216,39 @@ export const useDeckingStore = create<DeckingState>()(
         get().saveHistory();
       },
 
+      setPictureFrameEnabled: (enabled) => {
+        set({ pictureFrameEnabled: enabled, pictureFrameWarning: null });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
+      setPictureFrameWidth: (widthMm) => {
+        if (widthMm <= 0) return;
+        set({ pictureFrameBoardWidthMm: widthMm });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
+      setPictureFrameGap: (gapMm) => {
+        if (gapMm < 0) return;
+        set({ pictureFrameGapMm: gapMm });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
+      setFasciaEnabled: (enabled) => {
+        set({ fasciaEnabled: enabled });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
+      setFasciaThickness: (thicknessMm) => {
+        if (thicknessMm <= 0) return;
+        set({ fasciaThicknessMm: thicknessMm });
+        get().calculateBoards();
+        get().saveHistory();
+      },
+
       setPolygon: (points) => {
         const baselineEdgeIndex =
           points.length >= 3 ? findBottomEdgeIndex(points) : null;
@@ -189,8 +259,11 @@ export const useDeckingStore = create<DeckingState>()(
 
         set({
           polygon: normalizedPolygon,
+          infillPolygon: normalizedPolygon,
+          cornerConstraints: {},
           edgeConstraints: {},
           baselineEdgeIndex,
+          pictureFrameWarning: null,
         });
         get().calculateBoards();
         get().saveHistory();
@@ -288,15 +361,59 @@ export const useDeckingStore = create<DeckingState>()(
       },
 
       calculateBoards: () => {
-        const { polygon, boardDirection } = get();
+        const {
+          polygon,
+          boardDirection,
+          pictureFrameEnabled,
+          pictureFrameBoardWidthMm,
+          pictureFrameGapMm,
+          fasciaEnabled,
+          fasciaThicknessMm,
+        } = get();
+
         if (polygon.length < 3) {
-          set({ boards: [], boardPlan: null });
+          set({
+            boards: [],
+            boardPlan: null,
+            infillPolygon: [],
+            pictureFramePieces: [],
+            fasciaPieces: [],
+            pictureFrameWarning: null,
+          });
           return;
         }
 
+        let infillPolygon = polygon;
+        let activePictureFrameEnabled = pictureFrameEnabled;
+        let pictureFrameWarning: string | null = null;
+        let pictureFramePieces: Point[][] = [];
+
+        if (pictureFrameEnabled) {
+          const offsetMm = pictureFrameBoardWidthMm + pictureFrameGapMm;
+          const innerPolygon = offsetPolygonMiter(polygon, offsetMm, "inward");
+          if (!innerPolygon || innerPolygon.length < 3 || polygonArea(innerPolygon) < 1) {
+            activePictureFrameEnabled = false;
+            pictureFrameWarning = "Deck too small for picture frame width";
+            infillPolygon = polygon;
+          } else {
+            infillPolygon = innerPolygon;
+            for (let i = 0; i < polygon.length; i++) {
+              const next = (i + 1) % polygon.length;
+              pictureFramePieces.push([
+                polygon[i],
+                polygon[next],
+                innerPolygon[next],
+                innerPolygon[i],
+              ]);
+            }
+          }
+        }
+
+        const fasciaPieces = fasciaEnabled ? buildFasciaPieces(polygon, fasciaThicknessMm) : [];
+
         const boards: Board[] = [];
         const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
-        const bounds = getBounds(polygon);
+        const bounds = getBounds(infillPolygon);
 
         let totalWasteMm = 0;
         let totalOverflowMm = 0;
@@ -308,7 +425,7 @@ export const useDeckingStore = create<DeckingState>()(
           const numRows = Math.ceil(span / boardWidthWithGap) + 1;
           for (let i = 0; i < numRows; i++) {
             const y = bounds.minY + i * boardWidthWithGap;
-            const intersections = getHorizontalIntersections(polygon, y);
+            const intersections = getHorizontalIntersections(infillPolygon, y);
             if (intersections.length < 2) continue;
             rowsWithBoards += 1;
             for (let j = 0; j < intersections.length - 1; j += 2) {
@@ -318,13 +435,20 @@ export const useDeckingStore = create<DeckingState>()(
               if (runLength <= 0) continue;
 
               const plan = planBoardsForRun(runLength);
+              const runId = generateId("run");
               let cursor = startX;
-              plan.boardLengths.forEach((length) => {
+              plan.boardLengths.forEach((length, idx) => {
+                const segmentCount = plan.boardLengths.length;
                 boards.push({
                   id: generateId("board"),
                   start: { x: cursor, y },
                   end: { x: cursor + length, y },
                   length,
+                  runId,
+                  segmentIndex: idx,
+                  segmentCount,
+                  isRunStart: idx === 0,
+                  isRunEnd: idx === segmentCount - 1,
                 });
                 cursor += length;
               });
@@ -339,7 +463,7 @@ export const useDeckingStore = create<DeckingState>()(
           const numRows = Math.ceil(span / boardWidthWithGap) + 1;
           for (let i = 0; i < numRows; i++) {
             const x = bounds.minX + i * boardWidthWithGap;
-            const intersections = getVerticalIntersections(polygon, x);
+            const intersections = getVerticalIntersections(infillPolygon, x);
             if (intersections.length < 2) continue;
             rowsWithBoards += 1;
             for (let j = 0; j < intersections.length - 1; j += 2) {
@@ -349,13 +473,20 @@ export const useDeckingStore = create<DeckingState>()(
               if (runLength <= 0) continue;
 
               const plan = planBoardsForRun(runLength);
+              const runId = generateId("run");
               let cursor = startY;
-              plan.boardLengths.forEach((length) => {
+              plan.boardLengths.forEach((length, idx) => {
+                const segmentCount = plan.boardLengths.length;
                 boards.push({
                   id: generateId("board"),
                   start: { x, y: cursor },
                   end: { x, y: cursor + length },
                   length,
+                  runId,
+                  segmentIndex: idx,
+                  segmentCount,
+                  isRunStart: idx === 0,
+                  isRunEnd: idx === segmentCount - 1,
                 });
                 cursor += length;
               });
@@ -367,7 +498,7 @@ export const useDeckingStore = create<DeckingState>()(
           }
         }
 
-        const areaMm2 = polygonArea(polygon);
+        const areaMm2 = polygonArea(infillPolygon);
         const boardPlan: DeckingBoardPlan = {
           boardLengthMm: MAX_BOARD_LENGTH_MM,
           boardWidthMm: BOARD_WIDTH_MM,
@@ -380,38 +511,98 @@ export const useDeckingStore = create<DeckingState>()(
           areaM2: areaMm2 / 1_000_000,
         };
 
-        set({ boards, boardPlan });
+        set({
+          boards,
+          boardPlan,
+          infillPolygon,
+          pictureFramePieces,
+          fasciaPieces,
+          pictureFrameWarning,
+          pictureFrameEnabled: activePictureFrameEnabled,
+        });
       },
 
       getCuttingList: () => {
-        const { boards } = get();
+        const { boards, pictureFramePieces, pictureFrameEnabled, fasciaPieces, fasciaEnabled } = get();
 
-        const boardsByLength = new Map<number, number>();
+        const boardLengthCounts = new Map<number, number>();
         boards.forEach((board) => {
           const length = Math.round(board.length);
-          boardsByLength.set(length, (boardsByLength.get(length) || 0) + 1);
+          boardLengthCounts.set(length, (boardLengthCounts.get(length) || 0) + 1);
         });
 
-        const boardsList = Array.from(boardsByLength.entries())
+        const pictureFrameLengthCounts = new Map<number, number>();
+        if (pictureFrameEnabled) {
+          pictureFramePieces.forEach((piece) => {
+            if (piece.length < 2) return;
+            const length = Math.round(
+              Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y)
+            );
+            pictureFrameLengthCounts.set(
+              length,
+              (pictureFrameLengthCounts.get(length) || 0) + 1
+            );
+          });
+        }
+
+        const fasciaLengthCounts = new Map<number, number>();
+        if (fasciaEnabled) {
+          fasciaPieces.forEach((piece) => {
+            if (piece.length < 2) return;
+            const length = Math.round(
+              Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y)
+            );
+            fasciaLengthCounts.set(length, (fasciaLengthCounts.get(length) || 0) + 1);
+          });
+        }
+
+        const boardsList = Array.from(boardLengthCounts.entries())
           .map(([length, count]) => ({ length, count }))
           .sort((a, b) => b.length - a.length);
 
-        const totalBoardLength = boards.reduce((sum, board) => sum + board.length, 0);
+        const pictureFrameList = Array.from(pictureFrameLengthCounts.entries())
+          .map(([length, count]) => ({ length, count }))
+          .sort((a, b) => b.length - a.length);
+
+        const fasciaList = Array.from(fasciaLengthCounts.entries())
+          .map(([length, count]) => ({ length, count }))
+          .sort((a, b) => b.length - a.length);
+
+        const totalBoardLength =
+          boards.reduce((sum, board) => sum + board.length, 0) +
+          Array.from(pictureFrameLengthCounts.entries()).reduce(
+            (sum, [length, count]) => sum + length * count,
+            0
+          );
+
+        const totalFasciaLength = Array.from(fasciaLengthCounts.entries()).reduce(
+          (sum, [length, count]) => sum + length * count,
+          0
+        );
 
         return {
           boards: boardsList,
+          pictureFrame: pictureFrameList,
+          fascia: fasciaList,
           clips: 0,
           totalBoardLength,
+          totalFasciaLength,
         };
       },
 
       clear: () => {
         set({
           polygon: [],
+          infillPolygon: [],
           boards: [],
+          pictureFramePieces: [],
+          fasciaPieces: [],
           boardPlan: null,
           edgeConstraints: {},
           baselineEdgeIndex: null,
+          pictureFrameEnabled: false,
+          pictureFrameWarning: null,
+          fasciaEnabled: false,
         });
         get().saveHistory();
       },
@@ -423,7 +614,17 @@ export const useDeckingStore = create<DeckingState>()(
           const snapshot = history[newIndex];
           set({
             polygon: snapshot.polygon,
+            infillPolygon: snapshot.infillPolygon,
             boardDirection: snapshot.boardDirection,
+            pictureFrameEnabled: snapshot.pictureFrameEnabled,
+            pictureFrameBoardWidthMm: snapshot.pictureFrameBoardWidthMm,
+            pictureFrameGapMm: snapshot.pictureFrameGapMm,
+            pictureFrameWarning: snapshot.pictureFrameWarning,
+            pictureFramePieces: snapshot.pictureFramePieces,
+            fasciaPieces: snapshot.fasciaPieces,
+            fasciaEnabled: snapshot.fasciaEnabled,
+            fasciaThicknessMm: snapshot.fasciaThicknessMm,
+            cornerConstraints: snapshot.cornerConstraints,
             edgeConstraints: snapshot.edgeConstraints,
             baselineEdgeIndex: snapshot.baselineEdgeIndex,
             historyIndex: newIndex,
@@ -439,7 +640,17 @@ export const useDeckingStore = create<DeckingState>()(
           const snapshot = history[newIndex];
           set({
             polygon: snapshot.polygon,
+            infillPolygon: snapshot.infillPolygon,
             boardDirection: snapshot.boardDirection,
+            pictureFrameEnabled: snapshot.pictureFrameEnabled,
+            pictureFrameBoardWidthMm: snapshot.pictureFrameBoardWidthMm,
+            pictureFrameGapMm: snapshot.pictureFrameGapMm,
+            pictureFrameWarning: snapshot.pictureFrameWarning,
+            pictureFramePieces: snapshot.pictureFramePieces,
+            fasciaPieces: snapshot.fasciaPieces,
+            fasciaEnabled: snapshot.fasciaEnabled,
+            fasciaThicknessMm: snapshot.fasciaThicknessMm,
+            cornerConstraints: snapshot.cornerConstraints,
             edgeConstraints: snapshot.edgeConstraints,
             baselineEdgeIndex: snapshot.baselineEdgeIndex,
             historyIndex: newIndex,
@@ -451,15 +662,35 @@ export const useDeckingStore = create<DeckingState>()(
       saveHistory: () => {
         const {
           polygon,
+          infillPolygon,
           boardDirection,
           history,
           historyIndex,
+          pictureFrameEnabled,
+          pictureFrameBoardWidthMm,
+          pictureFrameGapMm,
+          pictureFrameWarning,
+          pictureFramePieces,
+          fasciaPieces,
+          fasciaEnabled,
+          fasciaThicknessMm,
+          cornerConstraints,
           edgeConstraints,
           baselineEdgeIndex,
         } = get();
         const snapshot = {
           polygon: JSON.parse(JSON.stringify(polygon)),
+          infillPolygon: JSON.parse(JSON.stringify(infillPolygon)),
           boardDirection,
+          pictureFrameEnabled,
+          pictureFrameBoardWidthMm,
+          pictureFrameGapMm,
+          pictureFrameWarning,
+          pictureFramePieces: JSON.parse(JSON.stringify(pictureFramePieces)),
+          fasciaPieces: JSON.parse(JSON.stringify(fasciaPieces)),
+          fasciaEnabled,
+          fasciaThicknessMm,
+          cornerConstraints: JSON.parse(JSON.stringify(cornerConstraints)),
           edgeConstraints: JSON.parse(JSON.stringify(edgeConstraints)),
           baselineEdgeIndex,
         };

@@ -27,6 +27,11 @@ export interface Board {
   start: Point;
   end: Point;
   length: number;
+  runId?: string;
+  segmentIndex?: number;
+  segmentCount?: number;
+  isRunStart?: boolean;
+  isRunEnd?: boolean;
 }
 
 export interface Clip {
@@ -40,8 +45,17 @@ export interface DeckingCuttingList {
     length: number;
     count: number;
   }[];
+  pictureFrame: {
+    length: number;
+    count: number;
+  }[];
+  fascia: {
+    length: number;
+    count: number;
+  }[];
   clips: number;
   totalBoardLength: number;
+  totalFasciaLength: number;
 }
 
 export interface DeckingBoardPlan {
@@ -58,10 +72,20 @@ export interface DeckingBoardPlan {
 
 export interface DeckingState {
   polygon: Point[];
+  infillPolygon: Point[];
   boards: Board[];
+  pictureFramePieces: Point[][];
+  fasciaPieces: Point[][];
   selectedColor: DeckColor;
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
+  pictureFrameEnabled: boolean;
+  pictureFrameBoardWidthMm: number;
+  pictureFrameGapMm: number;
+  pictureFrameWarning: string | null;
+  fasciaEnabled: boolean;
+  fasciaThicknessMm: number;
+  cornerConstraints: Record<number, CornerConstraint>;
   edgeConstraints: Record<number, EdgeConstraint>;
   baselineEdgeIndex: number | null;
 }
