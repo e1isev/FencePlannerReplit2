@@ -23,6 +23,8 @@ const MERGE_ANGLE_TOL_DEG = 2;
 const MERGE_ENDPOINT_EPS_PX = 0.25;
 export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
 export const MAX_RUN_MM = 200_000;
+const HISTORY_LIMIT = 100;
+const LEFTOVER_WARN_THRESHOLD = 1_000;
 
 const pointsMatch = (p1: Point, p2: Point) => {
   return Math.abs(p1.x - p2.x) < SNAP_TOLERANCE_PX && Math.abs(p1.y - p2.y) < SNAP_TOLERANCE_PX;
@@ -369,8 +371,6 @@ interface AppState {
   history: {
     lines: FenceLine[];
     gates: Gate[];
-    panels: PanelSegment[];
-    leftovers: Leftover[];
   }[];
   historyIndex: number;
   
@@ -797,11 +797,15 @@ export const useAppStore = create<AppState>()(
         get().recalculate();
       },
       
-recalculate: () => {
-        const { lines, gates, leftovers } = get();
+      recalculate: () => {
+        if (process.env.NODE_ENV === "development") {
+          console.time("recalculate");
+        }
+
+        const { lines, gates } = get();
         
         const allPanels: PanelSegment[] = [];
-        const allNewLeftovers: Leftover[] = [...leftovers];
+        const allNewLeftovers: Leftover[] = [];
         const allWarnings: WarningMsg[] = [];
         const panelPositionsMap = new Map<string, number[]>();
         
@@ -823,7 +827,7 @@ recalculate: () => {
           allPanels.push(...result.segments);
           allNewLeftovers.push(...result.newLeftovers);
           panelPositionsMap.set(line.id, result.panelPositions);
-result.warnings.forEach((text) => {
+          result.warnings.forEach((text) => {
             allWarnings.push({
               id: generateId("warn"),
               text,
@@ -836,8 +840,8 @@ result.warnings.forEach((text) => {
         gates.forEach((gate) => {
           const line = lines.find((l) => l.id === gate.runId);
           if (!line) return;
-          
-const warning = validateSlidingReturn(gate, line, lines);
+
+          const warning = validateSlidingReturn(gate, line, lines);
           if (warning) {
             allWarnings.push({
               id: generateId("warn"),
@@ -861,7 +865,7 @@ const warning = validateSlidingReturn(gate, line, lines);
           return connectingLines.length > 2;
         });
         
-tJunctions.forEach((post) => {
+        tJunctions.forEach((post) => {
           allWarnings.push({
             id: generateId("warn"),
             text: "T-junction with more than 2 runs detected. This may require custom post configuration.",
@@ -869,6 +873,19 @@ tJunctions.forEach((post) => {
           });
         });
         
+        if (process.env.NODE_ENV === "development") {
+          console.timeEnd("recalculate");
+          console.debug("recalculate stats", {
+            lines: lines.length,
+            gates: gates.length,
+            panels: allPanels.length,
+            leftovers: allNewLeftovers.length,
+          });
+          if (allNewLeftovers.length > LEFTOVER_WARN_THRESHOLD) {
+            console.warn(`Leftovers exceeded threshold: ${allNewLeftovers.length}`);
+          }
+        }
+
         set({
           posts,
           panels: allPanels,
@@ -900,7 +917,8 @@ tJunctions.forEach((post) => {
         if (historyIndex > 0) {
           const prevState = history[historyIndex - 1];
           set({
-            ...prevState,
+            lines: structuredClone(prevState.lines),
+            gates: structuredClone(prevState.gates),
             historyIndex: historyIndex - 1,
           });
           get().recalculate();
@@ -912,7 +930,8 @@ tJunctions.forEach((post) => {
         if (historyIndex < history.length - 1) {
           const nextState = history[historyIndex + 1];
           set({
-            ...nextState,
+            lines: structuredClone(nextState.lines),
+            gates: structuredClone(nextState.gates),
             historyIndex: historyIndex + 1,
           });
           get().recalculate();
@@ -920,9 +939,17 @@ tJunctions.forEach((post) => {
       },
       
       saveToHistory: () => {
-        const { lines, gates, panels, leftovers, history, historyIndex } = get();
+        const { lines, gates, history, historyIndex } = get();
         const newHistory = history.slice(0, historyIndex + 1);
-        newHistory.push({ lines, gates, panels, leftovers });
+        newHistory.push({
+          lines: structuredClone(lines),
+          gates: structuredClone(gates),
+        });
+
+        if (newHistory.length > HISTORY_LIMIT) {
+          newHistory.shift();
+        }
+
         set({
           history: newHistory,
           historyIndex: newHistory.length - 1,
@@ -931,6 +958,7 @@ tJunctions.forEach((post) => {
     }),
     {
       name: "fence-planner-storage",
+      version: 1,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
@@ -954,6 +982,39 @@ tJunctions.forEach((post) => {
           localStorage.setItem(name, JSON.stringify(serialized));
         },
         removeItem: (name) => localStorage.removeItem(name),
+      },
+      migrate: (persistedState, version) => {
+        if (version < 1) {
+          return {
+            ...persistedState,
+            state: {
+              ...persistedState.state,
+              posts: [],
+              panels: [],
+              leftovers: [],
+              warnings: [],
+              panelPositionsMap: new Map<string, number[]>(),
+              history: [],
+              historyIndex: -1,
+            },
+          };
+        }
+
+        return persistedState;
+      },
+      partialize: (state) => ({
+        productKind: state.productKind,
+        fenceStyleId: state.fenceStyleId,
+        lines: state.lines,
+        gates: state.gates,
+        selectedGateType: state.selectedGateType,
+        drawingMode: state.drawingMode,
+        mmPerPixel: state.mmPerPixel,
+        selectedLineId: state.selectedLineId,
+      }),
+      onRehydrateStorage: () => (state, error) => {
+        if (error) return;
+        state?.recalculate();
       },
     }
   )
