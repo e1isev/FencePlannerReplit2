@@ -21,6 +21,8 @@ import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 const SNAP_TOLERANCE_PX = 0.1;
 const MERGE_ANGLE_TOL_DEG = 2;
 const MERGE_ENDPOINT_EPS_PX = 0.25;
+export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
+export const MAX_RUN_MM = 200_000;
 
 const pointsMatch = (p1: Point, p2: Point) => {
   return Math.abs(p1.x - p2.x) < SNAP_TOLERANCE_PX && Math.abs(p1.y - p2.y) < SNAP_TOLERANCE_PX;
@@ -381,7 +383,7 @@ interface AppState {
   setMmPerPixel: (mmPerPixel: number) => void;
 
   addLine: (a: Point, b: Point) => void;
-  updateLine: (id: string, length_mm: number) => void;
+  updateLine: (id: string, length_mm: number, fromEnd?: "a" | "b") => void;
   toggleEvenSpacing: (id: string) => void;
   deleteLine: (id: string) => void;
   
@@ -496,15 +498,29 @@ export const useAppStore = create<AppState>()(
         get().recalculate();
       },
       
-      updateLine: (id, length_mm) => {
-        if (length_mm < MIN_LINE_LENGTH_MM) {
+      updateLine: (id, length_mm, fromEnd = "b") => {
+        if (!Number.isFinite(length_mm)) {
+          throw new Error("Length must be a finite number.");
+        }
+
+        if (length_mm < MIN_RUN_MM) {
           const warning: WarningMsg = {
             id: generateId("warn"),
-            text: `Line too short (${(length_mm / 1000).toFixed(2)}m). Minimum length is 0.3m.`,
+            text: `Line too short (${(length_mm / 1000).toFixed(2)}m). Minimum length is ${(MIN_RUN_MM / 1000).toFixed(2)}m.`,
             timestamp: Date.now(),
           };
           set({ warnings: [...get().warnings, warning] });
-          return;
+          throw new Error("Value below minimum length.");
+        }
+
+        if (length_mm > MAX_RUN_MM) {
+          const warning: WarningMsg = {
+            id: generateId("warn"),
+            text: "Value too large, check units.",
+            timestamp: Date.now(),
+          };
+          set({ warnings: [...get().warnings, warning] });
+          throw new Error("Value exceeds maximum length.");
         }
         
         const mmPerPixel = get().mmPerPixel;
@@ -517,102 +533,65 @@ export const useAppStore = create<AppState>()(
         const dx = targetLine.b.x - targetLine.a.x;
         const dy = targetLine.b.y - targetLine.a.y;
         const currentLength = Math.hypot(dx, dy);
-        const scale = (length_mm / mmPerPixel) / currentLength;
-        
-        const oldEndpoint = targetLine.b;
-        const newEndpoint = {
+        if (currentLength === 0) return;
+
+        const desiredLengthPx = length_mm / mmPerPixel;
+        const scale = desiredLengthPx / currentLength;
+
+        let oldMovedPoint = targetLine.b;
+        let newMovedPoint = {
           x: targetLine.a.x + dx * scale,
           y: targetLine.a.y + dy * scale,
         };
-        
-        const pointKey = (p: Point) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
-        const processedLines = new Set<string>();
-        const movedPoints = new Map<string, Point>();
-        movedPoints.set(pointKey(oldEndpoint), newEndpoint);
-        
-        let updatedLines = existingLines.map((line) => {
+
+        let newA = targetLine.a;
+        let newB = newMovedPoint;
+
+        if (fromEnd === "a") {
+          const reverseDx = targetLine.a.x - targetLine.b.x;
+          const reverseDy = targetLine.a.y - targetLine.b.y;
+          oldMovedPoint = targetLine.a;
+          newMovedPoint = {
+            x: targetLine.b.x + reverseDx * scale,
+            y: targetLine.b.y + reverseDy * scale,
+          };
+          newA = newMovedPoint;
+          newB = targetLine.b;
+        }
+
+        const updatedLines = existingLines.map((line) => {
           if (line.id === id) {
-            processedLines.add(line.id);
             return {
               ...line,
-              b: newEndpoint,
+              a: newA,
+              b: newB,
               length_mm,
             };
           }
-          return { ...line };
+
+          const updatedLine = { ...line };
+          if (pointsMatch(line.a, oldMovedPoint)) {
+            updatedLine.a = newMovedPoint;
+          }
+          if (pointsMatch(line.b, oldMovedPoint)) {
+            updatedLine.b = newMovedPoint;
+          }
+
+          if (updatedLine.a !== line.a || updatedLine.b !== line.b) {
+            const segDx = updatedLine.b.x - updatedLine.a.x;
+            const segDy = updatedLine.b.y - updatedLine.a.y;
+            const segLengthPx = Math.hypot(segDx, segDy);
+            updatedLine.length_mm = segLengthPx * mmPerPixel;
+          }
+
+          return updatedLine;
         });
-        
-        let hasChanges = true;
-        while (hasChanges) {
-          hasChanges = false;
-          const newUpdatedLines = updatedLines.map((line) => {
-            if (processedLines.has(line.id)) return line;
 
-            let foundMatch = false;
-            let newLine = { ...line };
-            
-            movedPoints.forEach((newPos, oldKey) => {
-              if (foundMatch) return;
-              
-              const [oldX, oldY] = oldKey.split(',').map(parseFloat);
-              const oldPos = { x: oldX, y: oldY };
-              
-              if (pointsMatch(line.a, oldPos)) {
-                const deltaX = newPos.x - oldPos.x;
-                const deltaY = newPos.y - oldPos.y;
-                const newA = { x: line.a.x + deltaX, y: line.a.y + deltaY };
-                const newB = { x: line.b.x + deltaX, y: line.b.y + deltaY };
-                
-                movedPoints.set(pointKey(line.b), newB);
-                
-                const dx = newB.x - newA.x;
-                const dy = newB.y - newA.y;
-                const length_px = Math.hypot(dx, dy);
+        const welded = weldSharedEndpoints(updatedLines, id, lineOrder, mmPerPixel);
+        const connected = mergeConnectedLines(welded, id, lineOrder, mmPerPixel);
+        const mergeResult = mergeCollinearLines(connected, id, mmPerPixel);
 
-                newLine = {
-                  ...line,
-                  a: newA,
-                  b: newB,
-                  length_mm: length_px * mmPerPixel,
-                };
-                processedLines.add(line.id);
-                foundMatch = true;
-                hasChanges = true;
-              } else if (pointsMatch(line.b, oldPos)) {
-                const deltaX = newPos.x - oldPos.x;
-                const deltaY = newPos.y - oldPos.y;
-                const newA = { x: line.a.x + deltaX, y: line.a.y + deltaY };
-                const newB = { x: line.b.x + deltaX, y: line.b.y + deltaY };
-                
-                movedPoints.set(pointKey(line.a), newA);
-                
-                const dx = newB.x - newA.x;
-                const dy = newB.y - newA.y;
-                const length_px = Math.hypot(dx, dy);
-
-                newLine = {
-                  ...line,
-                  a: newA,
-                  b: newB,
-                  length_mm: length_px * mmPerPixel,
-                };
-                processedLines.add(line.id);
-                foundMatch = true;
-                hasChanges = true;
-              }
-            });
-            
-            return newLine;
-          });
-          
-          updatedLines = newUpdatedLines;
-        }
-
-        const globallyMerged = mergeConnectedLines(updatedLines, id, lineOrder, mmPerPixel);
-        const mergeResult = mergeCollinearLines(globallyMerged, id, mmPerPixel);
-        const weldedLines = weldSharedEndpoints(mergeResult.lines, id, lineOrder, mmPerPixel);
-
-        set({ lines: weldedLines });
+        set({ lines: mergeResult.lines });
         get().saveToHistory();
         get().recalculate();
       },

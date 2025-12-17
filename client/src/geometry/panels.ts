@@ -4,6 +4,7 @@ import { generateId } from "@/lib/ids";
 export const PANEL_LENGTH_MM = 2390;
 const CUT_BUFFER_MM = 300;
 export const MIN_LEFTOVER_MM = 300;
+const MAX_PANELS_PER_RUN = 2000;
 
 export interface PanelFitResult {
   segments: PanelSegment[];
@@ -26,6 +27,11 @@ export function fitPanels(
   const warnings: string[] = [];
   
   const numPanels = Math.floor(length_mm / PANEL_LENGTH_MM);
+  if (numPanels > MAX_PANELS_PER_RUN) {
+    warnings.push("Run too long to panelise, check length and units.");
+    return { segments, panelPositions, newLeftovers, warnings };
+  }
+
   let remainder = length_mm % PANEL_LENGTH_MM;
 
   if (remainder < EPSILON_MM) {
@@ -34,6 +40,10 @@ export function fitPanels(
 
   if (evenSpacing) {
     const panelCount = Math.max(1, Math.ceil(length_mm / PANEL_LENGTH_MM));
+    if (panelCount > MAX_PANELS_PER_RUN) {
+      warnings.push("Run too long to panelise, check length and units.");
+      return { segments, panelPositions, newLeftovers, warnings };
+    }
     const spacing = length_mm / panelCount;
 
     for (let i = 0; i < panelCount; i++) {
