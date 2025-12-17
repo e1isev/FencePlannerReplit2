@@ -12,7 +12,7 @@ import {
 } from "@/geometry/snapping";
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
 import { edgeLengthMm, isEdgeLocked } from "@/geometry/deckingEdges";
-import type { DeckEntity, Point } from "@/types/decking";
+import type { DeckEntity, Point, PolygonBounds } from "@/types/decking";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -76,6 +76,23 @@ function computeCentroid(points: { x: number; y: number }[], treatAsClosed: bool
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
+function getPolygonBounds(points: Point[]): PolygonBounds | null {
+  if (points.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  points.forEach((p) => {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  });
+
+  return { minX, minY, maxX, maxY };
+}
+
 function getSegments(points: { x: number; y: number }[], closed: boolean): Segment[] {
   const segments: Segment[] = [];
   if (points.length < 2) return segments;
@@ -130,8 +147,13 @@ export function DeckingCanvasStage() {
   const {
     decks,
     activeDeckId,
+    selectedDeckId,
+    pendingDeleteDeckId,
     addDeck,
-    deleteDeck,
+    setSelectedDeck,
+    requestDeleteDeck,
+    confirmDeleteDeck,
+    cancelDeleteDeck,
     updateEdgeLength,
     lockEdgeLength,
     unlockEdgeLength,
@@ -140,6 +162,10 @@ export function DeckingCanvasStage() {
   const activeDeck = useMemo(
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [activeDeckId, decks]
+  );
+  const selectedDeck = useMemo(
+    () => decks.find((deck) => deck.id === selectedDeckId) ?? null,
+    [decks, selectedDeckId]
   );
   const allBoards = useMemo(() => decks.flatMap((deck) => deck.boards), [decks]);
   const stageScale = scale;
@@ -157,6 +183,17 @@ export function DeckingCanvasStage() {
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        cancelDeleteDeck();
+        setSelectedDeck(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [cancelDeleteDeck, setSelectedDeck]);
 
   const screenToWorld = (point: { x: number; y: number }) => ({
     x: pxToMm((point.x - stagePos.x) / scale),
@@ -251,9 +288,19 @@ export function DeckingCanvasStage() {
   const handleStageClick = (e: any) => {
     if (e.evt.button === 2) return;
     if (e.target !== e.target.getStage()) return;
-    if (pendingSegment) return;
+    if (pendingSegment || isLengthPromptOpen) return;
 
     const stage = e.target.getStage();
+    if (!stage) return;
+
+    if (!isDrawing) {
+      setSelectedDeck(null);
+      cancelDeleteDeck();
+      if (selectedDeck) {
+        return;
+      }
+    }
+
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
@@ -385,6 +432,7 @@ export function DeckingCanvasStage() {
   const hasPolygon = Boolean(activeDeck && activeDeck.polygon.length >= 3);
   const drawingPointsMm = previewPointMm ? [...draftPointsMm, previewPointMm] : draftPointsMm;
   const drawingPointsPx = drawingPointsMm.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+  const isConfirmingDelete = selectedDeck?.id === pendingDeleteDeckId;
   const boardRenderWidthMm = BOARD_WIDTH_MM + 0.5;
   const gridLines: JSX.Element[] = [];
 
@@ -415,6 +463,21 @@ export function DeckingCanvasStage() {
   const polygonCentroid = useMemo(
     () => computeCentroid(activeDeck?.polygon ?? []),
     [activeDeck?.polygon]
+  );
+  const selectedDeckAnchor = useMemo(() => {
+    if (!selectedDeck || selectedDeck.polygon.length === 0) return null;
+    const centroid = computeCentroid(selectedDeck.polygon);
+    if (centroid) return centroid;
+    const bounds = getPolygonBounds(selectedDeck.polygon);
+    if (!bounds) return null;
+    return {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
+  }, [selectedDeck]);
+  const selectedDeckAnchorScreen = useMemo(
+    () => (selectedDeckAnchor ? worldToScreen(selectedDeckAnchor) : null),
+    [selectedDeckAnchor, stagePos.x, stagePos.y, scale]
   );
   const drawingCentre = useMemo(() => computeCentroid(draftPointsMm, false), [draftPointsMm]);
 
@@ -504,7 +567,13 @@ export function DeckingCanvasStage() {
         x={labelPos.x}
         y={labelPos.y}
         listening
-        onClick={handleClick}
+        onMouseDown={(event) => {
+          event.cancelBubble = true;
+        }}
+        onClick={(event) => {
+          event.cancelBubble = true;
+          handleClick?.(event);
+        }}
       >
         <Rect
           width={rectWidth}
@@ -915,6 +984,60 @@ export function DeckingCanvasStage() {
         </div>
       )}
 
+      {selectedDeck && selectedDeckAnchorScreen && (
+        <div
+          className="absolute z-40"
+          style={{
+            left: selectedDeckAnchorScreen.x,
+            top: selectedDeckAnchorScreen.y,
+            transform: "translate(-50%, -120%)",
+          }}
+        >
+          <div className="bg-white px-3 py-2 rounded-md shadow-lg border border-slate-200 text-xs text-slate-700 min-w-[180px]">
+            {isConfirmingDelete ? (
+              <>
+                <div className="font-semibold text-slate-900 mb-2">Delete deck?</div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={confirmDeleteDeck}
+                    className="px-3 py-1 rounded bg-rose-600 text-white text-xs"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={cancelDeleteDeck}
+                    className="px-3 py-1 rounded bg-slate-200 text-slate-700 text-xs"
+                  >
+                    No
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-semibold text-slate-900 mb-2">{selectedDeck.name}</div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => requestDeleteDeck(selectedDeck.id)}
+                    className="px-3 py-1 rounded bg-rose-50 text-rose-700 text-xs border border-rose-100"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => {
+                      cancelDeleteDeck();
+                      setSelectedDeck(null);
+                    }}
+                    className="px-3 py-1 rounded bg-slate-200 text-slate-700 text-xs"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white px-4 py-2 rounded shadow text-xs text-slate-600">
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
@@ -956,9 +1079,10 @@ export function DeckingCanvasStage() {
                 key={deck.id}
                 listening
                 onClick={(event) => {
-                  if (isDrawing) return;
+                  if (isDrawing || pendingSegment || isLengthPromptOpen) return;
                   event.cancelBubble = true;
-                  deleteDeck(deck.id);
+                  setSelectedDeck(deck.id);
+                  cancelDeleteDeck();
                 }}
               >
                 {deck.polygon.length >= 3 && (
