@@ -275,6 +275,7 @@ export default function DrawingPage() {
               <div className="font-medium font-mono">
                 {costs.posts.end.quantity +
                   costs.posts.corner.quantity +
+                  costs.posts.t.quantity +
                   costs.posts.line.quantity}
               </div>
             </div>

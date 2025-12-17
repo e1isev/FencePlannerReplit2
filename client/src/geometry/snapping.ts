@@ -36,6 +36,73 @@ export function findSnapPoint(
   return null;
 }
 
+const projectPointToSegment = (
+  point: Point,
+  a: Point,
+  b: Point
+): { t: number; proj: Point } => {
+  const ab = { x: b.x - a.x, y: b.y - a.y };
+  const abLenSq = ab.x * ab.x + ab.y * ab.y;
+  if (abLenSq === 0) {
+    return { t: 0, proj: a };
+  }
+
+  const ap = { x: point.x - a.x, y: point.y - a.y };
+  let t = (ap.x * ab.x + ap.y * ab.y) / abLenSq;
+  t = Math.max(0, Math.min(1, t));
+
+  return { t, proj: { x: a.x + ab.x * t, y: a.y + ab.y * t } };
+};
+
+const endpointProximityEpsilon = (tolerance: number) =>
+  Math.max(0.02, Math.min(0.1, tolerance * 0.1));
+
+const lineHasBlockingFeatures = (line: FenceLine): boolean => {
+  const segmentHasOpening = line.segments?.some(
+    (segment) => segment?.type === "opening" || segment?.type === "gate"
+  );
+
+  return Boolean(
+    line.isGateLine === true ||
+      line.gateId ||
+      (line.openings && line.openings.length > 0) ||
+      (line.gates && line.gates.length > 0) ||
+      segmentHasOpening
+  );
+};
+
+export type SnapPointOnSegmentResult =
+  | { point: Point; kind: "endpoint"; lineId?: string; t?: number }
+  | { point: Point; kind: "segment"; lineId: string; t: number };
+
+export function findSnapPointOnSegment(
+  point: Point,
+  lines: FenceLine[],
+  tolerance: number
+): SnapPointOnSegmentResult | null {
+  let closest: SnapPointOnSegmentResult | null = null;
+  let minDistance = tolerance;
+
+  for (const line of lines) {
+    if (lineHasBlockingFeatures(line)) continue;
+
+    const { t, proj } = projectPointToSegment(point, line.a, line.b);
+    const distance = Math.hypot(point.x - proj.x, point.y - proj.y);
+    if (distance >= minDistance) continue;
+
+    const epsilon = endpointProximityEpsilon(tolerance);
+    const kind = t <= epsilon || t >= 1 - epsilon ? "endpoint" : "segment";
+
+    minDistance = distance;
+    closest =
+      kind === "endpoint"
+        ? { point: t < 0.5 ? line.a : line.b, kind, lineId: line.id, t }
+        : { point: proj, kind, lineId: line.id, t };
+  }
+
+  return closest;
+}
+
 export function getDistance(start: Point, end: Point): number {
   return Math.sqrt(
     Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
@@ -71,53 +138,4 @@ export function getAllLineEndpoints(lines: any[]): Point[] {
     endpoints.push(line.a, line.b);
   });
   return endpoints;
-}
-
-const endpointProximityEpsilon = (tolerance: number) => Math.max(0.02, Math.min(0.1, tolerance * 0.1));
-
-const lineHasBlockingFeatures = (line: FenceLine): boolean => {
-  const segmentHasOpening = line.segments?.some(
-    (segment) => segment?.type === "opening" || segment?.type === "gate"
-  );
-
-  return Boolean(
-    line.isGateLine === true ||
-      line.gateId ||
-      (line.openings && line.openings.length > 0) ||
-      (line.gates && line.gates.length > 0) ||
-      segmentHasOpening
-  );
-};
-
-export function snapToLineSegments(
-  point: Point,
-  lines: FenceLine[],
-  tolerance: number
-): { lineId: string; point: Point; t: number } | null {
-  let closest: { lineId: string; point: Point; t: number } | null = null;
-  let minDistance = tolerance;
-
-  for (const line of lines) {
-    if (lineHasBlockingFeatures(line)) continue;
-
-    const ab = { x: line.b.x - line.a.x, y: line.b.y - line.a.y };
-    const abLenSq = ab.x * ab.x + ab.y * ab.y;
-    if (abLenSq === 0) continue;
-
-    const ap = { x: point.x - line.a.x, y: point.y - line.a.y };
-    let t = (ap.x * ab.x + ap.y * ab.y) / abLenSq;
-    t = Math.max(0, Math.min(1, t));
-
-    const epsilon = endpointProximityEpsilon(tolerance);
-    if (t <= epsilon || t >= 1 - epsilon) continue;
-
-    const proj = { x: line.a.x + ab.x * t, y: line.a.y + ab.y * t };
-    const distance = Math.hypot(point.x - proj.x, point.y - proj.y);
-    if (distance < minDistance) {
-      minDistance = distance;
-      closest = { lineId: line.id, point: proj, t };
-    }
-  }
-
-  return closest;
 }
