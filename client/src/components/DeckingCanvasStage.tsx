@@ -12,7 +12,7 @@ import {
 } from "@/geometry/snapping";
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
 import { edgeLengthMm, isEdgeLocked } from "@/geometry/deckingEdges";
-import type { DeckEntity } from "@/types/decking";
+import type { DeckEntity, Point } from "@/types/decking";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -268,15 +268,35 @@ export function DeckingCanvasStage() {
       return;
     }
 
-    if (points.length >= 2) {
-      const distanceToStart = getDistance(points[0], snapped);
-      if (distanceToStart <= CLOSE_SHAPE_SNAP_RADIUS_MM) {
-        const newPolygon = [...points];
-        if (newPolygon.length >= 3) {
-          addDeck(newPolygon);
-        }
-        setPoints([]);
-        setPreviewPoint(null);
+    const startIndex = draftPointsMm.length - 1;
+    const startMm = draftPointsMm[startIndex];
+    const midpoint = {
+      x: (startMm.x + snapped.x) / 2,
+      y: (startMm.y + snapped.y) / 2,
+    };
+    const promptPos = worldToScreen(midpoint);
+
+    const nextPoints = [...draftPointsMm, snapped];
+    setDraftPointsMm(nextPoints);
+    setPreviewPointMm(snapped);
+    setPendingSegment({
+      startIndex,
+      startMm,
+      provisionalEndMm: snapped,
+      screenX: promptPos.x,
+      screenY: promptPos.y,
+    });
+    setPendingLengthText(getDistance(startMm, snapped).toFixed(0));
+    setIsLengthPromptOpen(true);
+    setLengthError(null);
+  };
+
+  const handleCancelPendingSegment = () => {
+    if (!pendingSegment) return;
+
+    setDraftPointsMm((prev) => {
+      const next = prev.slice(0, -1);
+      if (next.length === 0) {
         setIsDrawing(false);
         setPreviewPointMm(null);
       } else {
@@ -345,7 +365,7 @@ export function DeckingCanvasStage() {
     if (closingToStart) {
       const newPolygon = nextPoints.slice(0, -1);
       if (newPolygon.length >= 3) {
-        setPolygon(newPolygon);
+        addDeck(newPolygon);
       }
       setDraftPointsMm([]);
       setPreviewPointMm(null);
@@ -363,8 +383,8 @@ export function DeckingCanvasStage() {
   };
 
   const hasPolygon = Boolean(activeDeck && activeDeck.polygon.length >= 3);
-  const drawingPoints = previewPoint ? [...points, previewPoint] : points;
-  const drawingPointsPx = drawingPoints.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
+  const drawingPointsMm = previewPointMm ? [...draftPointsMm, previewPointMm] : draftPointsMm;
+  const drawingPointsPx = drawingPointsMm.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const boardRenderWidthMm = BOARD_WIDTH_MM + 0.5;
   const gridLines: JSX.Element[] = [];
 
@@ -380,7 +400,7 @@ export function DeckingCanvasStage() {
 
     const boardEndpoints = allBoards.flatMap((board) => [board.start, board.end]);
     const polygonPoints = decks.flatMap((deck) => deck.polygon);
-    const allPoints = [...points, ...polygonPoints, ...boardEndpoints];
+    const allPoints = [...draftPointsMm, ...polygonPoints, ...boardEndpoints];
     const snapPoint = findSnapPoint(worldPosMm, allPoints, ENDPOINT_SNAP_RADIUS_MM);
     const snappedToPoint = Boolean(snapPoint);
     let candidate = snapPoint || worldPosMm;
@@ -396,13 +416,13 @@ export function DeckingCanvasStage() {
     () => computeCentroid(activeDeck?.polygon ?? []),
     [activeDeck?.polygon]
   );
-  const drawingCentre = useMemo(() => computeCentroid(points, false), [points]);
+  const drawingCentre = useMemo(() => computeCentroid(draftPointsMm, false), [draftPointsMm]);
 
   const polygonSegments = useMemo(
     () => getSegments(activeDeck?.polygon ?? [], true),
     [activeDeck?.polygon]
   );
-  const drawingSegments = useMemo(() => getSegments(points, false), [points]);
+  const drawingSegments = useMemo(() => getSegments(draftPointsMm, false), [draftPointsMm]);
 
   const computeLabelPosition = (
     segment: Segment,
