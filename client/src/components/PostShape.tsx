@@ -29,7 +29,7 @@ export function PostShape({
   const postSizePx = mmToPx(POST_SIZE_MM);
   const cornerRadiusPx = mmToPx(POST_CORNER_RADIUS_MM);
 
-  const angleDeg = getPostAngleDeg({ x, y }, neighbours, lines);
+  const angleDeg = getPostAngleDeg({ x, y }, neighbours, lines, category);
 
   const getPostColors = (type: PostCategory) => {
     switch (type) {
@@ -67,4 +67,3 @@ export function PostShape({
     />
   );
 }
-
