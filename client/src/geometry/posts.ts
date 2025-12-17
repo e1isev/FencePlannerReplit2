@@ -23,10 +23,53 @@ function normaliseAngleDeg(angle: number) {
   return ((angle + 180) % 360 + 360) % 360 - 180;
 }
 
+const projectPointToSegment = (p: Point, a: Point, b: Point) => {
+  const ab = { x: b.x - a.x, y: b.y - a.y };
+  const abLenSq = ab.x * ab.x + ab.y * ab.y;
+  if (abLenSq === 0) return { t: 0, proj: a, distanceSq: pointToSegmentDistanceSq(p, a, b) };
+
+  const ap = { x: p.x - a.x, y: p.y - a.y };
+  let t = (ap.x * ab.x + ap.y * ab.y) / abLenSq;
+  t = Math.max(0, Math.min(1, t));
+  const proj = { x: a.x + ab.x * t, y: a.y + ab.y * t };
+  const distanceSq = (p.x - proj.x) ** 2 + (p.y - proj.y) ** 2;
+
+  return { t, proj, distanceSq };
+};
+
 export function getPostNeighbours(pos: Point, lines: FenceLine[]): Point[] {
-  return lines
-    .filter((line) => pointsEqual(line.a, pos) || pointsEqual(line.b, pos))
-    .map((line) => (pointsEqual(line.a, pos) ? line.b : line.a));
+  const neighbours: Point[] = [];
+  const seen = new Set<string>();
+  const keyForPoint = (p: Point) => makePointKey(p);
+
+  lines.forEach((line) => {
+    const { t, distanceSq } = projectPointToSegment(pos, line.a, line.b);
+    if (distanceSq > 0.25) return;
+
+    if (t <= 0.02) {
+      const other = line.b;
+      if (!seen.has(keyForPoint(other))) {
+        seen.add(keyForPoint(other));
+        neighbours.push(other);
+      }
+    } else if (t >= 0.98) {
+      const other = line.a;
+      if (!seen.has(keyForPoint(other))) {
+        seen.add(keyForPoint(other));
+        neighbours.push(other);
+      }
+    } else {
+      [line.a, line.b].forEach((endpoint) => {
+        const k = keyForPoint(endpoint);
+        if (!seen.has(k)) {
+          seen.add(k);
+          neighbours.push(endpoint);
+        }
+      });
+    }
+  });
+
+  return neighbours;
 }
 
 function pointToSegmentDistanceSq(p: Point, a: Point, b: Point) {
@@ -116,88 +159,110 @@ export function getPostAngleDeg(
   return normaliseAngleDeg(radToDeg(Math.atan2(sy, sx)));
 }
 
-export function categorizePost(
-  pos: Point,
-  lines: FenceLine[],
-  gates: Gate[]
-): PostCategory {
-  const connectingLines = lines.filter(
-    (line) => pointsEqual(line.a, pos) || pointsEqual(line.b, pos)
-  );
-  
-  const isNextToGate = lines.some((line) => {
-    if (!line.gateId) return false;
-    return pointsEqual(line.a, pos) || pointsEqual(line.b, pos);
-  });
-
-  if (isNextToGate || connectingLines.length === 1) {
-    return "end";
-  }
-
-  if (connectingLines.length >= 3) {
-    return "t";
-  }
-
-  if (connectingLines.length >= 2) {
-    const angles = connectingLines.map((line) => {
-      const otherPoint = pointsEqual(line.a, pos) ? line.b : line.a;
-      return (Math.atan2(otherPoint.y - pos.y, otherPoint.x - pos.x) + 2 * Math.PI) %
-        (2 * Math.PI);
-    });
-
-    if (connectingLines.length === 2) {
-      const diff = Math.abs(angles[0] - angles[1]);
-      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
-      const isStraight =
-        normalizedDiff < 0.1 || Math.abs(normalizedDiff - Math.PI) < 0.1;
-
-      return isStraight ? "line" : "corner";
-    }
-
-    return "corner";
-  }
-
-  return "line";
-}
-
 export function generatePosts(
   lines: FenceLine[],
-  gates: Gate[],
+  _gates: Gate[],
   panelPositionsMap: Map<string, number[]> = new Map()
 ): Post[] {
-  const postMap = new Map<string, Post>();
+  const STRAIGHT_EPS = 0.1;
+  const SEGMENT_TOLERANCE = 0.5;
+
+  type Adjacency = {
+    pos: Point;
+    edges: Array<{ lineId: string; angle: number }>;
+    gateBlocked: boolean;
+  };
+
+  const lineHasBlockingFeatures = (line: FenceLine): boolean => {
+    const segmentHasOpening = line.segments?.some(
+      (segment) => segment?.type === "opening" || segment?.type === "gate"
+    );
+
+    return Boolean(
+      line.isGateLine === true ||
+        line.gateId ||
+        (line.openings && line.openings.length > 0) ||
+        (line.gates && line.gates.length > 0) ||
+        segmentHasOpening
+    );
+  };
+
+  const angleCache = new Map<string, number>();
+  const adjacency = new Map<string, Adjacency>();
+
+  const addEdge = (point: Point, line: FenceLine) => {
+    const key = makePointKey(point);
+    const angle =
+      angleCache.get(line.id) ??
+      (() => {
+        const a = Math.atan2(line.b.y - line.a.y, line.b.x - line.a.x);
+        angleCache.set(line.id, a);
+        return a;
+      })();
+
+    const existing = adjacency.get(key);
+    const gateBlocked = lineHasBlockingFeatures(line);
+    if (existing) {
+      existing.gateBlocked = existing.gateBlocked || gateBlocked;
+      if (!existing.edges.some((e) => e.lineId === line.id)) {
+        existing.edges.push({ lineId: line.id, angle });
+      }
+      return;
+    }
+
+    adjacency.set(key, {
+      pos: point,
+      edges: [{ lineId: line.id, angle }],
+      gateBlocked,
+    });
+  };
 
   lines.forEach((line) => {
-    [line.a, line.b].forEach((point) => {
-      const key = makePointKey(point);
-      if (!postMap.has(key)) {
-        const category = categorizePost(point, lines, gates);
-        postMap.set(key, {
-          id: generateId("post"),
-          pos: point,
-          category,
-        });
-      } else {
-        const existing = postMap.get(key)!;
-        existing.category = categorizePost(point, lines, gates);
-      }
-    });
+    addEdge(line.a, line);
+    addEdge(line.b, line);
 
     const panelPositions = panelPositionsMap.get(line.id) || [];
     const linePosts = getLinePosts(line, panelPositions);
-    linePosts.forEach((point) => {
-      const key = makePointKey(point);
-      if (!postMap.has(key)) {
-        postMap.set(key, {
-          id: generateId("post"),
-          pos: point,
-          category: "line",
-        });
+    linePosts.forEach((point) => addEdge(point, line));
+  });
+
+  lines.forEach((line, index) => {
+    [line.a, line.b].forEach((endpoint) => {
+      for (let i = 0; i < lines.length; i++) {
+        if (i === index) continue;
+        const candidate = lines[i];
+        const { t, distanceSq } = projectPointToSegment(endpoint, candidate.a, candidate.b);
+        const epsilon = 0.02;
+
+        if (t > epsilon && t < 1 - epsilon && distanceSq <= SEGMENT_TOLERANCE * SEGMENT_TOLERANCE) {
+          addEdge(endpoint, candidate);
+        }
       }
     });
   });
-  
-  return Array.from(postMap.values());
+
+  const classify = (entry: Adjacency): PostCategory => {
+    if (entry.gateBlocked) return "end";
+
+    const edgeCount = entry.edges.length;
+    if (edgeCount <= 1) return "end";
+    if (edgeCount === 2) {
+      const [a1, a2] = entry.edges.map((e) => e.angle);
+      const diff = Math.abs(a1 - a2);
+      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
+      const isStraight =
+        normalizedDiff < STRAIGHT_EPS || Math.abs(normalizedDiff - Math.PI) < STRAIGHT_EPS;
+      return isStraight ? "line" : "corner";
+    }
+
+    return "t";
+  };
+
+  return Array.from(adjacency.values()).map((entry) => ({
+    id: generateId("post"),
+    pos: entry.pos,
+    category: classify(entry),
+  }));
 }
 
 export function getLinePosts(

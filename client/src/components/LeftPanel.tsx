@@ -195,6 +195,18 @@ export function LeftPanel() {
                     </td>
                   </tr>
                 )}
+                {costs.posts.t.quantity > 0 && (
+                  <tr className="border-b border-slate-100" data-testid="row-posts-t">
+                    <td className="px-3 py-2">T Posts</td>
+                    <td className="px-3 py-2 text-right">{costs.posts.t.quantity}</td>
+                    <td className="px-3 py-2 text-right">
+                      ${costs.posts.t.unitPrice.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      ${costs.posts.t.total.toFixed(2)}
+                    </td>
+                  </tr>
+                )}
                 {costs.posts.line.quantity > 0 && (
                   <tr className="border-b border-slate-100" data-testid="row-posts-line">
                     <td className="px-3 py-2">Line Posts</td>

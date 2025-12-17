@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
-import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint, snapToLineSegments } from "@/geometry/snapping";
+import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint, findSnapPointOnSegment } from "@/geometry/snapping";
 import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
@@ -221,8 +221,11 @@ export function CanvasStage() {
         return { type: "endpoint", point: snappedEndpoint };
       }
 
-      const snappedSegment = snapToLineSegments(point, lines, snapTolerance);
+      const snappedSegment = findSnapPointOnSegment(point, lines, snapTolerance);
       if (snappedSegment) {
+        if (snappedSegment.kind === "endpoint") {
+          return { type: "endpoint", point: snappedSegment.point };
+        }
         return {
           type: "segment",
           point: snappedSegment.point,
@@ -419,14 +422,16 @@ export function CanvasStage() {
       resolvedStart = applySegmentSnap(startSnap, startPoint);
 
       if (currentSnap?.type === "segment" && currentSnap.lineId === startSnap.lineId) {
-        const refreshed = snapToLineSegments(currentSnap.point, latestLines, snapTolerance);
-        if (refreshed) {
+        const refreshed = findSnapPointOnSegment(currentSnap.point, latestLines, snapTolerance);
+        if (refreshed && refreshed.kind === "segment" && refreshed.lineId) {
           endSnap = {
             type: "segment",
             point: refreshed.point,
             lineId: refreshed.lineId,
             t: refreshed.t,
           };
+        } else if (refreshed?.kind === "endpoint") {
+          endSnap = { type: "endpoint", point: refreshed.point };
         }
       }
     }
@@ -702,22 +707,25 @@ export function CanvasStage() {
       return;
     }
 
-    try {
-      updateLine(editingLineId, mm);
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Unable to update length");
-      return;
-    }
-
-    const latestLines = useAppStore.getState().lines;
-    const stillExists = latestLines.some((line) => line.id === editingLineId);
-    if (!stillExists) {
-      setSelectedLineId(null);
-    }
+    const targetLineId = editingLineId;
 
     setEditingLineId(null);
     setEditValue("");
     setEditError(null);
+
+    queueMicrotask(() => {
+      try {
+        updateLine(targetLineId, mm, "b", { allowMerge: false });
+        const latestLines = useAppStore.getState().lines;
+        const stillExists = latestLines.some((line) => line.id === targetLineId);
+        if (!stillExists) {
+          setSelectedLineId(null);
+        }
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : "Unable to update length");
+        setEditingLineId(targetLineId);
+      }
+    });
   };
 
   const handleUnitChange = (unit: "mm" | "m") => {
