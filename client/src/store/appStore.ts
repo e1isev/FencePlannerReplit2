@@ -18,16 +18,17 @@ import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 
-const SNAP_TOLERANCE_PX = 0.1;
+const ENDPOINT_WELD_EPS_PX = 2;
 const MERGE_ANGLE_TOL_DEG = 2;
-const MERGE_ENDPOINT_EPS_PX = 0.25;
 export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
 export const MAX_RUN_MM = 200_000;
 const HISTORY_LIMIT = 100;
 const LEFTOVER_WARN_THRESHOLD = 1_000;
 
 const pointsMatch = (p1: Point, p2: Point) => {
-  return Math.abs(p1.x - p2.x) < SNAP_TOLERANCE_PX && Math.abs(p1.y - p2.y) < SNAP_TOLERANCE_PX;
+  return (
+    Math.abs(p1.x - p2.x) < ENDPOINT_WELD_EPS_PX && Math.abs(p1.y - p2.y) < ENDPOINT_WELD_EPS_PX
+  );
 };
 
 const degToRad = (deg: number) => (deg * Math.PI) / 180;
@@ -248,7 +249,7 @@ const mergeCollinearLines = (
         continue;
       }
 
-      const sharedEndpoint = linesShareEndpoint(primary, candidate, MERGE_ENDPOINT_EPS_PX);
+      const sharedEndpoint = linesShareEndpoint(primary, candidate, ENDPOINT_WELD_EPS_PX);
       if (!sharedEndpoint.shared) {
         continue;
       }
@@ -258,7 +259,7 @@ const mergeCollinearLines = (
         continue;
       }
 
-      const junctionDegree = countLinesAtPoint(updatedLines, sharedEndpoint.sharedPoint, MERGE_ENDPOINT_EPS_PX);
+      const junctionDegree = countLinesAtPoint(updatedLines, sharedEndpoint.sharedPoint, ENDPOINT_WELD_EPS_PX);
       if (junctionDegree !== 2) {
         continue;
       }
@@ -299,11 +300,11 @@ const mergeConnectedLines = (
         }
 
         const [baseLine, otherLine] = orderLinesForMerge(lineA, lineB, primaryId, lineOrder);
-        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, MERGE_ENDPOINT_EPS_PX);
+        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, ENDPOINT_WELD_EPS_PX);
         if (!sharedEndpoint.shared) continue;
 
         if (angleBetweenLinesAbs(baseLine, otherLine) > degToRad(MERGE_ANGLE_TOL_DEG)) continue;
-        if (!segmentsOverlapOnLine(baseLine, otherLine, MERGE_ENDPOINT_EPS_PX)) continue;
+        if (!segmentsOverlapOnLine(baseLine, otherLine, ENDPOINT_WELD_EPS_PX)) continue;
 
         const mergedLine = buildMergedLine(baseLine, otherLine, sharedEndpoint, mmPerPixel);
         updatedLines = updatedLines
@@ -325,44 +326,53 @@ const weldSharedEndpoints = (
   lineOrder: Map<string, number>,
   mmPerPixel: number
 ) => {
-  let weldedLines = [...lines];
-  let updated = true;
+  const lineLookup = new Map(lines.map((line) => [line.id, line]));
+  const canonicalPoints: Array<{ point: Point; lineIds: Set<string> }> = [];
 
-  while (updated) {
-    updated = false;
-    outer: for (let i = 0; i < weldedLines.length; i++) {
-      for (let j = i + 1; j < weldedLines.length; j++) {
-        const lineA = weldedLines[i];
-        const lineB = weldedLines[j];
+  const canShareWith = (lineIds: Set<string>, line: FenceLine) => {
+    let allowed = true;
+    lineIds.forEach((otherId) => {
+      if (!allowed) return;
+      const otherLine = lineLookup.get(otherId);
+      if (otherLine && isMergeBlocked(line, otherLine)) {
+        allowed = false;
+      }
+    });
+    return allowed;
+  };
 
-        if (isMergeBlocked(lineA, lineB)) continue;
+  const findOrCreateCanonical = (point: Point, line: FenceLine): Point => {
+    for (const canonical of canonicalPoints) {
+      if (!canShareWith(canonical.lineIds, line)) continue;
 
-        const [baseLine, otherLine] = orderLinesForMerge(lineA, lineB, primaryId, lineOrder);
-        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, MERGE_ENDPOINT_EPS_PX);
-        if (!sharedEndpoint.shared) continue;
-
-        const canonicalPoint = sharedEndpoint.line1End === "a" ? baseLine.a : baseLine.b;
-        const snappedBase = snapLineEndpoint(baseLine, sharedEndpoint.line1End, canonicalPoint, mmPerPixel);
-        const snappedOther = snapLineEndpoint(
-          otherLine,
-          sharedEndpoint.line2End,
-          canonicalPoint,
-          mmPerPixel
-        );
-
-        weldedLines = weldedLines.map((line) => {
-          if (line.id === snappedBase.id) return snappedBase;
-          if (line.id === snappedOther.id) return snappedOther;
-          return line;
-        });
-
-        updated = true;
-        break outer;
+      const dist = Math.hypot(canonical.point.x - point.x, canonical.point.y - point.y);
+      if (dist <= ENDPOINT_WELD_EPS_PX) {
+        canonical.lineIds.add(line.id);
+        return canonical.point;
       }
     }
-  }
 
-  return weldedLines;
+    const newCanonical = { point, lineIds: new Set<string>([line.id]) };
+    canonicalPoints.push(newCanonical);
+    return point;
+  };
+
+  const snappedLines = lines.map((line) => {
+    const canonicalA = findOrCreateCanonical(line.a, line);
+    const canonicalB = findOrCreateCanonical(line.b, line);
+    const endpointsChanged = canonicalA !== line.a || canonicalB !== line.b;
+
+    if (!endpointsChanged) return line;
+
+    return {
+      ...line,
+      a: canonicalA,
+      b: canonicalB,
+      length_mm: Math.hypot(canonicalB.x - canonicalA.x, canonicalB.y - canonicalA.y) * mmPerPixel,
+    };
+  });
+
+  return snappedLines;
 };
 
 interface AppState {
@@ -488,12 +498,12 @@ export const useAppStore = create<AppState>()(
         const target = lines[targetIndex];
 
         const distToA = Math.hypot(splitPoint.x - target.a.x, splitPoint.y - target.a.y);
-        if (distToA <= MERGE_ENDPOINT_EPS_PX) {
+        if (distToA <= ENDPOINT_WELD_EPS_PX) {
           return target.a;
         }
 
         const distToB = Math.hypot(splitPoint.x - target.b.x, splitPoint.y - target.b.y);
-        if (distToB <= MERGE_ENDPOINT_EPS_PX) {
+        if (distToB <= ENDPOINT_WELD_EPS_PX) {
           return target.b;
         }
 
@@ -914,6 +924,15 @@ export const useAppStore = create<AppState>()(
           allPanels.push(...result.segments);
           allNewLeftovers.push(...result.newLeftovers);
           panelPositionsMap.set(line.id, result.panelPositions);
+
+          if (isDev && line.length_mm > PANEL_LENGTH_MM * 1.5 && result.panelPositions.length === 0) {
+            console.warn("No panel positions generated for long run", {
+              runId: line.id,
+              length_mm: line.length_mm,
+              mmPerPixel: effectiveMmPerPixel,
+            });
+          }
+
           result.warnings.forEach((text) => {
             allWarnings.push({
               id: generateId("warn"),
