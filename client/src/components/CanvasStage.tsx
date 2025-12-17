@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
-import { useAppStore } from "@/store/appStore";
+import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint } from "@/geometry/snapping";
 import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
@@ -56,6 +56,8 @@ export function CanvasStage() {
   const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [labelUnit, setLabelUnit] = useState<"mm" | "m">("mm");
+  const [editError, setEditError] = useState<string | null>(null);
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
@@ -535,7 +537,9 @@ export function CanvasStage() {
         setSelectedLineId(lineId);
       } else {
         setEditingLineId(lineId);
-        setEditValue((currentLength / 1000).toFixed(1));
+        setLabelUnit("mm");
+        setEditValue(currentLength.toFixed(0));
+        setEditError(null);
       }
     }
   };
@@ -558,16 +562,92 @@ export function CanvasStage() {
     }
   };
 
-  const handleLabelSubmit = () => {
-    if (editingLineId && editValue) {
-      const metres = parseFloat(editValue);
-      if (!isNaN(metres) && metres > 0) {
-        updateLine(editingLineId, metres * 1000);
+  const parseLengthInput = useCallback(
+    (value: string, unit: "mm" | "m") => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return { mm: null, error: "Enter a value" };
       }
+
+      const numeric = Number(trimmed);
+      if (!Number.isFinite(numeric)) {
+        return { mm: null, error: "Enter a valid number" };
+      }
+      if (numeric <= 0) {
+        return { mm: null, error: "Value must be greater than zero" };
+      }
+
+      const mm = unit === "m" ? numeric * 1000 : numeric;
+      if (mm < MIN_RUN_MM) {
+        return {
+          mm: null,
+          error: `Value too small. Minimum is ${(MIN_RUN_MM / 1000).toFixed(2)} m`,
+        };
+      }
+      if (mm > MAX_RUN_MM) {
+        return { mm: null, error: "Value too large, check units" };
+      }
+
+      return { mm };
+    },
+    []
+  );
+
+  const handleLabelSubmit = () => {
+    if (!editingLineId) return;
+
+    const { mm, error } = parseLengthInput(editValue, labelUnit);
+    if (!mm || error) {
+      setEditError(error ?? "Enter a value");
+      return;
     }
+
+    try {
+      updateLine(editingLineId, mm);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Unable to update length");
+      return;
+    }
+
+    const latestLines = useAppStore.getState().lines;
+    const stillExists = latestLines.some((line) => line.id === editingLineId);
+    if (!stillExists) {
+      setSelectedLineId(null);
+    }
+
     setEditingLineId(null);
     setEditValue("");
+    setEditError(null);
   };
+
+  const handleUnitChange = (unit: "mm" | "m") => {
+    if (unit === labelUnit) return;
+    const numeric = Number(editValue);
+    let convertedValue = editValue;
+
+    if (Number.isFinite(numeric)) {
+      const mmValue = labelUnit === "m" ? numeric * 1000 : numeric;
+      convertedValue = unit === "m" ? (mmValue / 1000).toString() : mmValue.toString();
+    }
+
+    setLabelUnit(unit);
+    setEditValue(convertedValue);
+    setEditError(null);
+  };
+
+  const validationResult = parseLengthInput(editValue, labelUnit);
+  const inlineError = editError ?? validationResult.error;
+
+  const helperText = (() => {
+    const numeric = Number(editValue);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    const mmValue = labelUnit === "m" ? numeric * 1000 : numeric;
+    const metresValue = mmValue / 1000;
+
+    return labelUnit === "m"
+      ? `= ${mmValue.toLocaleString()} mm`
+      : `= ${metresValue.toFixed(3)} m`;
+  })();
 
   const gridLines: JSX.Element[] = [];
 
@@ -851,27 +931,53 @@ export function CanvasStage() {
 
       {editingLineId && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white p-4 rounded-lg shadow-lg border border-slate-200">
-          <input
-            type="number"
-            step="0.1"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleLabelSubmit();
-              if (e.key === "Escape") {
-                setEditingLineId(null);
-                setEditValue("");
-              }
-            }}
-            className="px-3 py-2 border border-slate-300 rounded-md text-sm font-mono w-24"
-            autoFocus
-            data-testid="input-dimension"
-          />
-          <div className="flex gap-2 mt-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={editValue}
+              onChange={(e) => {
+                setEditValue(e.target.value);
+                setEditError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleLabelSubmit();
+                if (e.key === "Escape") {
+                  setEditingLineId(null);
+                  setEditValue("");
+                  setEditError(null);
+                }
+              }}
+              className="px-3 py-2 border border-slate-300 rounded-md text-sm font-mono w-28"
+              autoFocus
+              data-testid="input-dimension"
+              placeholder="Length"
+            />
+            <div className="flex rounded-md border border-slate-300 overflow-hidden text-xs">
+              <button
+                type="button"
+                className={`px-2 py-1 ${labelUnit === "mm" ? "bg-primary text-primary-foreground" : "bg-white text-slate-700"}`}
+                onClick={() => handleUnitChange("mm")}
+              >
+                mm
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-1 ${labelUnit === "m" ? "bg-primary text-primary-foreground" : "bg-white text-slate-700"}`}
+                onClick={() => handleUnitChange("m")}
+              >
+                m
+              </button>
+            </div>
+          </div>
+          {helperText && <p className="text-xs text-slate-600 mt-2 font-mono">{helperText}</p>}
+          {inlineError && <p className="text-xs text-red-600 mt-1">{inlineError}</p>}
+          <div className="flex gap-2 mt-3">
             <button
               onClick={handleLabelSubmit}
-              className="px-3 py-1 bg-primary text-primary-foreground rounded text-xs"
+              className="px-3 py-1 bg-primary text-primary-foreground rounded text-xs disabled:opacity-60"
               data-testid="button-submit-dimension"
+              disabled={Boolean(validationResult.error)}
             >
               Apply
             </button>
@@ -879,6 +985,7 @@ export function CanvasStage() {
               onClick={() => {
                 setEditingLineId(null);
                 setEditValue("");
+                setEditError(null);
               }}
               className="px-3 py-1 bg-slate-200 rounded text-xs"
               data-testid="button-cancel-dimension"
