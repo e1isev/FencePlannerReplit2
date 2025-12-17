@@ -50,34 +50,88 @@ const COLORS: { color: DeckColor; label: string; image: string }[] = [
 
 export function DeckingLeftPanel() {
   const {
-    selectedColor,
-    boardDirection,
-    boardPlan,
-    setSelectedColor,
-    toggleBoardDirection,
-    getCuttingList,
-    polygon,
-    pictureFrameEnabled,
-    pictureFrameBoardWidthMm,
-    pictureFrameGapMm,
-    pictureFrameWarning,
-    fasciaEnabled,
-    fasciaThicknessMm,
-    setPictureFrameEnabled,
-    setPictureFrameWidth,
-    setPictureFrameGap,
-    setFasciaEnabled,
-    setFasciaThickness,
+    decks,
+    activeDeckId,
+    setActiveDeck,
+    updateActiveDeck,
+    calculateBoardsForDeck,
+    getCuttingListForDeck,
+    saveHistory,
   } = useDeckingStore();
 
-  const cuttingList = getCuttingList();
-  const hasPolygon = polygon.length >= 3;
+  const activeDeck = decks.find((deck) => deck.id === activeDeckId) ?? null;
+  const cuttingList = getCuttingListForDeck(activeDeckId);
+  const hasPolygon = Boolean(activeDeck && activeDeck.polygon.length >= 3);
+
+  const handleBoardDirectionToggle = () => {
+    if (!activeDeck) return;
+    const nextDirection: "horizontal" | "vertical" =
+      activeDeck.boardDirection === "horizontal" ? "vertical" : "horizontal";
+    updateActiveDeck({ boardDirection: nextDirection });
+    calculateBoardsForDeck(activeDeck.id);
+    saveHistory();
+  };
+
+  const handleFinishToggle = (key: "pictureFrameEnabled" | "fasciaEnabled" | "breakerBoardsEnabled") => {
+    if (!activeDeck) return;
+    updateActiveDeck({
+      finishes: { ...activeDeck.finishes, [key]: !activeDeck.finishes[key] },
+    });
+    calculateBoardsForDeck(activeDeck.id);
+    saveHistory();
+  };
+
+  const handlePictureFrameWidthChange = (widthMm: number) => {
+    if (!activeDeck || widthMm <= 0) return;
+    updateActiveDeck({ pictureFrameBoardWidthMm: widthMm });
+    calculateBoardsForDeck(activeDeck.id);
+    saveHistory();
+  };
+
+  const handlePictureFrameGapChange = (gapMm: number) => {
+    if (!activeDeck || gapMm < 0) return;
+    updateActiveDeck({ pictureFrameGapMm: gapMm });
+    calculateBoardsForDeck(activeDeck.id);
+    saveHistory();
+  };
+
+  const handleFasciaThicknessChange = (thicknessMm: number) => {
+    if (!activeDeck || thicknessMm <= 0) return;
+    updateActiveDeck({ fasciaThicknessMm: thicknessMm });
+    calculateBoardsForDeck(activeDeck.id);
+    saveHistory();
+  };
 
   return (
     <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
       <div className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold mb-4">Decking Planner</h2>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+            Decks
+          </Label>
+          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 text-xs text-slate-600">
+            {decks.length === 0 ? (
+              <p className="text-slate-500">Draw and close a shape to add a deck.</p>
+            ) : (
+              decks.map((deck) => (
+                <button
+                  key={deck.id}
+                  className={`w-full text-left px-3 py-2 rounded-md border ${
+                    deck.id === activeDeckId
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 hover:border-blue-200"
+                  }`}
+                  onClick={() => setActiveDeck(deck.id)}
+                >
+                  {deck.name}
+                </button>
+              ))
+            )}
+          </div>
         </div>
 
         <div>
@@ -102,14 +156,19 @@ export function DeckingLeftPanel() {
             {COLORS.map((colorOption) => (
               <button
                 key={colorOption.color}
-                onClick={() => setSelectedColor(colorOption.color)}
+                onClick={() => {
+                  if (!activeDeck) return;
+                  updateActiveDeck({ selectedColor: colorOption.color });
+                  saveHistory();
+                }}
                 className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${
-                  selectedColor === colorOption.color
+                  activeDeck?.selectedColor === colorOption.color
                     ? "border-blue-500 ring-2 ring-blue-200"
                     : "border-slate-200 hover-elevate"
                 }`}
                 title={colorOption.label}
                 data-testid={`button-color-${colorOption.color}`}
+                disabled={!activeDeck}
               >
                 <span
                   aria-hidden
@@ -125,7 +184,7 @@ export function DeckingLeftPanel() {
             ))}
           </div>
           <p className="text-xs text-slate-600 mt-2 font-medium">
-            {COLORS.find((c) => c.color === selectedColor)?.label}
+            {COLORS.find((c) => c.color === activeDeck?.selectedColor)?.label ?? "Select a deck to set color"}
           </p>
         </div>
 
@@ -136,15 +195,16 @@ export function DeckingLeftPanel() {
           <Button
             variant="outline"
             size="sm"
-            onClick={toggleBoardDirection}
+            onClick={handleBoardDirectionToggle}
             className="w-full justify-start text-xs"
             data-testid="button-toggle-direction"
+            disabled={!activeDeck}
           >
             <RotateCw className="w-4 h-4 mr-2" />
             Rotate 90°
           </Button>
           <p className="text-xs text-slate-500 mt-2">
-            Current: {boardDirection === "horizontal" ? "Horizontal" : "Vertical"}
+            Current: {activeDeck?.boardDirection === "vertical" ? "Vertical" : "Horizontal"}
           </p>
         </div>
 
@@ -161,8 +221,8 @@ export function DeckingLeftPanel() {
               <input
                 type="checkbox"
                 className="h-4 w-4"
-                checked={pictureFrameEnabled}
-                onChange={(e) => setPictureFrameEnabled(e.target.checked)}
+                checked={activeDeck?.finishes.pictureFrameEnabled ?? false}
+                onChange={() => handleFinishToggle("pictureFrameEnabled")}
                 disabled={!hasPolygon}
               />
             </div>
@@ -172,11 +232,11 @@ export function DeckingLeftPanel() {
               <Input
                 type="number"
                 inputMode="numeric"
-                value={pictureFrameBoardWidthMm}
+                value={activeDeck?.pictureFrameBoardWidthMm ?? 0}
                 min={1}
                 step={1}
-                onChange={(e) => setPictureFrameWidth(Number(e.target.value))}
-                disabled={!hasPolygon || !pictureFrameEnabled}
+                onChange={(e) => handlePictureFrameWidthChange(Number(e.target.value))}
+                disabled={!hasPolygon || !activeDeck?.finishes.pictureFrameEnabled}
                 className="h-8"
               />
             </div>
@@ -186,20 +246,34 @@ export function DeckingLeftPanel() {
               <Input
                 type="number"
                 inputMode="numeric"
-                value={pictureFrameGapMm}
+                value={activeDeck?.pictureFrameGapMm ?? 0}
                 min={0}
                 step={1}
-                onChange={(e) => setPictureFrameGap(Number(e.target.value))}
-                disabled={!hasPolygon || !pictureFrameEnabled}
+                onChange={(e) => handlePictureFrameGapChange(Number(e.target.value))}
+                disabled={!hasPolygon || !activeDeck?.finishes.pictureFrameEnabled}
                 className="h-8"
               />
             </div>
 
-            {pictureFrameWarning && (
+            {activeDeck?.pictureFrameWarning && (
               <div className="rounded bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px]">
-                {pictureFrameWarning}
+                {activeDeck.pictureFrameWarning}
               </div>
             )}
+
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-700">Breaker boards</p>
+                <p className="text-[11px] text-slate-500">Aligns joins and adds perpendicular boards.</p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={activeDeck?.finishes.breakerBoardsEnabled ?? false}
+                onChange={() => handleFinishToggle("breakerBoardsEnabled")}
+                disabled={!hasPolygon}
+              />
+            </div>
 
             <div className="border-t border-slate-100 pt-2">
               <div className="flex items-center justify-between gap-3">
@@ -210,8 +284,8 @@ export function DeckingLeftPanel() {
                 <input
                   type="checkbox"
                   className="h-4 w-4"
-                  checked={fasciaEnabled}
-                  onChange={(e) => setFasciaEnabled(e.target.checked)}
+                  checked={activeDeck?.finishes.fasciaEnabled ?? false}
+                  onChange={() => handleFinishToggle("fasciaEnabled")}
                   disabled={!hasPolygon}
                 />
               </div>
@@ -221,11 +295,11 @@ export function DeckingLeftPanel() {
                 <Input
                   type="number"
                   inputMode="numeric"
-                  value={fasciaThicknessMm}
+                  value={activeDeck?.fasciaThicknessMm ?? 0}
                   min={1}
                   step={1}
-                  onChange={(e) => setFasciaThickness(Number(e.target.value))}
-                  disabled={!hasPolygon || !fasciaEnabled}
+                  onChange={(e) => handleFasciaThicknessChange(Number(e.target.value))}
+                  disabled={!hasPolygon || !activeDeck?.finishes.fasciaEnabled}
                   className="h-8"
                 />
               </div>
@@ -237,31 +311,35 @@ export function DeckingLeftPanel() {
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Board Plan
           </Label>
-          {boardPlan ? (
+          {activeDeck?.boardPlan ? (
             <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs space-y-1">
               <div className="flex justify-between" data-testid="board-plan-area">
                 <span className="text-slate-600">Area</span>
-                <span className="font-semibold">{boardPlan.areaM2.toFixed(2)} m²</span>
+                <span className="font-semibold">{activeDeck.boardPlan.areaM2.toFixed(2)} m²</span>
               </div>
               <div className="flex justify-between" data-testid="board-plan-rows">
                 <span className="text-slate-600">Rows</span>
-                <span className="font-semibold">{boardPlan.numberOfRows}</span>
+                <span className="font-semibold">{activeDeck.boardPlan.numberOfRows}</span>
               </div>
               <div className="flex justify-between" data-testid="board-plan-total">
                 <span className="text-slate-600">Total boards</span>
-                <span className="font-semibold">{Math.ceil(boardPlan.totalBoards)}</span>
+                <span className="font-semibold">{Math.ceil(activeDeck.boardPlan.totalBoards)}</span>
               </div>
               <div className="flex justify-between" data-testid="board-plan-average">
                 <span className="text-slate-600">Avg boards / row</span>
-                <span className="font-semibold">{boardPlan.averageBoardsPerRow.toFixed(2)}</span>
+                <span className="font-semibold">
+                  {activeDeck.boardPlan.averageBoardsPerRow.toFixed(2)}
+                </span>
               </div>
               <div className="flex justify-between" data-testid="board-plan-waste">
                 <span className="text-slate-600">Estimated waste</span>
-                <span className="font-semibold">{Math.round(boardPlan.totalWasteMm)} mm</span>
+                <span className="font-semibold">{Math.round(activeDeck.boardPlan.totalWasteMm)} mm</span>
               </div>
               <div className="flex justify-between" data-testid="board-plan-overflow">
                 <span className="text-slate-600">Avg overhang used</span>
-                <span className="font-semibold">{boardPlan.averageOverflowMm.toFixed(1)} mm</span>
+                <span className="font-semibold">
+                  {activeDeck.boardPlan.averageOverflowMm.toFixed(1)} mm
+                </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-2">
                 Close the outline to see calculated runs and waste estimates.
@@ -300,7 +378,7 @@ export function DeckingLeftPanel() {
                 cuttingList.clips === 0 ? (
                   <tr className="border-b border-slate-100">
                     <td className="px-3 py-2 text-slate-400" colSpan={3}>
-                      Draw and close a shape to see the cutting list
+                      {activeDeck ? "Draw and close a shape to see the cutting list" : "Select a deck to see its cutting list"}
                     </td>
                   </tr>
                 ) : (

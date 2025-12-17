@@ -27,6 +27,7 @@ export interface Board {
   start: Point;
   end: Point;
   length: number;
+  kind?: "field" | "breaker" | "pictureFrame" | "fascia";
   runId?: string;
   segmentIndex?: number;
   segmentCount?: number;
@@ -70,22 +71,27 @@ export interface DeckingBoardPlan {
   areaM2: number;
 }
 
-export interface DeckingState {
+export interface DeckEntity {
+  id: string;
+  name: string;
   polygon: Point[];
   infillPolygon: Point[];
   boards: Board[];
+  breakerBoards: Board[];
   pictureFramePieces: Point[][];
   fasciaPieces: Point[][];
   selectedColor: DeckColor;
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
-  pictureFrameEnabled: boolean;
+  finishes: {
+    pictureFrameEnabled: boolean;
+    fasciaEnabled: boolean;
+    breakerBoardsEnabled: boolean;
+  };
   pictureFrameBoardWidthMm: number;
   pictureFrameGapMm: number;
   pictureFrameWarning: string | null;
-  fasciaEnabled: boolean;
   fasciaThicknessMm: number;
-  cornerConstraints: Record<number, CornerConstraint>;
   edgeConstraints: Record<number, EdgeConstraint>;
   baselineEdgeIndex: number | null;
 }

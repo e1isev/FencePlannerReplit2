@@ -5,7 +5,7 @@ import { useDeckingStore } from "@/store/deckingStore";
 
 export function DeckingToolbar() {
   const [, setLocation] = useLocation();
-  const { clear, undo, redo, history, historyIndex } = useDeckingStore();
+  const { clearAllDecks, undo, redo, history, historyIndex } = useDeckingStore();
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -26,7 +26,7 @@ export function DeckingToolbar() {
         <Button
           variant="outline"
           size="sm"
-          onClick={clear}
+          onClick={clearAllDecks}
           data-testid="button-clear-decking"
         >
           <Trash2 className="w-4 h-4 mr-2" />
