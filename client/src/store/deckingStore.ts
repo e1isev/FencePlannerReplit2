@@ -370,8 +370,8 @@ export const useDeckingStore = create<DeckingState>()(
 
         const newCornerConstraints = {
           ...constraintsForEdit,
-          [vertexIndex]: { mode: "user", angleDeg },
-        };
+          [vertexIndex]: { mode: "user" as const, angleDeg },
+        } satisfies Record<number, CornerConstraint>;
 
         const rotatedPolygon = applyCornerAngleRotateForward(
           polygon,
@@ -421,7 +421,10 @@ export const useDeckingStore = create<DeckingState>()(
       clearCornerAngle: (vertexIndex) => {
         const { cornerConstraints } = get();
         if (!cornerConstraints[vertexIndex]) return;
-        const newConstraints = { ...cornerConstraints, [vertexIndex]: { mode: "unlocked" } };
+        const newConstraints = {
+          ...cornerConstraints,
+          [vertexIndex]: { mode: "unlocked" as const },
+        } satisfies Record<number, CornerConstraint>;
         set({ cornerConstraints: newConstraints });
         get().saveHistory();
       },
