@@ -19,10 +19,11 @@ function normalise(x: number, y: number) {
   return { x: x / len, y: y / len };
 }
 
-export function getPostNeighbours(
-  pos: Point,
-  lines: FenceLine[]
-): Point[] {
+function normaliseAngleDeg(angle: number) {
+  return ((angle + 180) % 360 + 360) % 360 - 180;
+}
+
+export function getPostNeighbours(pos: Point, lines: FenceLine[]): Point[] {
   return lines
     .filter((line) => pointsEqual(line.a, pos) || pointsEqual(line.b, pos))
     .map((line) => (pointsEqual(line.a, pos) ? line.b : line.a));
@@ -45,7 +46,8 @@ function pointToSegmentDistanceSq(p: Point, a: Point, b: Point) {
 export function getPostAngleDeg(
   post: Point,
   neighbours: Array<Point>,
-  lines: FenceLine[] = []
+  lines: FenceLine[] = [],
+  category: PostCategory
 ): number {
   if (neighbours.length === 0) {
     if (lines.length === 0) {
@@ -67,13 +69,35 @@ export function getPostAngleDeg(
 
     const dx = closestLine.b.x - closestLine.a.x;
     const dy = closestLine.b.y - closestLine.a.y;
-    return radToDeg(Math.atan2(dy, dx));
+    return normaliseAngleDeg(radToDeg(Math.atan2(dy, dx)));
   }
 
   if (neighbours.length === 1) {
     const dx = neighbours[0].x - post.x;
     const dy = neighbours[0].y - post.y;
-    return radToDeg(Math.atan2(dy, dx));
+    return normaliseAngleDeg(radToDeg(Math.atan2(dy, dx)));
+  }
+
+  if (category === "corner" && neighbours.length === 2) {
+    const LENGTH_TIE_MM = 50;
+    const a = neighbours[0];
+    const b = neighbours[1];
+
+    const v1 = { x: a.x - post.x, y: a.y - post.y };
+    const v2 = { x: b.x - post.x, y: b.y - post.y };
+
+    const len1 = Math.hypot(v1.x, v1.y);
+    const len2 = Math.hypot(v2.x, v2.y);
+
+    let primary = v1;
+
+    if (Math.abs(len1 - len2) > LENGTH_TIE_MM) {
+      primary = len1 >= len2 ? v1 : v2;
+    } else {
+      primary = Math.abs(v1.y) <= Math.abs(v2.y) ? v1 : v2;
+    }
+
+    return normaliseAngleDeg(radToDeg(Math.atan2(primary.y, primary.x)));
   }
 
   const a = neighbours[0];
@@ -86,10 +110,10 @@ export function getPostAngleDeg(
   const sy = v1.y + v2.y;
 
   if (Math.hypot(sx, sy) < 1e-6) {
-    return radToDeg(Math.atan2(v1.y, v1.x));
+    return normaliseAngleDeg(radToDeg(Math.atan2(v1.y, v1.x)));
   }
 
-  return radToDeg(Math.atan2(sy, sx));
+  return normaliseAngleDeg(radToDeg(Math.atan2(sy, sx)));
 }
 
 export function categorizePost(
