@@ -40,6 +40,14 @@ export interface FenceLine {
   locked_90: boolean;
   even_spacing: boolean;
   gateId?: string;
+  /**
+   * Optional metadata describing gates or openings along a line. Lines containing any opening or
+   * gate details should be treated as non-mergeable to preserve topology.
+   */
+  isGateLine?: boolean;
+  openings?: Array<{ id?: string; type?: string; gateId?: string; openingId?: string; [key: string]: unknown }>;
+  gates?: Array<{ id?: string; type?: string; gateId?: string; openingId?: string; [key: string]: unknown }>;
+  segments?: Array<{ id?: string; gateId?: string; openingId?: string; type?: string }>;
 }
 
 export interface PanelSegment {
