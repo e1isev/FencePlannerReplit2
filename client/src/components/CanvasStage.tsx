@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
+import type { KonvaEventObject } from "konva/lib/Node";
+import type { Stage as KonvaStage } from "konva/lib/Stage";
 import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import {
+  ENDPOINT_SNAP_RADIUS_MM,
   findSnapOnLines,
   findSnapPoint,
   findSnapPointOnSegment,
@@ -22,8 +25,8 @@ const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 const LABEL_OFFSET_PX = 14;
 const MIN_LINE_HIT_PX = 10;
-const ENDPOINT_SNAP_PX = 14;
 const SEGMENT_SNAP_PX = 10;
+const DRAG_THRESHOLD_PX = 4;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
@@ -32,6 +35,8 @@ type SnapTarget =
   | { type: "endpoint"; point: Point }
   | { type: "segment"; point: Point; lineId: string; t: number }
   | { type: "free"; point: Point };
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function worldToScreen(point: Point, camera: CameraState): ScreenPoint {
   return {
@@ -49,6 +54,7 @@ function screenToWorld(point: ScreenPoint, camera: CameraState): Point {
 
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<KonvaStage | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [mapPanOffset, setMapPanOffset] = useState({ x: 0, y: 0 });
   const [scale] = useState(1);
@@ -80,6 +86,8 @@ export function CanvasStage() {
   const baseMetersPerPixelRef = useRef<number | null>(null);
   const mapMetersPerPixelRef = useRef<number | null>(null);
   const calibrationFactorRef = useRef(1);
+  const pointerDownWorldRef = useRef<Point | null>(null);
+  const didDragRef = useRef(false);
   const isDev = import.meta.env.DEV;
 
   const {
@@ -115,6 +123,24 @@ export function CanvasStage() {
     offsetX: -viewOffset.x / viewScale,
     offsetY: -viewOffset.y / viewScale,
   };
+
+  const getWorldPointFromEvent = useCallback(
+    (e: KonvaEventObject<MouseEvent | TouchEvent>): Point | null => {
+      const stage = stageRef.current;
+      if (!stage) return null;
+
+      const isPost = e.target?.hasName?.("post");
+      if (isPost) {
+        return { x: e.target.x(), y: e.target.y() };
+      }
+
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return null;
+
+      return screenToWorld(pointer, cameraState);
+    },
+    [cameraState]
+  );
 
   const handleZoomChange = useCallback((zoom: number) => {
     setMapZoom(zoom);
@@ -215,8 +241,11 @@ export function CanvasStage() {
     });
   };
 
-  const snapTolerance = ENDPOINT_SNAP_PX;
-  const segmentSnapTolPx = SEGMENT_SNAP_PX;
+  const effectiveMmPerPixel = mmPerPixel || 1;
+  const rawSnapTolerance = ENDPOINT_SNAP_RADIUS_MM / effectiveMmPerPixel;
+  const snapTolerance = clamp(rawSnapTolerance, 10, 250);
+  const segmentSnapTolPx = clamp(snapTolerance * (SEGMENT_SNAP_PX / 14), 6, snapTolerance);
+  const dragThresholdWorld = DRAG_THRESHOLD_PX / cameraState.scale;
 
   const resolveSnapTarget = useCallback(
     (point: Point): SnapTarget => {
@@ -286,206 +315,232 @@ export function CanvasStage() {
     [handleCalibrationComplete]
   );
 
-  const handleMouseDown = (e: any) => {
-    const stage = e.target.getStage();
-    if (!stage) return;
-
-    const container = stage.container();
-    const rect = container.getBoundingClientRect();
-    const { clientX, clientY, button } = e.evt;
-
-    const pointerScreen = {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-
-    if (button === 2) {
-      setIsPanning(true);
-      setLastPanPos(pointerScreen);
-      return;
-    }
-
-    const isStageBackground = e.target === stage;
-    const isPostShape = e.target.hasName && e.target.hasName("post");
-
-    if (!isStageBackground && !isPostShape) return;
-
-    const point = isPostShape
-      ? { x: e.target.x(), y: e.target.y() }
-      : screenToWorld(pointerScreen, cameraState);
-
-    if (isCalibrating) {
-      registerCalibrationPoint(point);
-      setIsDrawing(false);
-      setStartPoint(null);
-      setCurrentPoint(null);
-      setStartSnap(null);
-      setCurrentSnap(null);
-      return;
-    }
-
-    const snap = resolveSnapTarget(point);
-    setHoverSnap(snap);
-    const snappedPoint = snap.point;
-
-    if (selectedGateType) {
-      const clickedLine = lines.find((line) => {
-        const dist = pointToLineDistance(point, line.a, line.b);
-        return dist < 10 / cameraState.scale;
-      });
-
-      if (clickedLine && !clickedLine.gateId) {
-        addGate(clickedLine.id, point);
-      }
-      return;
-    }
-
-    setIsDrawing(true);
-    setStartPoint(snappedPoint);
-    setCurrentPoint(snappedPoint);
-    setStartSnap(snap);
-    setCurrentSnap(snap);
-  };
-
-  const handleMouseMove = (e: any) => {
-    const stage = e.target.getStage();
-    if (!stage) return;
-
-    const container = stage.container();
-    const rect = container.getBoundingClientRect();
-    const { clientX, clientY } = e.evt;
-
-    const pointerScreen = {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-
-    if (isPanning && lastPanPos) {
-      const deltaX = pointerScreen.x - lastPanPos.x;
-      const deltaY = pointerScreen.y - lastPanPos.y;
-      setPanByDelta({ x: -deltaX, y: -deltaY });
-      setLastPanPos(pointerScreen);
-      return;
-    }
-
-    const point = screenToWorld(pointerScreen, cameraState);
-    setHoverSnap(resolveSnapTarget(point));
-
-    if (!isDrawing || !startPoint) return;
-
-    const snap = resolveSnapTarget(point);
-
-    setCurrentPoint(snap.point);
-    setCurrentSnap(snap);
-  };
-
-  const finalizeDrawing = useCallback(() => {
-    if (!isDrawing || !startPoint || !currentPoint) {
-      setIsDrawing(false);
-      setStartPoint(null);
-      setCurrentPoint(null);
-      setStartSnap(null);
-      setCurrentSnap(null);
-      return;
-    }
-
-    const hasMovement =
-      startPoint.x !== currentPoint.x || startPoint.y !== currentPoint.y;
-
-    if (!hasMovement) {
-      setIsDrawing(false);
-      setStartPoint(null);
-      setCurrentPoint(null);
-      setStartSnap(null);
-      setCurrentSnap(null);
-      return;
-    }
-
-    let latestLines = useAppStore.getState().lines;
-
-    const applySegmentSnap = (snap: SnapTarget | null, fallbackPoint: Point) => {
-      if (!snap || snap.type !== "segment") {
-        return snap ? snap.point : fallbackPoint;
-      }
-
-      const result = splitLineAtPoint(snap.lineId, snap.point);
-      latestLines = useAppStore.getState().lines;
-
-      if (result) {
-        return result;
-      }
-
-      const line = latestLines.find((l) => l.id === snap.lineId);
-      if (line) {
-        const distA = Math.hypot(snap.point.x - line.a.x, snap.point.y - line.a.y);
-        const distB = Math.hypot(snap.point.x - line.b.x, snap.point.y - line.b.y);
-        return distA <= distB ? line.a : line.b;
-      }
-
-      return fallbackPoint;
-    };
-
-    let resolvedStart = startPoint;
-    let endSnap = currentSnap;
-
-    if (startSnap?.type === "segment") {
-      resolvedStart = applySegmentSnap(startSnap, startPoint);
-
-      if (currentSnap?.type === "segment" && currentSnap.lineId === startSnap.lineId) {
-        const refreshed = findSnapPointOnSegment(
-          currentSnap.point,
-          latestLines,
-          segmentSnapTolPx
-        );
-        if (refreshed && refreshed.kind === "segment" && refreshed.lineId) {
-          endSnap = {
-            type: "segment",
-            point: refreshed.point,
-            lineId: refreshed.lineId,
-            t: refreshed.t,
-          };
-        } else if (refreshed?.kind === "endpoint") {
-          endSnap = { type: "endpoint", point: refreshed.point };
-        }
-      }
-    }
-
-    const resolvedEnd =
-      endSnap?.type === "segment"
-        ? applySegmentSnap(endSnap, currentPoint)
-        : endSnap
-          ? endSnap.point
-          : currentPoint;
-
-    if (resolvedStart.x !== resolvedEnd.x || resolvedStart.y !== resolvedEnd.y) {
-      addLine(resolvedStart, resolvedEnd);
-    }
-
+  const resetDrawingState = useCallback(() => {
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
     setStartSnap(null);
     setCurrentSnap(null);
-  }, [
-    addLine,
-    currentPoint,
-    currentSnap,
-    isDrawing,
-    segmentSnapTolPx,
-    splitLineAtPoint,
-    startPoint,
-    startSnap,
-  ]);
+    pointerDownWorldRef.current = null;
+    didDragRef.current = false;
+  }, []);
+
+  const finalizeDrawing = useCallback(
+    (overrides?: {
+      startPoint?: Point | null;
+      startSnap?: SnapTarget | null;
+      currentPoint?: Point | null;
+      currentSnap?: SnapTarget | null;
+    }) => {
+      const resolvedStart = overrides?.startPoint ?? startPoint;
+      const resolvedEnd = overrides?.currentPoint ?? currentPoint;
+      let resolvedStartSnap = overrides?.startSnap ?? startSnap;
+      let resolvedEndSnap = overrides?.currentSnap ?? currentSnap;
+
+      if (!isDrawing || !resolvedStart || !resolvedEnd) {
+        resetDrawingState();
+        return;
+      }
+
+      const hasMovement = resolvedStart.x !== resolvedEnd.x || resolvedStart.y !== resolvedEnd.y;
+
+      if (!hasMovement) {
+        resetDrawingState();
+        return;
+      }
+
+      let latestLines = useAppStore.getState().lines;
+
+      const applySegmentSnap = (snap: SnapTarget | null, fallbackPoint: Point) => {
+        if (!snap || snap.type !== "segment") {
+          return snap ? snap.point : fallbackPoint;
+        }
+
+        const result = splitLineAtPoint(snap.lineId, snap.point);
+        latestLines = useAppStore.getState().lines;
+
+        if (result) {
+          return result;
+        }
+
+        const line = latestLines.find((l) => l.id === snap.lineId);
+        if (line) {
+          const distA = Math.hypot(snap.point.x - line.a.x, snap.point.y - line.a.y);
+          const distB = Math.hypot(snap.point.x - line.b.x, snap.point.y - line.b.y);
+          return distA <= distB ? line.a : line.b;
+        }
+
+        return fallbackPoint;
+      };
+
+      if (resolvedStartSnap?.type === "segment") {
+        const startLineId = resolvedStartSnap.lineId;
+        resolvedStartSnap = {
+          ...resolvedStartSnap,
+          point: applySegmentSnap(resolvedStartSnap, resolvedStart),
+        } as SnapTarget;
+
+        if (resolvedEndSnap?.type === "segment" && resolvedEndSnap.lineId === startLineId) {
+          const refreshed = findSnapPointOnSegment(resolvedEndSnap.point, latestLines, segmentSnapTolPx);
+          if (refreshed && refreshed.kind === "segment" && refreshed.lineId) {
+            resolvedEndSnap = {
+              type: "segment",
+              point: refreshed.point,
+              lineId: refreshed.lineId,
+              t: refreshed.t ?? 0,
+            };
+          } else if (refreshed?.kind === "endpoint") {
+            resolvedEndSnap = { type: "endpoint", point: refreshed.point };
+          }
+        }
+      }
+
+      const finalStart = resolvedStartSnap?.type === "segment" ? resolvedStartSnap.point : resolvedStart;
+      const finalEnd =
+        resolvedEndSnap?.type === "segment"
+          ? applySegmentSnap(resolvedEndSnap, resolvedEnd)
+          : resolvedEndSnap
+            ? resolvedEndSnap.point
+            : resolvedEnd;
+
+      if (finalStart.x !== finalEnd.x || finalStart.y !== finalEnd.y) {
+        addLine(finalStart, finalEnd);
+      }
+
+      resetDrawingState();
+    },
+    [
+      addLine,
+      currentPoint,
+      currentSnap,
+      isDrawing,
+      resetDrawingState,
+      segmentSnapTolPx,
+      splitLineAtPoint,
+      startPoint,
+      startSnap,
+    ]
+  );
+
+  const startDrawingFromSnap = (snap: SnapTarget) => {
+    setIsDrawing(true);
+    setStartPoint(snap.point);
+    setCurrentPoint(snap.point);
+    setStartSnap(snap);
+    setCurrentSnap(null);
+    didDragRef.current = false;
+  };
+
+  const trackPointerDrag = (point: Point, isPointerDown: boolean) => {
+    if (!isPointerDown || !pointerDownWorldRef.current) return;
+
+    const dist = Math.hypot(point.x - pointerDownWorldRef.current.x, point.y - pointerDownWorldRef.current.y);
+    if (dist > dragThresholdWorld) {
+      didDragRef.current = true;
+    }
+  };
+
+  const handleInteractionStart = (worldPoint: Point) => {
+    if (isCalibrating) {
+      registerCalibrationPoint(worldPoint);
+      resetDrawingState();
+      return;
+    }
+
+    const snap = resolveSnapTarget(worldPoint);
+    setHoverSnap(snap);
+
+    if (selectedGateType) {
+      const clickedLine = lines.find((line) => {
+        const dist = pointToLineDistance(worldPoint, line.a, line.b);
+        return dist < 10 / cameraState.scale;
+      });
+
+      if (clickedLine && !clickedLine.gateId) {
+        addGate(clickedLine.id, worldPoint);
+      }
+      return;
+    }
+
+    if (!isDrawing) {
+      startDrawingFromSnap(snap);
+      return;
+    }
+
+    setCurrentPoint(snap.point);
+    setCurrentSnap(snap);
+    finalizeDrawing({ currentPoint: snap.point, currentSnap: snap });
+  };
+
+  const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    const stage = stageRef.current ?? e.target.getStage();
+    if (!stage) return;
+
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    const { button } = e.evt;
+
+    if (button === 2) {
+      setIsPanning(true);
+      setLastPanPos(pointer);
+      return;
+    }
+
+    if (isPanning || editingLineId) return;
+
+    const worldPoint = getWorldPointFromEvent(e);
+    if (!worldPoint) return;
+
+    pointerDownWorldRef.current = worldPoint;
+    didDragRef.current = false;
+
+    handleInteractionStart(worldPoint);
+  };
+
+  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+    const stage = stageRef.current ?? e.target.getStage();
+    if (!stage) return;
+
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    if (isPanning && lastPanPos) {
+      const deltaX = pointer.x - lastPanPos.x;
+      const deltaY = pointer.y - lastPanPos.y;
+      setPanByDelta({ x: -deltaX, y: -deltaY });
+      setLastPanPos(pointer);
+      return;
+    }
+
+    const worldPoint = screenToWorld(pointer, cameraState);
+    setHoverSnap(resolveSnapTarget(worldPoint));
+
+    if (!isDrawing || !startPoint) return;
+
+    const snap = resolveSnapTarget(worldPoint);
+
+    setCurrentPoint(snap.point);
+    setCurrentSnap(snap);
+    trackPointerDrag(worldPoint, Boolean(e.evt.buttons & 1));
+  };
 
   const handleMouseUp = () => {
     if (isPanning) {
       setIsPanning(false);
       setLastPanPos(null);
       setPanByDelta(null);
+      pointerDownWorldRef.current = null;
+      didDragRef.current = false;
       return;
     }
 
-    finalizeDrawing();
+    if (isDrawing && didDragRef.current) {
+      finalizeDrawing();
+    }
+
+    pointerDownWorldRef.current = null;
+    didDragRef.current = false;
   };
 
   const getTouchDistance = (touch1: any, touch2: any) => {
@@ -501,81 +556,47 @@ export function CanvasStage() {
     };
   };
 
-  const handleTouchStart = (e: any) => {
+  const handleTouchStart = (e: KonvaEventObject<TouchEvent>) => {
     const touches = e.evt.touches;
-    
+    const stage = stageRef.current ?? e.target.getStage();
+    if (!stage) return;
+
     if (touches.length === 2) {
       e.evt.preventDefault();
       const distance = getTouchDistance(touches[0], touches[1]);
       const center = getTouchCenter(touches[0], touches[1]);
-      const stage = e.target.getStage();
       const rect = stage.container().getBoundingClientRect();
       const pointer = { x: center.x - rect.left, y: center.y - rect.top };
-      
+
       setLastTouchDistance(distance);
       setLastTouchCenter(pointer);
-      setIsDrawing(false);
-      setStartPoint(null);
+      resetDrawingState();
       setIsPanning(false);
       return;
     }
-    
+
     if (touches.length === 1) {
-      const touch = touches[0];
-      const stage = e.target.getStage();
-      const rect = stage.container().getBoundingClientRect();
-      const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+      const worldPoint = getWorldPointFromEvent(e);
+      if (!worldPoint) return;
 
-      const isStageBackground = e.target === stage;
-      const isPostShape = e.target.hasName && e.target.hasName("post");
+      if (isPanning || editingLineId) return;
 
-      if (!isStageBackground && !isPostShape) return;
+      pointerDownWorldRef.current = worldPoint;
+      didDragRef.current = false;
 
-      const point = isPostShape
-        ? { x: e.target.x(), y: e.target.y() }
-        : screenToWorld(pointer, cameraState);
-
-      if (isCalibrating) {
-        registerCalibrationPoint(point);
-        setIsDrawing(false);
-        setStartPoint(null);
-        setCurrentPoint(null);
-        setStartSnap(null);
-        setCurrentSnap(null);
-        return;
-      }
-
-      const snap = resolveSnapTarget(point);
-      const snapped = snap.point;
-
-      if (selectedGateType) {
-        const clickedLine = lines.find((line) => {
-          const dist = pointToLineDistance(point, line.a, line.b);
-          return dist < 20 / cameraState.scale;
-        });
-
-        if (clickedLine && !clickedLine.gateId) {
-          addGate(clickedLine.id, point);
-        }
-        return;
-      }
-
-      setIsDrawing(true);
-      setStartPoint(snapped);
-      setCurrentPoint(snapped);
-      setStartSnap(snap);
-      setCurrentSnap(snap);
+      handleInteractionStart(worldPoint);
     }
   };
 
-  const handleTouchMove = (e: any) => {
+  const handleTouchMove = (e: KonvaEventObject<TouchEvent>) => {
     e.evt.preventDefault();
     const touches = e.evt.touches;
+    const stage = stageRef.current ?? e.target.getStage();
+    if (!stage) return;
     
     if (touches.length === 2 && lastTouchDistance !== null && lastTouchCenter !== null) {
       const distance = getTouchDistance(touches[0], touches[1]);
       const center = getTouchCenter(touches[0], touches[1]);
-      const stage = e.target.getStage();
       const rect = stage.container().getBoundingClientRect();
       const pointer = { x: center.x - rect.left, y: center.y - rect.top };
 
@@ -603,40 +624,46 @@ export function CanvasStage() {
 
       setLastTouchDistance(distance);
       setLastTouchCenter(pointer);
+      pointerDownWorldRef.current = null;
+      didDragRef.current = false;
       return;
     }
     
     if (touches.length === 1) {
-      const touch = touches[0];
-      const stage = e.target.getStage();
-      const rect = stage.container().getBoundingClientRect();
-      const pointer = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+      const worldPoint = getWorldPointFromEvent(e);
+      if (!worldPoint) return;
+
+      setHoverSnap(resolveSnapTarget(worldPoint));
 
       if (isDrawing && startPoint) {
-        const point = screenToWorld(pointer, cameraState);
+        const snap = resolveSnapTarget(worldPoint);
 
-        const snap = resolveSnapTarget(point);
-
-        setHoverSnap(snap);
         setCurrentPoint(snap.point);
         setCurrentSnap(snap);
+        trackPointerDrag(worldPoint, true);
       }
     }
   };
 
-  const handleTouchEnd = (e: any) => {
+  const handleTouchEnd = (e: KonvaEventObject<TouchEvent>) => {
     const touches = e.evt.touches;
     
     if (touches.length === 0) {
-      finalizeDrawing();
+      if (isDrawing && didDragRef.current) {
+        finalizeDrawing();
+      }
       setLastTouchDistance(null);
       setLastTouchCenter(null);
       setIsPanning(false);
       setLastPanPos(null);
       setPanByDelta(null);
+      pointerDownWorldRef.current = null;
+      didDragRef.current = false;
     } else if (touches.length === 1) {
       setLastTouchDistance(null);
       setLastTouchCenter(null);
+      pointerDownWorldRef.current = null;
+      didDragRef.current = false;
     }
   };
 
@@ -666,6 +693,7 @@ export function CanvasStage() {
 
   const handleLineClick = (lineId: string, e: any) => {
     e.cancelBubble = true;
+    if (isDrawing) return;
     const line = lines.find((l) => l.id === lineId);
     if (line && !line.gateId) {
       if (selectedGateType) {
@@ -788,6 +816,7 @@ export function CanvasStage() {
 
       <div className="absolute inset-0 z-10">
         <Stage
+          ref={stageRef}
           className="absolute inset-0"
           width={dimensions.width}
           height={dimensions.height}
