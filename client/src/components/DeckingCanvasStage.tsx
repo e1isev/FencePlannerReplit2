@@ -1167,7 +1167,7 @@ export function DeckingCanvasStage() {
     });
   };
 
-  const getBreakerAnchor = (breakerId: string | null) => {
+  function getBreakerAnchor(breakerId: string | null) {
     if (!breakerId) return null;
     const deck = decks.find((d) => d.breakerLines?.some((line) => line.id === breakerId));
     if (!deck) return null;
@@ -1184,7 +1184,7 @@ export function DeckingCanvasStage() {
     };
     const screen = worldToScreen(midPoint);
     return { deckId: deck.id, lineId: line.id, screen };
-  };
+  }
 
   return (
     <div
