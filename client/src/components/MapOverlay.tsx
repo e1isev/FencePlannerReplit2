@@ -131,6 +131,13 @@ function clampZoomForProvider(provider: SatelliteProvider, zoom: number) {
   return Math.max(providerMinZoom, Math.min(zoom, providerZoom));
 }
 
+function maxZoomForMode(mode: MapStyleMode, provider: SatelliteProvider) {
+  if (mode === "satellite") {
+    return PROVIDER_CAPABILITIES[provider]?.maxZoom ?? MAP_MAX_ZOOM;
+  }
+  return MAP_MAX_ZOOM;
+}
+
 async function isTileMostlyEmpty(blob: Blob): Promise<boolean> {
   if (typeof document === "undefined") return false;
 
@@ -495,6 +502,11 @@ export function MapOverlay({
   const satelliteProviderRef = useRef<SatelliteProvider>(satelliteProvider);
   const providerCheckIdRef = useRef(0);
   const loggedTileFailuresRef = useRef<Set<string>>(new Set());
+  const providerServerErrorsRef = useRef<Record<SatelliteProvider, number>>({
+    nearmap: 0,
+    maptiler: 0,
+    esri: 0,
+  });
 
   const getTileCoordForCurrentView = useCallback(
     (provider: SatelliteProvider): TileCoord => {
@@ -644,6 +656,7 @@ export function MapOverlay({
 
   useEffect(() => {
     satelliteProviderRef.current = satelliteProvider;
+    providerServerErrorsRef.current[satelliteProvider] = 0;
   }, [satelliteProvider]);
 
   useEffect(() => {
@@ -657,13 +670,16 @@ export function MapOverlay({
     const activeProvider =
       mapMode === "satellite" ? satelliteProviderRef.current : BASE_SATELLITE_PROVIDER;
     const providerMin = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
+    const providerMax = maxZoomForMode(mapMode, activeProvider);
 
-    map.setMaxZoom(MAP_MAX_ZOOM);
+    map.setMaxZoom(providerMax);
     map.setMinZoom(providerMin);
 
     const currentZoom = map.getZoom();
     if (currentZoom < providerMin) {
       map.setZoom(providerMin);
+    } else if (currentZoom > providerMax) {
+      map.setZoom(providerMax);
     }
   }, [mapMode, satelliteProvider]);
 
@@ -680,15 +696,20 @@ export function MapOverlay({
 
     const storedView = loadStoredView();
     const initialCenter = storedView?.center ?? DEFAULT_CENTER;
-    const initialZoom = storedView?.zoom ?? mapZoom;
+    const initialProvider =
+      mapMode === "satellite" ? satelliteProviderRef.current : BASE_SATELLITE_PROVIDER;
+    const initialMinZoom = PROVIDER_MIN_ZOOM[initialProvider] ?? MAP_MIN_ZOOM;
+    const initialMaxZoom = maxZoomForMode(mapMode, initialProvider);
+    const requestedZoom = storedView?.zoom ?? mapZoom;
+    const initialZoom = Math.max(initialMinZoom, Math.min(requestedZoom, initialMaxZoom));
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: buildMapStyle(mapMode, satelliteProviderRef.current),
       center: initialCenter,
       zoom: initialZoom,
-      minZoom: MAP_MIN_ZOOM,
-      maxZoom: MAP_MAX_ZOOM,
+      minZoom: initialMinZoom,
+      maxZoom: initialMaxZoom,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -750,16 +771,38 @@ export function MapOverlay({
         center: { lng: center.lng, lat: center.lat },
       });
 
-      if (
-        mapModeRef.current === "satellite" &&
-        typeof status === "number" &&
-        status >= 400
-      ) {
-        handleProviderFailure(
-          `Satellite provider ${providerLabel(
-            satelliteProviderRef.current
-          )} returned status ${status}.`
-        );
+      const statusCode = typeof status === "number" ? status : null;
+
+      if (statusCode != null) {
+        if (statusCode >= 500) {
+          const nextServerErrorCount = (providerServerErrorsRef.current[activeProvider] ?? 0) + 1;
+          providerServerErrorsRef.current[activeProvider] = nextServerErrorCount;
+          if (mapModeRef.current === "satellite" && nextServerErrorCount >= 3) {
+            handleProviderFailure(
+              `Satellite provider ${providerLabel(
+                satelliteProviderRef.current
+              )} returned repeated errors (${statusCode}).`
+            );
+          }
+          return;
+        }
+
+        providerServerErrorsRef.current[activeProvider] = 0;
+
+        if (statusCode === 400 || statusCode === 404) {
+          return;
+        }
+
+        if (
+          mapModeRef.current === "satellite" &&
+          (statusCode === 401 || statusCode === 403 || statusCode === 429)
+        ) {
+          handleProviderFailure(
+            `Satellite provider ${providerLabel(
+              satelliteProviderRef.current
+            )} returned status ${statusCode}.`
+          );
+        }
       }
     };
 
@@ -817,22 +860,36 @@ export function MapOverlay({
     if (!map) return;
 
     const currentZoom = map.getZoom();
+    const activeProvider = mapMode === "satellite" ? satelliteProvider : BASE_SATELLITE_PROVIDER;
+    const minZoom = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
+    const maxZoom = maxZoomForMode(mapMode, activeProvider);
     const clampedZoom = Math.max(
-      MAP_MIN_ZOOM,
-      Math.min(mapZoom, MAP_MAX_ZOOM)
+      minZoom,
+      Math.min(mapZoom, maxZoom)
     );
     if (Math.abs(currentZoom - clampedZoom) < 0.001) return;
 
     map.easeTo({ zoom: clampedZoom, duration: 0 });
-  }, [mapZoom]);
+  }, [mapMode, mapZoom, satelliteProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    map.setMaxZoom(MAP_MAX_ZOOM);
-    map.setMinZoom(MAP_MIN_ZOOM);
+    const activeProvider = mapMode === "satellite" ? satelliteProvider : BASE_SATELLITE_PROVIDER;
+    const minZoom = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
+    const maxZoom = maxZoomForMode(mapMode, activeProvider);
+
+    map.setMaxZoom(maxZoom);
+    map.setMinZoom(minZoom);
     map.setStyle(buildMapStyle(mapMode, satelliteProvider));
+
+    const currentZoom = map.getZoom();
+    if (currentZoom > maxZoom) {
+      map.setZoom(maxZoom);
+    } else if (currentZoom < minZoom) {
+      map.setZoom(minZoom);
+    }
   }, [mapMode, satelliteProvider]);
 
   useEffect(() => {
@@ -864,10 +921,11 @@ export function MapOverlay({
         return;
       }
 
-      const safeZoom = Math.max(
-        MAP_MIN_ZOOM,
-        Math.min(desiredZoom ?? 18, MAP_MAX_ZOOM)
-      );
+      const activeProvider =
+        mapModeRef.current === "satellite" ? satelliteProviderRef.current : BASE_SATELLITE_PROVIDER;
+      const minZoom = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
+      const maxZoom = maxZoomForMode(mapModeRef.current, activeProvider);
+      const safeZoom = Math.max(minZoom, Math.min(desiredZoom ?? 18, maxZoom));
 
       if (flyLockRef.current) {
         pendingFlyRef.current = { lon, lat, zoom: safeZoom };

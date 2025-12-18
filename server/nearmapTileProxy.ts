@@ -144,6 +144,11 @@ async function fetchUpstreamTile(
       return { type: "missing", tile: transparentTile() };
     }
 
+    if (response.status === 400) {
+      metrics.blankTiles += 1;
+      return { type: "missing", tile: transparentTile() };
+    }
+
     if (response.status === 401 || response.status === 403) {
       throw new TileFetchError("Nearmap upstream auth failed", "auth", response.status);
     }
