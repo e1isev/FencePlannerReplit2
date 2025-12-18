@@ -99,14 +99,15 @@ function DeckImageExporter({
   });
 
   useEffect(() => {
-    const handle = setTimeout(() => {
+    const handle = requestAnimationFrame(() => {
       const stage = stageRef.current?.getStage?.() ?? stageRef.current;
       if (!stage) return;
+      stage.draw();
       const dataUrl = stage.toDataURL({ pixelRatio: 2 });
       onRendered(model.id, dataUrl);
-    }, 80);
+    });
 
-    return () => clearTimeout(handle);
+    return () => cancelAnimationFrame(handle);
   }, [model, showJoins, showBreakerBoards, showClips, onRendered]);
 
   const polygonPoints = model.polygon.map(mapPoint).flatMap((p) => [p.x, p.y]);
@@ -315,9 +316,28 @@ function DeckImageExporter({
 export function DeckingFinishedPageView() {
   const [, setLocation] = useLocation();
   const decks = useDeckingStore((state) => state.decks);
+  const hasHydrated = useDeckingStore((state) => state.hasHydrated);
   const getReportData = useDeckingStore((state) => state.getReportData);
   const getDeckRenderModel = useDeckingStore((state) => state.getDeckRenderModel);
-  const reportData = useMemo(() => getReportData(), [decks, getReportData]);
+  const reportData = useMemo(
+    () =>
+      hasHydrated
+        ? getReportData()
+        : {
+            decks: [],
+            projectTotals: {
+              boardPieces: 0,
+              totalPieces: 0,
+              boardLinealMm: 0,
+              fasciaLinealMm: 0,
+              totalLinealMm: 0,
+              totalClips: 0,
+              totalFasciaClips: 0,
+              totalDeckClipsSnappedForFascia: 0,
+            },
+          },
+    [decks, getReportData, hasHydrated]
+  );
   const defaultBreaker = useMemo(
     () => reportData.decks.some((deck) => deck.finishes.breakerBoardsEnabled),
     [reportData.decks]
@@ -357,6 +377,14 @@ export function DeckingFinishedPageView() {
       return { ...prev, [deckId]: url };
     });
   };
+
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
+        Loading saved decks...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white decking-finished-page">
@@ -444,7 +472,7 @@ export function DeckingFinishedPageView() {
 
         {deckModels.length === 0 ? (
           <div className="bg-white border border-dashed border-slate-200 rounded-xl p-6 text-center text-slate-600 deck-card">
-            No decks to display. Return to the planner to add a deck outline.
+            No decks to preview. Return to the planner to add a deck outline.
           </div>
         ) : (
           deckModels.map(({ report, renderModel }) => (
