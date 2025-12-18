@@ -1047,7 +1047,7 @@ export function DeckingCanvasStage() {
     return deck.finishes.pictureFrameEnabled && deck.infillPolygon.length >= 3 ? deck.infillPolygon : deck.polygon;
   }
 
-  const getBreakerEffectivePos = (line: BreakerLine) => {
+  function getBreakerEffectivePos(line: BreakerLine) {
     if (editingBreakerId === line.id && breakerDraftPosMm[line.id] !== undefined) {
       return breakerDraftPosMm[line.id];
     }
@@ -1055,7 +1055,7 @@ export function DeckingCanvasStage() {
       return breakerConfirmPosMm;
     }
     return line.posMm;
-  };
+  }
 
   const renderBreakerLines = (deck: DeckEntity) => {
     if (!deck.finishes.breakerBoardsEnabled || (deck.breakerLines?.length ?? 0) === 0) return null;
