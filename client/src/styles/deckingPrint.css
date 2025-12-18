@@ -1,0 +1,31 @@
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+
+  .deck-card,
+  .totals-block {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  .decking-finished-page {
+    padding: 0 !important;
+  }
+}

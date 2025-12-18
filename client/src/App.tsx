@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import PlannerPage from "@/pages/PlannerPage";
 import DrawingPage from "@/pages/DrawingPage";
 import DeckingPlannerPage from "@/pages/DeckingPlannerPage";
+import DeckingFinishedPage from "@/pages/DeckingFinishedPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={PlannerPage} />
       <Route path="/drawing" component={DrawingPage} />
       <Route path="/decking" component={DeckingPlannerPage} />
+      <Route path="/decking/finished" component={DeckingFinishedPage} />
       <Route component={NotFound} />
     </Switch>
   );
