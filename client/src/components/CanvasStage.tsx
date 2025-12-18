@@ -25,8 +25,10 @@ const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 const LABEL_OFFSET_PX = 14;
 const MIN_LINE_HIT_PX = 10;
-const SEGMENT_SNAP_PX = 10;
 const DRAG_THRESHOLD_PX = 4;
+const SNAP_SCREEN_MIN_PX = 10;
+const SNAP_SCREEN_MAX_PX = 40;
+const SEGMENT_SNAP_SCREEN_MAX_PX = 20;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
@@ -232,6 +234,17 @@ export function CanvasStage() {
     setMmPerPixel,
   ]);
 
+  useEffect(() => {
+    const handleKeyToggle = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "d") {
+        setShowSnapDebug((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyToggle);
+    return () => window.removeEventListener("keydown", handleKeyToggle);
+  }, []);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     const zoomStep = 0.25;
@@ -242,10 +255,14 @@ export function CanvasStage() {
   };
 
   const effectiveMmPerPixel = mmPerPixel || 1;
-  const rawSnapTolerance = ENDPOINT_SNAP_RADIUS_MM / effectiveMmPerPixel;
-  const snapTolerance = clamp(rawSnapTolerance, 10, 250);
-  const segmentSnapTolPx = clamp(snapTolerance * (SEGMENT_SNAP_PX / 14), 6, snapTolerance);
+  const snapWorldFromMm = ENDPOINT_SNAP_RADIUS_MM / effectiveMmPerPixel;
+  const snapWorldMin = SNAP_SCREEN_MIN_PX / cameraState.scale;
+  const snapWorldMax = SNAP_SCREEN_MAX_PX / cameraState.scale;
+  const snapTolerance = clamp(snapWorldFromMm, snapWorldMin, snapWorldMax);
+  const segmentSnapTolPx = Math.min(snapTolerance, SEGMENT_SNAP_SCREEN_MAX_PX / cameraState.scale);
   const dragThresholdWorld = DRAG_THRESHOLD_PX / cameraState.scale;
+  const lineHitStrokeWidth = Math.max(MIN_LINE_HIT_PX / cameraState.scale, 1);
+  const snapToleranceScreenPx = snapTolerance * cameraState.scale;
 
   const resolveSnapTarget = useCallback(
     (point: Point): SnapTarget => {
@@ -880,7 +897,7 @@ export function CanvasStage() {
                       points={linePoints}
                       stroke="rgba(0,0,0,0)"
                       strokeWidth={1}
-                      hitStrokeWidth={MIN_LINE_HIT_PX}
+                      hitStrokeWidth={lineHitStrokeWidth}
                       listening
                       perfectDrawEnabled={false}
                       strokeScaleEnabled={false}
@@ -1052,9 +1069,13 @@ export function CanvasStage() {
           {showSnapDebug && (
             <div className="text-xs bg-white/90 backdrop-blur rounded-md shadow px-3 py-2 border border-slate-200">
               <p className="font-semibold text-slate-700">Snap</p>
-              <p className="font-mono text-slate-600">
-                {hoverSnap ? hoverSnap.type : "none"}
-              </p>
+              <p className="font-mono text-slate-600">{hoverSnap ? hoverSnap.type : "none"}</p>
+              <p className="text-[0.7rem] text-slate-500">Press "d" to toggle</p>
+              <div className="mt-1 space-y-0.5 font-mono text-slate-600">
+                <p>Scale: {cameraState.scale.toFixed(3)}</p>
+                <p>Snap (world px): {snapTolerance.toFixed(2)}</p>
+                <p>Snap (screen px): {snapToleranceScreenPx.toFixed(2)}</p>
+              </div>
             </div>
           )}
         </div>

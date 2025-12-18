@@ -19,7 +19,8 @@ import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 
-const ENDPOINT_WELD_EPS_PX = 6; // px tolerance for welding endpoints
+const ENDPOINT_WELD_EPS_MM = 60; // physical tolerance for welding endpoints
+const SEGMENT_INTERIOR_TOL_MM = 20;
 const MERGE_ANGLE_TOL_DEG = 2;
 export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
 export const MAX_RUN_MM = 200_000;
@@ -28,9 +29,14 @@ const LEFTOVER_WARN_THRESHOLD = 1_000;
 const quantizePoint = (point: Point, mmPerPixel: number) =>
   quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
 
-const pointsMatch = (p1: Point, p2: Point) => {
+const weldTolerancePx = (mmPerPixel: number) =>
+  ENDPOINT_WELD_EPS_MM / Math.max(mmPerPixel, 0.000001);
+const segmentInteriorTolerancePx = (mmPerPixel: number) =>
+  SEGMENT_INTERIOR_TOL_MM / Math.max(mmPerPixel, 0.000001);
+
+const pointsMatch = (p1: Point, p2: Point, epsPx: number) => {
   return (
-    Math.abs(p1.x - p2.x) < ENDPOINT_WELD_EPS_PX && Math.abs(p1.y - p2.y) < ENDPOINT_WELD_EPS_PX
+    Math.abs(p1.x - p2.x) < epsPx && Math.abs(p1.y - p2.y) < epsPx
   );
 };
 
@@ -239,10 +245,10 @@ export const linesShareAnyGateOrOpening = (lineA: FenceLine, lineB: FenceLine): 
   return Array.from(aIds).some((id) => bIds.has(id));
 };
 
-const endpointConnectionCount = (lines: FenceLine[], point: Point): number => {
+const endpointConnectionCount = (lines: FenceLine[], point: Point, epsPx: number): number => {
   return lines.reduce((count, line) => {
-    const atA = pointsMatch(line.a, point);
-    const atB = pointsMatch(line.b, point);
+    const atA = pointsMatch(line.a, point, epsPx);
+    const atB = pointsMatch(line.b, point, epsPx);
     return count + (atA || atB ? 1 : 0);
   }, 0);
 };
@@ -259,7 +265,8 @@ const splitLineAtPointImmutable = (
   const line = lines[idx];
   if (lineHasGateOrOpening(line)) return { lines, junction: null };
 
-  const hit = pointOnSegmentInterior(p, line.a, line.b, 2);
+  const interiorTolPx = segmentInteriorTolerancePx(mmPerPixel);
+  const hit = pointOnSegmentInterior(p, line.a, line.b, interiorTolPx);
   if (!hit.ok) return { lines, junction: null };
 
   const junction = quantizePoint(hit.closest, mmPerPixel);
@@ -290,6 +297,7 @@ const mergeCollinearLines = (
   primaryId: string,
   mmPerPixel: number
 ): { lines: FenceLine[]; merged: boolean; primaryId: string } => {
+  const weldEpsPx = weldTolerancePx(mmPerPixel);
   let updatedLines = [...lines];
   let merged = true;
   let mergedAny = false;
@@ -313,7 +321,7 @@ const mergeCollinearLines = (
         continue;
       }
 
-      const sharedEndpoint = linesShareEndpoint(primary, candidate, ENDPOINT_WELD_EPS_PX);
+      const sharedEndpoint = linesShareEndpoint(primary, candidate, weldEpsPx);
       if (!sharedEndpoint.shared) {
         continue;
       }
@@ -324,10 +332,10 @@ const mergeCollinearLines = (
       }
 
       const sharedPoint = sharedEndpoint.sharedPoint;
-      const junctionDegree = endpointConnectionCount(updatedLines, sharedPoint);
+      const junctionDegree = endpointConnectionCount(updatedLines, sharedPoint, weldEpsPx);
       const junctionHasBlockingLine = updatedLines.some(
         (line) =>
-          (pointsMatch(line.a, sharedPoint) || pointsMatch(line.b, sharedPoint)) &&
+          (pointsMatch(line.a, sharedPoint, weldEpsPx) || pointsMatch(line.b, sharedPoint, weldEpsPx)) &&
           lineHasGateOrOpening(line)
       );
       if (junctionDegree !== 2 || junctionHasBlockingLine) {
@@ -355,6 +363,7 @@ const mergeConnectedLines = (
   lineOrder: Map<string, number>,
   mmPerPixel: number
 ) => {
+  const weldEpsPx = weldTolerancePx(mmPerPixel);
   let updatedLines = [...lines];
   let merged = true;
 
@@ -370,16 +379,16 @@ const mergeConnectedLines = (
         }
 
         const [baseLine, otherLine] = orderLinesForMerge(lineA, lineB, primaryId, lineOrder);
-        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, ENDPOINT_WELD_EPS_PX);
+        const sharedEndpoint = linesShareEndpoint(baseLine, otherLine, weldEpsPx);
         if (!sharedEndpoint.shared) continue;
 
         if (angleBetweenLinesAbs(baseLine, otherLine) > degToRad(MERGE_ANGLE_TOL_DEG)) continue;
-        if (!segmentsOverlapOnLine(baseLine, otherLine, ENDPOINT_WELD_EPS_PX)) continue;
+        if (!segmentsOverlapOnLine(baseLine, otherLine, weldEpsPx)) continue;
         const sharedPoint = sharedEndpoint.sharedPoint;
-        const junctionDegree = endpointConnectionCount(updatedLines, sharedPoint);
+        const junctionDegree = endpointConnectionCount(updatedLines, sharedPoint, weldEpsPx);
         const junctionHasBlockingLine = updatedLines.some(
           (line) =>
-            (pointsMatch(line.a, sharedPoint) || pointsMatch(line.b, sharedPoint)) &&
+            (pointsMatch(line.a, sharedPoint, weldEpsPx) || pointsMatch(line.b, sharedPoint, weldEpsPx)) &&
             lineHasGateOrOpening(line)
         );
         if (junctionDegree !== 2 || junctionHasBlockingLine) continue;
@@ -404,6 +413,7 @@ const weldSharedEndpoints = (
   lineOrder: Map<string, number>,
   mmPerPixel: number
 ) => {
+  const weldEpsPx = weldTolerancePx(mmPerPixel);
   const lineLookup = new Map(lines.map((line) => [line.id, line]));
   const canonicalPoints: Array<{ point: Point; lineIds: Set<string> }> = [];
   const quantize = (point: Point) => quantizePoint(point, mmPerPixel);
@@ -426,7 +436,7 @@ const weldSharedEndpoints = (
       if (!canShareWith(canonical.lineIds, line)) continue;
 
       const dist = Math.hypot(canonical.point.x - quantizedPoint.x, canonical.point.y - quantizedPoint.y);
-      if (dist <= ENDPOINT_WELD_EPS_PX) {
+      if (dist <= weldEpsPx) {
         canonical.lineIds.add(line.id);
         return canonical.point;
       }
@@ -577,14 +587,15 @@ export const useAppStore = create<AppState>()(
 
         const target = lines[targetIndex];
         const quantizedSplit = quantizePoint(splitPoint, mmPerPixel);
+        const weldEpsPx = weldTolerancePx(mmPerPixel);
 
         const distToA = Math.hypot(quantizedSplit.x - target.a.x, quantizedSplit.y - target.a.y);
-        if (distToA <= ENDPOINT_WELD_EPS_PX) {
+        if (distToA <= weldEpsPx) {
           return target.a;
         }
 
         const distToB = Math.hypot(quantizedSplit.x - target.b.x, quantizedSplit.y - target.b.y);
-        if (distToB <= ENDPOINT_WELD_EPS_PX) {
+        if (distToB <= weldEpsPx) {
           return target.b;
         }
 
@@ -599,10 +610,11 @@ export const useAppStore = create<AppState>()(
       addLine: (a, b) => {
         const mmPerPixel = get().mmPerPixel;
         let workingLines = get().lines;
+        const interiorTolPx = segmentInteriorTolerancePx(mmPerPixel);
 
         const applySplit = (point: Point): Point => {
           for (const candidate of workingLines) {
-            const hit = pointOnSegmentInterior(point, candidate.a, candidate.b, 2);
+            const hit = pointOnSegmentInterior(point, candidate.a, candidate.b, interiorTolPx);
             if (!hit.ok) continue;
 
             const splitResult = splitLineAtPointImmutable(
@@ -688,6 +700,7 @@ export const useAppStore = create<AppState>()(
         
         const isDev = process.env.NODE_ENV === "development";
         const mmPerPixel = get().mmPerPixel;
+        const weldEpsPx = weldTolerancePx(mmPerPixel);
         const existingLines = get().lines;
         const lineOrder = new Map(existingLines.map((line, index) => [line.id, index]));
 
@@ -740,10 +753,10 @@ export const useAppStore = create<AppState>()(
           }
 
           const updatedLine = { ...line };
-          if (pointsMatch(line.a, oldMovedPoint)) {
+          if (pointsMatch(line.a, oldMovedPoint, weldEpsPx)) {
             updatedLine.a = quantizedMovedPoint;
           }
-          if (pointsMatch(line.b, oldMovedPoint)) {
+          if (pointsMatch(line.b, oldMovedPoint, weldEpsPx)) {
             updatedLine.b = quantizedMovedPoint;
           }
 
