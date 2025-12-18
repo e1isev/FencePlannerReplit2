@@ -56,12 +56,32 @@ export function DeckingLeftPanel() {
     updateActiveDeck,
     calculateBoardsForDeck,
     getCuttingListForDeck,
+    getProjectCuttingTotals,
+    getProjectClipTotals,
+    joistSpacingMode,
+    setJoistSpacingMode,
+    showClips,
+    setShowClips,
     saveHistory,
   } = useDeckingStore();
 
   const activeDeck = decks.find((deck) => deck.id === activeDeckId) ?? null;
   const cuttingList = getCuttingListForDeck(activeDeckId);
+  const projectTotals = getProjectCuttingTotals();
+  const projectClipTotals = getProjectClipTotals();
   const hasPolygon = Boolean(activeDeck && activeDeck.polygon.length >= 3);
+  const joistSpacingMm = joistSpacingMode === "commercial" ? 350 : 450;
+  const activeClipSummary = activeDeck?.clipSummary;
+  const formattedProjectMetres =
+    projectTotals.totalLinealMetres >= 10
+      ? projectTotals.totalLinealMetres.toFixed(1)
+      : projectTotals.totalLinealMetres.toFixed(2);
+  const hasAnyCuttingItems =
+    projectTotals.totalPieces > 0 ||
+    cuttingList.boards.length > 0 ||
+    cuttingList.pictureFrame.length > 0 ||
+    cuttingList.fascia.length > 0 ||
+    cuttingList.clips > 0;
 
   const handleBoardDirectionToggle = () => {
     if (!activeDeck) return;
@@ -107,6 +127,68 @@ export function DeckingLeftPanel() {
       <div className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold mb-4">Decking Planner</h2>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+            Joists & Clips
+          </Label>
+          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3 text-xs text-slate-600">
+            <div>
+              <p className="font-semibold text-slate-700 mb-2">Joist spacing</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={joistSpacingMode === "commercial" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setJoistSpacingMode("commercial")}
+                  className="justify-start text-xs"
+                >
+                  Commercial (350mm)
+                </Button>
+                <Button
+                  variant={joistSpacingMode === "residential" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setJoistSpacingMode("residential")}
+                  className="justify-start text-xs"
+                >
+                  Residential (450mm)
+                </Button>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2">Current spacing: {joistSpacingMm} mm</p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+              <div>
+                <p className="font-semibold text-slate-700">Show clips</p>
+                <p className="text-[11px] text-slate-500">Toggle joists, clips, and fascia markers.</p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={showClips}
+                onChange={(e) => setShowClips(e.target.checked)}
+              />
+            </div>
+
+            <div className="border-t border-slate-100 pt-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-slate-700">Active deck clips</p>
+                <span className="text-[11px] text-slate-500">Deck {activeDeck?.name ?? "-"}</span>
+              </div>
+              <div className="flex justify-between"><span>Deck clips</span><span className="font-semibold">{activeClipSummary?.deckClips ?? 0}</span></div>
+              <div className="flex justify-between"><span>Starter clips</span><span className="font-semibold">{activeClipSummary?.starterClips ?? 0}</span></div>
+              <div className="flex justify-between"><span>Fascia clips</span><span className="font-semibold">{activeDeck?.finishes.fasciaEnabled ? activeClipSummary?.fasciaClips ?? 0 : 0}</span></div>
+              <div className="flex justify-between"><span>Deck clips for fascia</span><span className="font-semibold">{activeDeck?.finishes.fasciaEnabled ? activeClipSummary?.deckClipsForFascia ?? 0 : 0}</span></div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-3 space-y-1">
+              <p className="font-semibold text-slate-700">Project totals</p>
+              <div className="flex justify-between"><span>Deck clips</span><span className="font-semibold">{projectClipTotals.deckClips}</span></div>
+              <div className="flex justify-between"><span>Starter clips</span><span className="font-semibold">{projectClipTotals.starterClips}</span></div>
+              <div className="flex justify-between"><span>Fascia clips</span><span className="font-semibold">{projectClipTotals.fasciaClips}</span></div>
+              <div className="flex justify-between"><span>Deck clips for fascia</span><span className="font-semibold">{projectClipTotals.deckClipsForFascia}</span></div>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -372,10 +454,7 @@ export function DeckingLeftPanel() {
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {cuttingList.boards.length === 0 &&
-                cuttingList.pictureFrame.length === 0 &&
-                cuttingList.fascia.length === 0 &&
-                cuttingList.clips === 0 ? (
+                {!hasAnyCuttingItems ? (
                   <tr className="border-b border-slate-100">
                     <td className="px-3 py-2 text-slate-400" colSpan={3}>
                       {activeDeck ? "Draw and close a shape to see the cutting list" : "Select a deck to see its cutting list"}
@@ -427,6 +506,14 @@ export function DeckingLeftPanel() {
                         <td className="px-3 py-2">Clips</td>
                         <td className="px-3 py-2 text-right">{cuttingList.clips}</td>
                         <td className="px-3 py-2 text-right">-</td>
+                      </tr>
+                    )}
+
+                    {projectTotals.totalPieces > 0 && (
+                      <tr className="bg-slate-50 border-t border-slate-200">
+                        <td className="px-3 py-2 font-semibold">Project total</td>
+                        <td className="px-3 py-2 text-right">{projectTotals.totalPieces}</td>
+                        <td className="px-3 py-2 text-right">{formattedProjectMetres} m</td>
                       </tr>
                     )}
                   </>

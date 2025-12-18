@@ -18,6 +18,16 @@ function normaliseAngleDeg(angle: number) {
   return ((angle + 180) % 360 + 360) % 360 - 180;
 }
 
+const POINT_EPS_MM = 1; // 1 mm tolerance, prevents float mismatch issues
+
+function samePoint(a: Point, b: Point, eps = POINT_EPS_MM) {
+  return Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps;
+}
+
+const STRAIGHT_EPS = 0.1;
+const RIGHT_ANGLE = Math.PI / 2;
+const CORNER_ANGLE_EPS = Math.PI / 12;
+
 const projectPointToSegment = (p: Point, a: Point, b: Point) => {
   const ab = { x: b.x - a.x, y: b.y - a.y };
   const abLenSq = ab.x * ab.x + ab.y * ab.y;
@@ -154,13 +164,50 @@ export function getPostAngleDeg(
   return normaliseAngleDeg(radToDeg(Math.atan2(sy, sx)));
 }
 
+const categorizePost = (pos: Point, lines: FenceLine[]): PostCategory => {
+  const connectingLines = lines.filter((l) => samePoint(l.a, pos) || samePoint(l.b, pos));
+
+  // Treat gate segments as not panels for T post logic
+  const panelConnections = connectingLines.filter((l) => !l.gateId);
+
+  // If 3 or 4 panels meet, it is a T post
+  if (panelConnections.length >= 3) return "t";
+
+  // Gate adjacency still forces end posts for gate openings
+  const isNextToGate = connectingLines.some((l) => l.gateId);
+  if (isNextToGate) return "end";
+
+  // One connected panel segment means end post
+  if (panelConnections.length === 1) return "end";
+
+  if (panelConnections.length === 2) {
+    const angleForLine = (line: FenceLine) => {
+      const target = samePoint(line.a, pos) ? line.b : line.a;
+      return Math.atan2(target.y - pos.y, target.x - pos.x);
+    };
+
+    const [lineA, lineB] = panelConnections;
+    const angleA = angleForLine(lineA);
+    const angleB = angleForLine(lineB);
+    const diff = Math.abs(angleA - angleB);
+    const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
+    const isStraight =
+      normalizedDiff < STRAIGHT_EPS || Math.abs(normalizedDiff - Math.PI) < STRAIGHT_EPS;
+    if (isStraight) return "line";
+
+    const isCorner = Math.abs(normalizedDiff - RIGHT_ANGLE) <= CORNER_ANGLE_EPS;
+    return isCorner ? "corner" : "line";
+  }
+
+  return "line";
+};
+
 export function generatePosts(
   lines: FenceLine[],
   _gates: Gate[],
   panelPositionsMap: Map<string, number[]> = new Map(),
   mmPerPixel: number = 1
 ): Post[] {
-  const STRAIGHT_EPS = 0.1;
   const SEGMENT_TOLERANCE = 0.5;
 
   type Adjacency = {
@@ -260,34 +307,9 @@ export function generatePosts(
     });
   });
 
-  const classify = (entry: Adjacency): PostCategory => {
-    const edgeCount = entry.edges.length;
-    if (edgeCount <= 1) return "end";
-
-    if (edgeCount >= 3) {
-      return "t";
-    }
-
-    const RIGHT_ANGLE = Math.PI / 2;
-    const CORNER_ANGLE_EPS = Math.PI / 12;
-
-    if (edgeCount === 2) {
-      const [a1, a2] = entry.edges.map((e) => e.angle);
-      const diff = Math.abs(a1 - a2);
-      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
-      const isStraight =
-        normalizedDiff < STRAIGHT_EPS || Math.abs(normalizedDiff - Math.PI) < STRAIGHT_EPS;
-      if (isStraight) return "line";
-
-      const isCorner = Math.abs(normalizedDiff - RIGHT_ANGLE) <= CORNER_ANGLE_EPS;
-      return isCorner ? "corner" : "line";
-    }
-
-    return "line";
-  };
-
   const posts = Array.from(adjacency.values()).map((entry) => {
-    const category = entry.source === "panel" ? entry.category ?? "line" : classify(entry);
+    const category =
+      entry.source === "panel" ? entry.category ?? "line" : categorizePost(entry.pos, lines);
     return {
       id: generateId("post"),
       pos: entry.pos,

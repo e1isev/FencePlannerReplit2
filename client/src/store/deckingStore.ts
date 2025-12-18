@@ -21,8 +21,8 @@ import type {
   CornerConstraint,
   Point,
   DeckingSelectionState,
-  DeckCutListItem,
-  Clip,
+  JoistSpacingMode,
+  ClipSummary,
 } from "@/types/decking";
 import {
   findBottomEdgeIndex,
@@ -36,11 +36,18 @@ import {
 } from "@/geometry/deckingEdges";
 import { offsetPolygonMiter } from "@/geometry/pictureFrame";
 import { buildFasciaPieces } from "@/geometry/fascia";
+import { getClipsPerJoist, getFasciaClipCount, getJoistCount } from "@/geometry/clipCalc";
 
 const DEFAULT_COLOR: DeckColor = "mallee-bark";
 const DEFAULT_FASCIA_THICKNESS = 20;
-const CLIP_SPACING_MM = JOIST_SPACING_MM;
-const FASCIA_CLIP_SPACING_MM = 450;
+const JOIST_SPACING: Record<JoistSpacingMode, number> = {
+  commercial: 350,
+  residential: 450,
+};
+
+function getJoistSpacingMm(mode: JoistSpacingMode): number {
+  return JOIST_SPACING[mode];
+}
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -91,6 +98,18 @@ function getBounds(points: Point[]) {
   });
 
   return { minX, minY, maxX, maxY };
+}
+
+function polygonPerimeter(points: Point[]): number {
+  if (points.length < 2) return 0;
+  let length = 0;
+  for (let i = 0; i < points.length; i++) {
+    const next = (i + 1) % points.length;
+    const dx = points[next].x - points[i].x;
+    const dy = points[next].y - points[i].y;
+    length += Math.hypot(dx, dy);
+  }
+  return length;
 }
 
 function getHorizontalIntersections(polygon: Point[], y: number): number[] {
@@ -263,6 +282,9 @@ function createDeckEntity(points: Point[], name: string): DeckEntity {
     selectedColor: DEFAULT_COLOR,
     boardDirection: "horizontal",
     boardPlan: null,
+    rowCount: 0,
+    clipSummary: null,
+    joistSpacingMode: "residential",
     finishes: {
       pictureFrameEnabled: false,
       fasciaEnabled: false,
@@ -431,7 +453,14 @@ interface DeckingStoreState {
   activeDeckId: string | null;
   selectedDeckId: string | null;
   pendingDeleteDeckId: string | null;
-  history: Array<{ decks: DeckEntity[]; activeDeckId: string | null }>;
+  joistSpacingMode: JoistSpacingMode;
+  showClips: boolean;
+  history: Array<{
+    decks: DeckEntity[];
+    activeDeckId: string | null;
+    joistSpacingMode: JoistSpacingMode;
+    showClips: boolean;
+  }>;
   historyIndex: number;
   addDeck: (polygon: Point[]) => void;
   deleteDeck: (deckId: string) => void;
@@ -446,6 +475,8 @@ interface DeckingStoreState {
   getDeckRenderModel: (deckId: string) => DeckRenderModel | null;
   getReportData: () => { decks: DeckReport[]; projectTotals: DeckReportTotals };
   getCuttingListForDeck: (deckId: string | null) => DeckingCuttingList;
+  getProjectCuttingTotals: () => { totalPieces: number; totalLinealMm: number; totalLinealMetres: number };
+  getProjectClipTotals: () => ClipSummary;
   updateEdgeLength: (edgeIndex: number, lengthMm: number) => void;
   lockEdgeLength: (edgeIndex: number) => void;
   unlockEdgeLength: (edgeIndex: number) => void;
@@ -453,6 +484,8 @@ interface DeckingStoreState {
   requestDeleteDeck: (deckId: string) => void;
   confirmDeleteDeck: () => void;
   cancelDeleteDeck: () => void;
+  setJoistSpacingMode: (mode: JoistSpacingMode) => void;
+  setShowClips: (show: boolean) => void;
 }
 
 export const useDeckingStore = create<DeckingStoreState>()(
@@ -462,13 +495,18 @@ export const useDeckingStore = create<DeckingStoreState>()(
       activeDeckId: null,
       selectedDeckId: null,
       pendingDeleteDeckId: null,
+      joistSpacingMode: "residential",
+      showClips: false,
       history: [],
       historyIndex: -1,
 
       addDeck: (polygon) => {
         if (!isPolygonValid(polygon)) return;
         const name = `Deck ${get().decks.length + 1}`;
-        const newDeck = createDeckEntity(polygon, name);
+        const newDeck = {
+          ...createDeckEntity(polygon, name),
+          joistSpacingMode: get().joistSpacingMode,
+        };
         const nextDecks = [...get().decks, newDeck];
         set({ decks: nextDecks, activeDeckId: newDeck.id, selectedDeckId: null }, false);
         get().calculateBoardsForDeck(newDeck.id);
@@ -498,6 +536,19 @@ export const useDeckingStore = create<DeckingStoreState>()(
         set({ activeDeckId: deckId });
       },
 
+      setJoistSpacingMode: (mode) => {
+        if (mode !== "commercial" && mode !== "residential") return;
+        const updatedDecks = get().decks.map((deck) => ({ ...deck, joistSpacingMode: mode }));
+        set({ joistSpacingMode: mode, decks: updatedDecks });
+        get().calculateBoardsForAllDecks();
+        get().saveHistory();
+      },
+
+      setShowClips: (show) => {
+        set({ showClips: show });
+        get().saveHistory();
+      },
+
       updateActiveDeck: (patch) => {
         const { activeDeckId, decks } = get();
         if (!activeDeckId) return;
@@ -525,6 +576,8 @@ export const useDeckingStore = create<DeckingStoreState>()(
             fasciaPieces: [],
             boardPlan: null,
             pictureFrameWarning: null,
+            rowCount: 0,
+            clipSummary: null,
           };
           const nextDecks = [...decks];
           nextDecks[idx] = cleared;
@@ -571,6 +624,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
         let totalOverflowMm = 0;
         let totalBoards = 0;
         let rowsWithBoards = 0;
+        let currentRowIndex = 0;
 
         const breakerPositions: number[] = [];
         if (deck.boardDirection === "horizontal") {
@@ -594,7 +648,8 @@ export const useDeckingStore = create<DeckingStoreState>()(
             const y = bounds.minY + i * boardWidthWithGap;
             const intersections = getHorizontalIntersections(infillPolygon, y);
             if (intersections.length < 2) continue;
-            rowsWithBoards += 1;
+            const rowIndex = currentRowIndex++;
+            rowsWithBoards = currentRowIndex;
             for (let j = 0; j < intersections.length - 1; j += 2) {
               const startX = intersections[j];
               const endX = intersections[j + 1];
@@ -622,6 +677,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
                     isRunStart: idx === 0,
                     isRunEnd: idx === segmentCount - 1,
                     kind: "field",
+                    rowIndex,
                   });
                   totalBoards += 1;
                 });
@@ -641,6 +697,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
                     isRunStart: idx === 0,
                     isRunEnd: idx === segmentCount - 1,
                     kind: "field",
+                    rowIndex,
                   });
                   cursorX += length;
                 });
@@ -674,7 +731,8 @@ export const useDeckingStore = create<DeckingStoreState>()(
             const x = bounds.minX + i * boardWidthWithGap;
             const intersections = getVerticalIntersections(infillPolygon, x);
             if (intersections.length < 2) continue;
-            rowsWithBoards += 1;
+            const rowIndex = currentRowIndex++;
+            rowsWithBoards = currentRowIndex;
             for (let j = 0; j < intersections.length - 1; j += 2) {
               const startY = intersections[j];
               const endY = intersections[j + 1];
@@ -702,6 +760,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
                     isRunStart: idx === 0,
                     isRunEnd: idx === segmentCount - 1,
                     kind: "field",
+                    rowIndex,
                   });
                   totalBoards += 1;
                 });
@@ -721,6 +780,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
                     isRunStart: idx === 0,
                     isRunEnd: idx === segmentCount - 1,
                     kind: "field",
+                    rowIndex,
                   });
                   cursorY += length;
                 });
@@ -749,6 +809,10 @@ export const useDeckingStore = create<DeckingStoreState>()(
           }
         }
 
+        boards.forEach((board) => {
+          board.rowCount = rowsWithBoards;
+        });
+
         const boardPlan: DeckingBoardPlan = buildBoardPlan(
           deck,
           finishes,
@@ -758,6 +822,35 @@ export const useDeckingStore = create<DeckingStoreState>()(
           totalOverflowMm,
           rowsWithBoards
         );
+
+        const joistSpacingMm = getJoistSpacingMm(deck.joistSpacingMode ?? get().joistSpacingMode);
+        const joistCount = rowsWithBoards > 0
+          ? getJoistCount(infillPolygon, deck.boardDirection, joistSpacingMm)
+          : 0;
+        const clipCounts = getClipsPerJoist(rowsWithBoards);
+        const clipSummary: ClipSummary = {
+          joistCount,
+          rowCount: rowsWithBoards,
+          deckClips: joistCount * clipCounts.clipsPerJoist,
+          starterClips: joistCount * clipCounts.starterClipsPerJoist,
+          fasciaClips: 0,
+          deckClipsForFascia: 0,
+          joistSpacingMm,
+        };
+
+        if (finishes.fasciaEnabled && clipSummary.joistSpacingMm > 0) {
+          const fasciaClips = getFasciaClipCount(polygonPerimeter(deck.polygon), clipSummary.joistSpacingMm);
+          clipSummary.fasciaClips = fasciaClips;
+          clipSummary.deckClipsForFascia = Math.ceil(fasciaClips / 2);
+        }
+
+        if (rowsWithBoards === 0) {
+          clipSummary.joistCount = 0;
+          clipSummary.deckClips = 0;
+          clipSummary.starterClips = 0;
+          clipSummary.fasciaClips = finishes.fasciaEnabled ? clipSummary.fasciaClips : 0;
+          clipSummary.deckClipsForFascia = finishes.fasciaEnabled ? clipSummary.deckClipsForFascia : 0;
+        }
 
         const updatedDeck: DeckEntity = {
           ...deck,
@@ -769,6 +862,9 @@ export const useDeckingStore = create<DeckingStoreState>()(
           fasciaPieces,
           pictureFrameWarning,
           boardPlan,
+          rowCount: rowsWithBoards,
+          clipSummary,
+          joistSpacingMode: deck.joistSpacingMode ?? get().joistSpacingMode,
         };
 
         const nextDecks = [...decks];
@@ -806,6 +902,9 @@ export const useDeckingStore = create<DeckingStoreState>()(
             pictureFrame: [],
             fascia: [],
             clips: 0,
+            starterClips: 0,
+            fasciaClips: 0,
+            deckClipsForFascia: 0,
             totalBoardLength: 0,
             totalFasciaLength: 0,
           };
@@ -823,25 +922,99 @@ export const useDeckingStore = create<DeckingStoreState>()(
           };
         }
 
-        const report = buildDeckReport(deck);
-        const cuttingSummary = buildDeckCuttingSummary(deck);
+        const boardsList = Array.from(boardLengthCounts.entries())
+          .map(([length, count]) => ({ length, count }))
+          .sort((a, b) => b.length - a.length);
+
+        const pictureFrameList = Array.from(pictureFrameLengthCounts.entries())
+          .map(([length, count]) => ({ length, count }))
+          .sort((a, b) => b.length - a.length);
+
+        const fasciaList = Array.from(fasciaLengthCounts.entries())
+          .map(([length, count]) => ({ length, count }))
+          .sort((a, b) => b.length - a.length);
+
+        const totalBoardLength =
+          allBoards.reduce((sum, board) => sum + board.length, 0) +
+          Array.from(pictureFrameLengthCounts.entries()).reduce(
+            (sum, [length, count]) => sum + length * count,
+            0
+          );
+
+        const totalFasciaLength = Array.from(fasciaLengthCounts.entries()).reduce(
+          (sum, [length, count]) => sum + length * count,
+          0
+        );
+
+        const clipSummary = deck.clipSummary;
+
+        const clips = clipSummary?.deckClips ?? 0;
+        const starterClips = clipSummary?.starterClips ?? 0;
+        const fasciaClips = deck.finishes.fasciaEnabled ? clipSummary?.fasciaClips ?? 0 : 0;
+        const deckClipsForFascia = deck.finishes.fasciaEnabled
+          ? clipSummary?.deckClipsForFascia ?? 0
+          : 0;
+
         return {
-          boards: cuttingSummary.fieldSummary.items.map(({ lengthMm, count }) => ({
-            length: lengthMm,
-            count,
-          })),
-          pictureFrame: cuttingSummary.pictureFrameSummary.items.map(({ lengthMm, count }) => ({
-            length: lengthMm,
-            count,
-          })),
-          fascia: cuttingSummary.fasciaSummary.items.map(({ lengthMm, count }) => ({
-            length: lengthMm,
-            count,
-          })),
-          clips: report.clipCount,
-          totalBoardLength: cuttingSummary.boardLinealMm,
-          totalFasciaLength: cuttingSummary.fasciaLinealMm,
+          boards: boardsList,
+          pictureFrame: pictureFrameList,
+          fascia: fasciaList,
+          clips,
+          starterClips,
+          fasciaClips,
+          deckClipsForFascia,
+          totalBoardLength,
+          totalFasciaLength,
         };
+      },
+
+      getProjectCuttingTotals: () => {
+        const { decks } = get();
+
+        const totals = decks.reduce(
+          (acc, deck) => {
+            const list = get().getCuttingListForDeck(deck.id);
+            const allPieces = [...list.boards, ...list.pictureFrame, ...list.fascia];
+            allPieces.forEach((piece) => {
+              acc.totalPieces += piece.count;
+              acc.totalLinealMm += piece.length * piece.count;
+            });
+            return acc;
+          },
+          { totalPieces: 0, totalLinealMm: 0 }
+        );
+
+        return {
+          ...totals,
+          totalLinealMetres: totals.totalLinealMm / 1000,
+        };
+      },
+
+      getProjectClipTotals: () => {
+        const { decks, joistSpacingMode } = get();
+        const spacing = getJoistSpacingMm(joistSpacingMode);
+        return decks.reduce<ClipSummary>(
+          (acc, deck) => {
+            const summary = deck.clipSummary;
+            if (!summary) return acc;
+            acc.joistCount += summary.joistCount;
+            acc.rowCount += summary.rowCount;
+            acc.deckClips += summary.deckClips;
+            acc.starterClips += summary.starterClips;
+            acc.fasciaClips += deck.finishes.fasciaEnabled ? summary.fasciaClips : 0;
+            acc.deckClipsForFascia += deck.finishes.fasciaEnabled ? summary.deckClipsForFascia : 0;
+            return acc;
+          },
+          {
+            joistCount: 0,
+            rowCount: 0,
+            deckClips: 0,
+            starterClips: 0,
+            fasciaClips: 0,
+            deckClipsForFascia: 0,
+            joistSpacingMm: spacing,
+          }
+        );
       },
 
       updateEdgeLength: (edgeIndex, lengthMm) => {
@@ -980,6 +1153,8 @@ export const useDeckingStore = create<DeckingStoreState>()(
           set({
             decks: deepCloneDecks(snapshot.decks),
             activeDeckId: snapshot.activeDeckId,
+            joistSpacingMode: snapshot.joistSpacingMode,
+            showClips: snapshot.showClips,
             historyIndex: newIndex,
           });
         }
@@ -993,16 +1168,20 @@ export const useDeckingStore = create<DeckingStoreState>()(
           set({
             decks: deepCloneDecks(snapshot.decks),
             activeDeckId: snapshot.activeDeckId,
+            joistSpacingMode: snapshot.joistSpacingMode,
+            showClips: snapshot.showClips,
             historyIndex: newIndex,
           });
         }
       },
 
       saveHistory: () => {
-        const { decks, activeDeckId, history, historyIndex } = get();
+        const { decks, activeDeckId, history, historyIndex, joistSpacingMode, showClips } = get();
         const snapshot = {
           decks: deepCloneDecks(decks),
           activeDeckId,
+          joistSpacingMode,
+          showClips,
         };
         const newHistory = history.slice(0, historyIndex + 1);
         newHistory.push(snapshot);
@@ -1021,7 +1200,12 @@ export const useDeckingStore = create<DeckingStoreState>()(
         }
 
         const history = Array.isArray(incomingState.history)
-          ? incomingState.history
+          ? incomingState.history.map((entry) => ({
+              decks: entry.decks,
+              activeDeckId: entry.activeDeckId ?? null,
+              joistSpacingMode: (entry as { joistSpacingMode?: JoistSpacingMode }).joistSpacingMode ?? "residential",
+              showClips: (entry as { showClips?: boolean }).showClips ?? false,
+            }))
           : currentState.history;
 
         return {
@@ -1032,6 +1216,12 @@ export const useDeckingStore = create<DeckingStoreState>()(
             typeof incomingState.historyIndex === "number"
               ? incomingState.historyIndex
               : currentState.historyIndex,
+          joistSpacingMode:
+            (incomingState as Partial<DeckingStoreState>).joistSpacingMode ??
+            currentState.joistSpacingMode ??
+            "residential",
+          showClips:
+            (incomingState as Partial<DeckingStoreState>).showClips ?? currentState.showClips ?? false,
         };
       },
     }

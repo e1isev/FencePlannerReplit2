@@ -33,6 +33,8 @@ export interface Board {
   segmentCount?: number;
   isRunStart?: boolean;
   isRunEnd?: boolean;
+  rowIndex?: number;
+  rowCount?: number;
 }
 
 export interface Clip {
@@ -64,8 +66,23 @@ export interface DeckingCuttingList {
     count: number;
   }[];
   clips: number;
+  starterClips: number;
+  fasciaClips: number;
+  deckClipsForFascia: number;
   totalBoardLength: number;
   totalFasciaLength: number;
+}
+
+export type JoistSpacingMode = "commercial" | "residential";
+
+export interface ClipSummary {
+  joistCount: number;
+  rowCount: number;
+  deckClips: number;
+  starterClips: number;
+  fasciaClips: number;
+  deckClipsForFascia: number;
+  joistSpacingMm: number;
 }
 
 export interface DeckingBoardPlan {
@@ -104,6 +121,9 @@ export interface DeckEntity {
   selectedColor: DeckColor;
   boardDirection: BoardDirection;
   boardPlan: DeckingBoardPlan | null;
+  rowCount: number;
+  clipSummary: ClipSummary | null;
+  joistSpacingMode: JoistSpacingMode;
   finishes: {
     pictureFrameEnabled: boolean;
     fasciaEnabled: boolean;
