@@ -314,11 +314,9 @@ function DeckImageExporter({
 
 export function DeckingFinishedPageView() {
   const [, setLocation] = useLocation();
-  const { decks, getReportData, getDeckRenderModel } = useDeckingStore((state) => ({
-    decks: state.decks,
-    getReportData: state.getReportData,
-    getDeckRenderModel: state.getDeckRenderModel,
-  }));
+  const decks = useDeckingStore((state) => state.decks);
+  const getReportData = useDeckingStore((state) => state.getReportData);
+  const getDeckRenderModel = useDeckingStore((state) => state.getDeckRenderModel);
   const reportData = useMemo(() => getReportData(), [decks, getReportData]);
   const defaultBreaker = useMemo(
     () => reportData.decks.some((deck) => deck.finishes.breakerBoardsEnabled),
