@@ -10,6 +10,7 @@ import {
 import type {
   Board,
   BoardDirection,
+  Clip,
   DeckColor,
   DeckRenderModel,
   DeckEntity,
@@ -17,6 +18,7 @@ import type {
   DeckingCuttingList,
   DeckReport,
   DeckReportTotals,
+  DeckCutListItem,
   EdgeConstraint,
   CornerConstraint,
   Point,
@@ -44,6 +46,8 @@ const JOIST_SPACING: Record<JoistSpacingMode, number> = {
   commercial: 350,
   residential: 450,
 };
+const CLIP_SPACING_MM = 450;
+const FASCIA_CLIP_SPACING_MM = 450;
 
 function getJoistSpacingMm(mode: JoistSpacingMode): number {
   return JOIST_SPACING[mode];
@@ -894,33 +898,49 @@ export const useDeckingStore = create<DeckingStoreState>()(
       },
 
       getCuttingListForDeck: (deckId) => {
+        const emptyList: DeckingCuttingList = {
+          boards: [],
+          pictureFrame: [],
+          fascia: [],
+          clips: 0,
+          starterClips: 0,
+          fasciaClips: 0,
+          deckClipsForFascia: 0,
+          totalBoardLength: 0,
+          totalFasciaLength: 0,
+        };
+
         const { activeDeckId } = get();
         const id = deckId ?? activeDeckId;
         if (!id) {
-          return {
-            boards: [],
-            pictureFrame: [],
-            fascia: [],
-            clips: 0,
-            starterClips: 0,
-            fasciaClips: 0,
-            deckClipsForFascia: 0,
-            totalBoardLength: 0,
-            totalFasciaLength: 0,
-          };
+          return emptyList;
         }
 
         const deck = get().decks.find((d) => d.id === id);
         if (!deck) {
-          return {
-            boards: [],
-            pictureFrame: [],
-            fascia: [],
-            clips: 0,
-            totalBoardLength: 0,
-            totalFasciaLength: 0,
-          };
+          return emptyList;
         }
+
+        const boardLengthCounts = new Map<number, number>();
+        const allBoards = [...deck.boards, ...deck.breakerBoards];
+        allBoards.forEach((board) => {
+          const length = Math.round(board.length);
+          boardLengthCounts.set(length, (boardLengthCounts.get(length) ?? 0) + 1);
+        });
+
+        const pictureFrameLengthCounts = new Map<number, number>();
+        deck.pictureFramePieces.forEach((piece) => {
+          if (piece.length < 2) return;
+          const length = Math.round(Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y));
+          pictureFrameLengthCounts.set(length, (pictureFrameLengthCounts.get(length) ?? 0) + 1);
+        });
+
+        const fasciaLengthCounts = new Map<number, number>();
+        deck.fasciaPieces.forEach((piece) => {
+          if (piece.length < 2) return;
+          const length = Math.round(Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y));
+          fasciaLengthCounts.set(length, (fasciaLengthCounts.get(length) ?? 0) + 1);
+        });
 
         const boardsList = Array.from(boardLengthCounts.entries())
           .map(([length, count]) => ({ length, count }))
@@ -935,7 +955,10 @@ export const useDeckingStore = create<DeckingStoreState>()(
           .sort((a, b) => b.length - a.length);
 
         const totalBoardLength =
-          allBoards.reduce((sum, board) => sum + board.length, 0) +
+          Array.from(boardLengthCounts.entries()).reduce(
+            (sum, [length, count]) => sum + length * count,
+            0
+          ) +
           Array.from(pictureFrameLengthCounts.entries()).reduce(
             (sum, [length, count]) => sum + length * count,
             0
