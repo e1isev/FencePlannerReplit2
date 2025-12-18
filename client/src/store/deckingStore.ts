@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import {
   BOARD_GAP_MM,
   BOARD_WIDTH_MM,
+  JOIST_SPACING_MM,
   MAX_BOARD_LENGTH_MM,
   planBoardsForRun,
 } from "@/lib/deckingGeometry";
@@ -10,9 +11,12 @@ import type {
   Board,
   BoardDirection,
   DeckColor,
+  DeckRenderModel,
   DeckEntity,
   DeckingBoardPlan,
   DeckingCuttingList,
+  DeckReport,
+  DeckReportTotals,
   EdgeConstraint,
   CornerConstraint,
   Point,
@@ -138,6 +142,101 @@ function getVerticalIntersections(polygon: Point[], x: number): number[] {
   return intersections.sort((a, b) => a - b);
 }
 
+function calculatePerimeterMm(polygon: Point[]): number {
+  if (polygon.length < 2) return 0;
+  let perimeter = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const next = (i + 1) % polygon.length;
+    perimeter += Math.hypot(polygon[next].x - polygon[i].x, polygon[next].y - polygon[i].y);
+  }
+  return perimeter;
+}
+
+function aggregateBoardsByLength(
+  boards: Board[],
+  kind: DeckCutListItem["kind"]
+): { items: DeckCutListItem[]; totalLength: number; totalPieces: number } {
+  const counts = new Map<number, number>();
+  boards.forEach((board) => {
+    const length = Math.round(board.length);
+    counts.set(length, (counts.get(length) || 0) + 1);
+  });
+
+  const items = Array.from(counts.entries())
+    .map(([length, count]) => ({
+      label: kind === "breaker" ? "Breaker board" : "Board",
+      lengthMm: length,
+      count,
+      kind,
+    }))
+    .sort((a, b) => b.lengthMm - a.lengthMm);
+
+  const totalLength = Array.from(counts.entries()).reduce(
+    (sum, [length, count]) => sum + length * count,
+    0
+  );
+
+  return { items, totalLength, totalPieces: boards.length };
+}
+
+function aggregateLinearPieces(
+  pieces: Point[][],
+  kind: DeckCutListItem["kind"]
+): { items: DeckCutListItem[]; totalLength: number; totalPieces: number } {
+  const counts = new Map<number, number>();
+  pieces.forEach((piece) => {
+    if (piece.length < 2) return;
+    const length = Math.round(Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y));
+    counts.set(length, (counts.get(length) || 0) + 1);
+  });
+
+  const items = Array.from(counts.entries())
+    .map(([length, count]) => ({
+      label: kind === "fascia" ? "Fascia run" : "Perimeter board",
+      lengthMm: length,
+      count,
+      kind,
+    }))
+    .sort((a, b) => b.lengthMm - a.lengthMm);
+
+  const totalLength = Array.from(counts.entries()).reduce(
+    (sum, [length, count]) => sum + length * count,
+    0
+  );
+
+  const totalPieces = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
+
+  return { items, totalLength, totalPieces };
+}
+
+function calculateClipCountForLength(lengthMm: number, spacingMm: number): number {
+  if (lengthMm <= 0 || spacingMm <= 0) return 0;
+  return Math.max(2, Math.ceil(lengthMm / spacingMm) + 1);
+}
+
+function buildClipOverlays(boards: Board[]): Clip[] {
+  const clips: Clip[] = [];
+  boards.forEach((board, index) => {
+    const dx = board.end.x - board.start.x;
+    const dy = board.end.y - board.start.y;
+    const length = Math.hypot(dx, dy);
+    if (length === 0) return;
+    const unit = { x: dx / length, y: dy / length };
+    const spacing = CLIP_SPACING_MM;
+    for (let cursor = spacing; cursor < length; cursor += spacing) {
+      clips.push({
+        id: `clip-${board.id}-${cursor}-${index}`,
+        position: {
+          x: board.start.x + unit.x * cursor,
+          y: board.start.y + unit.y * cursor,
+        },
+        boardCount: 2,
+      });
+    }
+  });
+  return clips;
+}
+
 const LOCKED_EDGE_TOLERANCE_MM = 0.5;
 
 function findConflictingLockedEdge(
@@ -223,6 +322,132 @@ function buildBoardPlan(
   };
 }
 
+function buildDeckCuttingSummary(deck: DeckEntity) {
+  const fieldBoards = deck.boards.filter((board) => board.kind !== "breaker");
+  const breakerBoards = deck.breakerBoards;
+  const fieldSummary = aggregateBoardsByLength(fieldBoards, "field");
+  const breakerSummary = aggregateBoardsByLength(breakerBoards, "breaker");
+  const pictureFrameSummary = aggregateLinearPieces(deck.pictureFramePieces, "pictureFrame");
+  const fasciaSummary = aggregateLinearPieces(deck.fasciaPieces, "fascia");
+
+  const cuttingList = [
+    ...fieldSummary.items,
+    ...breakerSummary.items,
+    ...pictureFrameSummary.items,
+    ...fasciaSummary.items,
+  ];
+
+  const boardLinealMm =
+    fieldSummary.totalLength + breakerSummary.totalLength + pictureFrameSummary.totalLength;
+
+  return {
+    cuttingList,
+    boardLinealMm,
+    fasciaLinealMm: fasciaSummary.totalLength,
+    boardPieces: fieldSummary.totalPieces + breakerSummary.totalPieces + pictureFrameSummary.totalPieces,
+    totalPieces:
+      fieldSummary.totalPieces +
+      breakerSummary.totalPieces +
+      pictureFrameSummary.totalPieces +
+      fasciaSummary.totalPieces,
+    fieldSummary,
+    breakerSummary,
+    pictureFrameSummary,
+    fasciaSummary,
+  };
+}
+
+function buildDeckReport(deck: DeckEntity): DeckReport {
+  const cuttingSummary = buildDeckCuttingSummary(deck);
+  const areaM2 =
+    deck.boardPlan?.areaM2 ?? (deck.polygon.length >= 3 ? polygonArea(deck.polygon) / 1_000_000 : 0);
+  const perimeterMm = deck.polygon.length >= 2 ? calculatePerimeterMm(deck.polygon) : 0;
+  const bounds = deck.polygon.length > 0 ? getBounds(deck.polygon) : { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  const spanForJoists =
+    deck.boardDirection === "horizontal" ? bounds.maxY - bounds.minY : bounds.maxX - bounds.minX;
+  const joistCount = Math.max(1, Math.ceil(spanForJoists / JOIST_SPACING_MM) + 1);
+
+  const clipCount = [...deck.boards, ...deck.breakerBoards].reduce(
+    (sum, board) => sum + calculateClipCountForLength(board.length, CLIP_SPACING_MM),
+    0
+  );
+
+  const fasciaClipCount = deck.fasciaPieces.reduce((sum, piece) => {
+    if (piece.length < 2) return sum;
+    const length = Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y);
+    return sum + calculateClipCountForLength(length, FASCIA_CLIP_SPACING_MM);
+  }, 0);
+
+  const deckClipsSnappedForFascia = fasciaClipCount;
+
+  return {
+    id: deck.id,
+    name: deck.name,
+    boardDirection: deck.boardDirection,
+    selectedColor: deck.selectedColor,
+    finishes: deck.finishes,
+    boardPlan: deck.boardPlan,
+    cuttingList: cuttingSummary.cuttingList,
+    areaM2,
+    perimeterMm,
+    rowCount: deck.boardPlan?.numberOfRows ?? 0,
+    joistCount,
+    clipCount,
+    fasciaClipCount,
+    deckClipsSnappedForFascia,
+    totals: {
+      boardPieces: cuttingSummary.boardPieces,
+      totalPieces: cuttingSummary.totalPieces,
+      boardLinealMm: cuttingSummary.boardLinealMm,
+      fasciaLinealMm: cuttingSummary.fasciaLinealMm,
+      totalLinealMm: cuttingSummary.boardLinealMm + cuttingSummary.fasciaLinealMm,
+    },
+  };
+}
+
+function buildDeckRenderModel(deck: DeckEntity): DeckRenderModel {
+  return {
+    id: deck.id,
+    name: deck.name,
+    polygon: deck.polygon,
+    infillPolygon: deck.infillPolygon,
+    boards: deck.boards,
+    breakerBoards: deck.breakerBoards,
+    pictureFramePieces: deck.pictureFramePieces,
+    fasciaPieces: deck.fasciaPieces,
+    clips: buildClipOverlays([...deck.boards, ...deck.breakerBoards]),
+    selectedColor: deck.selectedColor,
+    boardDirection: deck.boardDirection,
+    finishes: deck.finishes,
+  };
+}
+
+function buildTotals(reports: DeckReport[]): DeckReportTotals {
+  return reports.reduce<DeckReportTotals>(
+    (acc, report) => ({
+      boardPieces: acc.boardPieces + report.totals.boardPieces,
+      totalPieces: acc.totalPieces + report.totals.totalPieces,
+      boardLinealMm: acc.boardLinealMm + report.totals.boardLinealMm,
+      fasciaLinealMm: acc.fasciaLinealMm + report.totals.fasciaLinealMm,
+      totalLinealMm: acc.totalLinealMm + report.totals.totalLinealMm,
+      totalClips: acc.totalClips + report.clipCount,
+      totalFasciaClips: acc.totalFasciaClips + report.fasciaClipCount,
+      totalDeckClipsSnappedForFascia:
+        acc.totalDeckClipsSnappedForFascia + report.deckClipsSnappedForFascia,
+    }),
+    {
+      boardPieces: 0,
+      totalPieces: 0,
+      boardLinealMm: 0,
+      fasciaLinealMm: 0,
+      totalLinealMm: 0,
+      totalClips: 0,
+      totalFasciaClips: 0,
+      totalDeckClipsSnappedForFascia: 0,
+    }
+  );
+}
+
 interface DeckingStoreState {
   decks: DeckEntity[];
   activeDeckId: string | null;
@@ -247,6 +472,8 @@ interface DeckingStoreState {
   undo: () => void;
   redo: () => void;
   saveHistory: () => void;
+  getDeckRenderModel: (deckId: string) => DeckRenderModel | null;
+  getReportData: () => { decks: DeckReport[]; projectTotals: DeckReportTotals };
   getCuttingListForDeck: (deckId: string | null) => DeckingCuttingList;
   getProjectCuttingTotals: () => { totalPieces: number; totalLinealMm: number; totalLinealMetres: number };
   getProjectClipTotals: () => ClipSummary;
@@ -650,16 +877,26 @@ export const useDeckingStore = create<DeckingStoreState>()(
         decks.forEach((deck) => get().calculateBoardsForDeck(deck.id));
       },
 
+      getDeckRenderModel: (deckId) => {
+        const deck = get().decks.find((d) => d.id === deckId);
+        if (!deck) return null;
+        return buildDeckRenderModel(deck);
+      },
+
+      getReportData: () => {
+        const reports = get().decks.map((deck) => buildDeckReport(deck));
+        return { decks: reports, projectTotals: buildTotals(reports) };
+      },
+
       clearAllDecks: () => {
         set({ decks: [], activeDeckId: null, selectedDeckId: null, pendingDeleteDeckId: null });
         get().saveHistory();
       },
 
       getCuttingListForDeck: (deckId) => {
-        const { decks, activeDeckId } = get();
+        const { activeDeckId } = get();
         const id = deckId ?? activeDeckId;
-        const deck = decks.find((d) => d.id === id);
-        if (!deck) {
+        if (!id) {
           return {
             boards: [],
             pictureFrame: [],
@@ -673,36 +910,16 @@ export const useDeckingStore = create<DeckingStoreState>()(
           };
         }
 
-        const allBoards = [...deck.boards, ...deck.breakerBoards];
-        const boardLengthCounts = new Map<number, number>();
-        allBoards.forEach((board) => {
-          const length = Math.round(board.length);
-          boardLengthCounts.set(length, (boardLengthCounts.get(length) || 0) + 1);
-        });
-
-        const pictureFrameLengthCounts = new Map<number, number>();
-        if (deck.finishes.pictureFrameEnabled) {
-          deck.pictureFramePieces.forEach((piece) => {
-            if (piece.length < 2) return;
-            const length = Math.round(
-              Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y)
-            );
-            pictureFrameLengthCounts.set(
-              length,
-              (pictureFrameLengthCounts.get(length) || 0) + 1
-            );
-          });
-        }
-
-        const fasciaLengthCounts = new Map<number, number>();
-        if (deck.finishes.fasciaEnabled) {
-          deck.fasciaPieces.forEach((piece) => {
-            if (piece.length < 2) return;
-            const length = Math.round(
-              Math.hypot(piece[1].x - piece[0].x, piece[1].y - piece[0].y)
-            );
-            fasciaLengthCounts.set(length, (fasciaLengthCounts.get(length) || 0) + 1);
-          });
+        const deck = get().decks.find((d) => d.id === id);
+        if (!deck) {
+          return {
+            boards: [],
+            pictureFrame: [],
+            fascia: [],
+            clips: 0,
+            totalBoardLength: 0,
+            totalFasciaLength: 0,
+          };
         }
 
         const boardsList = Array.from(boardLengthCounts.entries())

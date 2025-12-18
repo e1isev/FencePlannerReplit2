@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Undo2, Redo2, Trash2, Fence } from "lucide-react";
+import { Undo2, Redo2, Trash2, Fence, FileText } from "lucide-react";
 import { useLocation } from "wouter";
 import { useDeckingStore } from "@/store/deckingStore";
 
@@ -21,6 +21,15 @@ export function DeckingToolbar() {
         >
           <Fence className="w-4 h-4 mr-2" />
           Fence Planner
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setLocation("/decking/finished")}
+          data-testid="button-decking-finished-page"
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Finished page
         </Button>
         <div className="h-8 w-px bg-slate-300 mx-1" />
         <Button

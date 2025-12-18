@@ -43,6 +43,15 @@ export interface Clip {
   boardCount: number; // 3 or 2.5 if snapped
 }
 
+export type DeckCutItemKind = "field" | "breaker" | "pictureFrame" | "fascia";
+
+export interface DeckCutListItem {
+  label: string;
+  lengthMm: number;
+  count: number;
+  kind: DeckCutItemKind;
+}
+
 export interface DeckingCuttingList {
   boards: {
     length: number;
@@ -130,4 +139,54 @@ export interface DeckEntity {
 
 export interface CornerConstraint {
   angleDeg: number;
+}
+
+export interface DeckRenderModel {
+  id: string;
+  name: string;
+  polygon: Point[];
+  infillPolygon: Point[];
+  boards: Board[];
+  breakerBoards: Board[];
+  pictureFramePieces: Point[][];
+  fasciaPieces: Point[][];
+  clips: Clip[];
+  selectedColor: DeckColor;
+  boardDirection: BoardDirection;
+  finishes: DeckEntity["finishes"];
+}
+
+export interface DeckReport {
+  id: string;
+  name: string;
+  boardDirection: BoardDirection;
+  selectedColor: DeckColor;
+  finishes: DeckEntity["finishes"];
+  boardPlan: DeckingBoardPlan | null;
+  cuttingList: DeckCutListItem[];
+  areaM2: number;
+  perimeterMm: number;
+  rowCount: number;
+  joistCount: number;
+  clipCount: number;
+  fasciaClipCount: number;
+  deckClipsSnappedForFascia: number;
+  totals: {
+    boardPieces: number;
+    totalPieces: number;
+    boardLinealMm: number;
+    fasciaLinealMm: number;
+    totalLinealMm: number;
+  };
+}
+
+export interface DeckReportTotals {
+  boardPieces: number;
+  totalPieces: number;
+  boardLinealMm: number;
+  fasciaLinealMm: number;
+  totalLinealMm: number;
+  totalClips: number;
+  totalFasciaClips: number;
+  totalDeckClipsSnappedForFascia: number;
 }
