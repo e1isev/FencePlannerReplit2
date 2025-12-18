@@ -2,9 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   BOARD_GAP_MM,
+  BREAKER_HALF_MM,
   BOARD_WIDTH_MM,
   JOIST_SPACING_MM,
   MAX_BOARD_LENGTH_MM,
+  Interval,
   planBoardsForRun,
 } from "@/lib/deckingGeometry";
 import type {
@@ -154,6 +156,36 @@ function calculatePerimeterMm(polygon: Point[]): number {
     perimeter += Math.hypot(polygon[next].x - polygon[i].x, polygon[next].y - polygon[i].y);
   }
   return perimeter;
+}
+
+const MIN_SEGMENT_LENGTH_MM = 1;
+
+function splitRunAroundBreakers(runStart: number, runEnd: number, breakerCenters: number[]): Interval[] {
+  if (runEnd - runStart <= MIN_SEGMENT_LENGTH_MM) return [];
+
+  const blockedBands = breakerCenters
+    .map((center) => ({
+      start: Math.max(runStart, center - BREAKER_HALF_MM),
+      end: Math.min(runEnd, center + BREAKER_HALF_MM),
+    }))
+    .filter((band) => band.end > band.start)
+    .sort((a, b) => a.start - b.start);
+
+  const segments: Interval[] = [];
+  let cursor = runStart;
+
+  blockedBands.forEach((band) => {
+    if (band.start - cursor > MIN_SEGMENT_LENGTH_MM) {
+      segments.push({ start: cursor, end: band.start });
+    }
+    cursor = Math.max(cursor, band.end);
+  });
+
+  if (runEnd - cursor > MIN_SEGMENT_LENGTH_MM) {
+    segments.push({ start: cursor, end: runEnd });
+  }
+
+  return segments;
 }
 
 function aggregateBoardsByLength(
@@ -663,17 +695,18 @@ export const useDeckingStore = create<DeckingStoreState>()(
               const runId = generateId("run");
 
               if (finishes.breakerBoardsEnabled) {
-                const runBreakers = breakerPositions.filter((x) => x > startX && x < endX);
-                const segmentPoints = [startX, ...runBreakers, endX];
-                const segmentCount = segmentPoints.length - 1;
-                segmentPoints.forEach((xPos, idx) => {
-                  if (idx === segmentCount) return;
-                  const nextX = segmentPoints[idx + 1];
-                  const length = nextX - xPos;
+                const runBreakers = breakerPositions.filter(
+                  (x) => x + BREAKER_HALF_MM > startX && x - BREAKER_HALF_MM < endX
+                );
+                const segments = splitRunAroundBreakers(startX, endX, runBreakers);
+                const segmentCount = segments.length;
+
+                segments.forEach((segment, idx) => {
+                  const length = segment.end - segment.start;
                   boards.push({
                     id: generateId("board"),
-                    start: { x: xPos, y },
-                    end: { x: nextX, y },
+                    start: { x: segment.start, y },
+                    end: { x: segment.end, y },
                     length,
                     runId,
                     segmentIndex: idx,
@@ -714,15 +747,17 @@ export const useDeckingStore = create<DeckingStoreState>()(
 
           if (finishes.breakerBoardsEnabled) {
             breakerPositions.forEach((xBreaker) => {
-              const intersections = getVerticalIntersections(deck.polygon, xBreaker);
+              const intersections = getVerticalIntersections(infillPolygon, xBreaker);
               for (let k = 0; k < intersections.length - 1; k += 2) {
                 const yStart = intersections[k];
                 const yEnd = intersections[k + 1];
+                const height = yEnd - yStart;
+                if (height <= MIN_SEGMENT_LENGTH_MM) continue;
                 breakerBoards.push({
                   id: generateId("breaker"),
                   start: { x: xBreaker, y: yStart },
                   end: { x: xBreaker, y: yEnd },
-                  length: yEnd - yStart,
+                  length: height,
                   kind: "breaker",
                 });
               }
@@ -746,17 +781,18 @@ export const useDeckingStore = create<DeckingStoreState>()(
               const runId = generateId("run");
 
               if (finishes.breakerBoardsEnabled) {
-                const runBreakers = breakerPositions.filter((yPos) => yPos > startY && yPos < endY);
-                const segmentPoints = [startY, ...runBreakers, endY];
-                const segmentCount = segmentPoints.length - 1;
-                segmentPoints.forEach((yPos, idx) => {
-                  if (idx === segmentCount) return;
-                  const nextY = segmentPoints[idx + 1];
-                  const length = nextY - yPos;
+                const runBreakers = breakerPositions.filter(
+                  (yPos) => yPos + BREAKER_HALF_MM > startY && yPos - BREAKER_HALF_MM < endY
+                );
+                const segments = splitRunAroundBreakers(startY, endY, runBreakers);
+                const segmentCount = segments.length;
+
+                segments.forEach((segment, idx) => {
+                  const length = segment.end - segment.start;
                   boards.push({
                     id: generateId("board"),
-                    start: { x, y: yPos },
-                    end: { x, y: nextY },
+                    start: { x, y: segment.start },
+                    end: { x, y: segment.end },
                     length,
                     runId,
                     segmentIndex: idx,
@@ -797,15 +833,17 @@ export const useDeckingStore = create<DeckingStoreState>()(
 
           if (finishes.breakerBoardsEnabled) {
             breakerPositions.forEach((yBreaker) => {
-              const intersections = getHorizontalIntersections(deck.polygon, yBreaker);
+              const intersections = getHorizontalIntersections(infillPolygon, yBreaker);
               for (let k = 0; k < intersections.length - 1; k += 2) {
                 const xStart = intersections[k];
                 const xEnd = intersections[k + 1];
+                const width = xEnd - xStart;
+                if (width <= MIN_SEGMENT_LENGTH_MM) continue;
                 breakerBoards.push({
                   id: generateId("breaker"),
                   start: { x: xStart, y: yBreaker },
                   end: { x: xEnd, y: yBreaker },
-                  length: xEnd - xStart,
+                  length: width,
                   kind: "breaker",
                 });
               }

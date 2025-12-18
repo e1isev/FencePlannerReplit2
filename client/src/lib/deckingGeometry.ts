@@ -3,6 +3,8 @@ export const BOARD_WIDTH_MM = 140;
 export const BOARD_GAP_MM = 3;
 export const JOIST_SPACING_MM = 450;
 export const MAX_BOARD_LENGTH_MM = 5400; // 5.4 meters
+export const BREAKER_WIDTH_MM = BOARD_WIDTH_MM;
+export const BREAKER_HALF_MM = BREAKER_WIDTH_MM / 2;
 
 export const GRID_SIZE_MM = 100;
 export const SNAP_TOLERANCE_PX = 8;
