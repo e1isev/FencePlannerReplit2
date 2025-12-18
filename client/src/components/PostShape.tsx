@@ -31,23 +31,15 @@ export function PostShape({
 
   const angleDeg = getPostAngleDeg({ x, y }, neighbours, lines, category);
 
-  const getPostColors = (type: PostCategory) => {
-    switch (type) {
-      case "end":
-        return { fill: "#10b981", stroke: "#059669" };
-      case "corner":
-        return { fill: "#ef4444", stroke: "#dc2626" };
-      case "t":
-        return { fill: "#7c3aed", stroke: "#6d28d9" };
-      case "line":
-      default:
-        return { fill: "#3b82f6", stroke: "#2563eb" };
-    }
-  };
+  const categoryColor = {
+    end: "#10b981",
+    corner: "#ef4444",
+    line: "#3b82f6",
+    t: "#a855f7",
+  }[category];
 
-  const { fill, stroke } = getPostColors(category);
-  const fillColor = isSatelliteMode ? `${fill}e6` : fill;
-  const strokeColor = isSatelliteMode ? `${stroke}e6` : stroke;
+  const fillColor = isSatelliteMode ? `${categoryColor}e6` : categoryColor;
+  const strokeColor = isSatelliteMode ? `${categoryColor}e6` : categoryColor;
 
   return (
     <Rect

@@ -12,11 +12,11 @@ export function exportCuttingListCSV(
   lines: FenceLine[]
 ): void {
   const pricing = getPricing(fenceStyleId);
-  
-const rows: string[][] = [
+
+  const rows: string[][] = [
     ["Product Code", "Description", "Quantity", "Unit Price", "Total Price"],
   ];
-  
+
   const numPanels = panels.filter((p) => !p.uses_leftover_id).length;
   if (numPanels > 0) {
     rows.push([
@@ -28,50 +28,51 @@ const rows: string[][] = [
     ]);
   }
   
-  const postCounts = {
-    end: posts.filter((p) => p.category === "end").length,
-    corner: posts.filter((p) => p.category === "corner").length,
-    t: posts.filter((p) => p.category === "t").length,
-    line: posts.filter((p) => p.category === "line").length,
-  };
+  const postCounts = posts.reduce(
+    (acc, p) => {
+      acc[p.category] = (acc[p.category] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
   
   if (postCounts.end > 0) {
     rows.push([
       `POST-END-${fenceStyleId.toUpperCase()}`,
       `End Post (${pricing.name})`,
-      postCounts.end.toString(),
+      (postCounts.end || 0).toString(),
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.end * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.end || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
-  if (postCounts.corner > 0) {
+  if ((postCounts.corner || 0) > 0) {
     rows.push([
       `POST-CORNER-${fenceStyleId.toUpperCase()}`,
       `Corner Post (${pricing.name})`,
-      postCounts.corner.toString(),
+      (postCounts.corner || 0).toString(),
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.corner * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.corner || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
 
-  if (postCounts.t > 0) {
+  if ((postCounts.t || 0) > 0) {
     rows.push([
       `POST-T-${fenceStyleId.toUpperCase()}`,
       `T Post (${pricing.name})`,
-      postCounts.t.toString(),
+      (postCounts.t || 0).toString(),
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.t * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.t || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
-  if (postCounts.line > 0) {
+  if ((postCounts.line || 0) > 0) {
     rows.push([
       `POST-LINE-${fenceStyleId.toUpperCase()}`,
       `Line Post (${pricing.name})`,
-      postCounts.line.toString(),
+      (postCounts.line || 0).toString(),
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.line * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.line || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
@@ -116,16 +117,16 @@ export function exportPDF(
 ): void {
   const doc = new jsPDF();
   const pricing = getPricing(fenceStyleId);
-  
-doc.setFontSize(20);
+
+  doc.setFontSize(20);
   doc.text("Fence Plan - Cutting List", 14, 20);
-  
+
   doc.setFontSize(12);
   doc.text(`Fence Style: ${pricing.name}`, 14, 30);
   doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 37);
-  
+
   const tableData: any[] = [];
-  
+
   const numPanels = panels.filter((p) => !p.uses_leftover_id).length;
   if (numPanels > 0) {
     tableData.push([
@@ -137,50 +138,51 @@ doc.setFontSize(20);
     ]);
   }
   
-  const postCounts = {
-    end: posts.filter((p) => p.category === "end").length,
-    corner: posts.filter((p) => p.category === "corner").length,
-    t: posts.filter((p) => p.category === "t").length,
-    line: posts.filter((p) => p.category === "line").length,
-  };
+  const postCounts = posts.reduce(
+    (acc, p) => {
+      acc[p.category] = (acc[p.category] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
   
   if (postCounts.end > 0) {
     tableData.push([
       `POST-END`,
       `End Post`,
-      postCounts.end,
+      postCounts.end || 0,
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.end * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.end || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
-  if (postCounts.corner > 0) {
+  if ((postCounts.corner || 0) > 0) {
     tableData.push([
       `POST-CORNER`,
       `Corner Post`,
-      postCounts.corner,
+      postCounts.corner || 0,
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.corner * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.corner || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
 
-  if (postCounts.t > 0) {
+  if ((postCounts.t || 0) > 0) {
     tableData.push([
       `POST-T`,
       `T Post`,
-      postCounts.t,
+      postCounts.t || 0,
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.t * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.t || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
-  if (postCounts.line > 0) {
+  if ((postCounts.line || 0) > 0) {
     tableData.push([
       `POST-LINE`,
       `Line Post`,
-      postCounts.line,
+      postCounts.line || 0,
       `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${(postCounts.line * pricing.post_unit_price).toFixed(2)}`,
+      `$${((postCounts.line || 0) * pricing.post_unit_price).toFixed(2)}`,
     ]);
   }
   
@@ -215,8 +217,8 @@ doc.setFontSize(20);
     const price = parseFloat(row[4].replace("$", "").replace(",", ""));
     return sum + price;
   }, 0);
-  
-doc.setFontSize(12);
+
+  doc.setFontSize(12);
   doc.text(`Total Length: ${(totalLength / 1000).toFixed(2)}m`, 14, finalY + 10);
   doc.setFont("helvetica", "bold");
   doc.text(`Grand Total: $${grandTotal.toFixed(2)}`, 14, finalY + 18);
