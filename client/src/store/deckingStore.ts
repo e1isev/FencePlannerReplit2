@@ -53,6 +53,7 @@ const JOIST_SPACING: Record<JoistSpacingMode, number> = {
 };
 const CLIP_SPACING_MM = 450;
 const FASCIA_CLIP_SPACING_MM = 450;
+const MAX_HISTORY_ENTRIES = 50;
 
 function getJoistSpacingMm(mode: JoistSpacingMode): number {
   return JOIST_SPACING[mode];
@@ -1376,7 +1377,11 @@ export const useDeckingStore = create<DeckingStoreState>()(
         };
         const newHistory = history.slice(0, historyIndex + 1);
         newHistory.push(snapshot);
-        set({ history: newHistory, historyIndex: newHistory.length - 1 });
+        const cappedHistory =
+          newHistory.length > MAX_HISTORY_ENTRIES
+            ? newHistory.slice(newHistory.length - MAX_HISTORY_ENTRIES)
+            : newHistory;
+        set({ history: cappedHistory, historyIndex: cappedHistory.length - 1 });
       },
     }),
     {
