@@ -19,7 +19,7 @@ import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 
-const ENDPOINT_WELD_EPS_PX = 1; // 1 mm
+const ENDPOINT_WELD_EPS_PX = 6; // px tolerance for welding endpoints
 const MERGE_ANGLE_TOL_DEG = 2;
 export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
 export const MAX_RUN_MM = 200_000;
