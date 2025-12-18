@@ -1043,8 +1043,9 @@ export function DeckingCanvasStage() {
     );
   };
 
-  const getBreakerPolygon = (deck: DeckEntity) =>
-    deck.finishes.pictureFrameEnabled && deck.infillPolygon.length >= 3 ? deck.infillPolygon : deck.polygon;
+  function getBreakerPolygon(deck: DeckEntity) {
+    return deck.finishes.pictureFrameEnabled && deck.infillPolygon.length >= 3 ? deck.infillPolygon : deck.polygon;
+  }
 
   const getBreakerEffectivePos = (line: BreakerLine) => {
     if (editingBreakerId === line.id && breakerDraftPosMm[line.id] !== undefined) {
