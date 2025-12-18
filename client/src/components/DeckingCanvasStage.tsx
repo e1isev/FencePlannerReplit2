@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
-import { mmToPx, pxToMm, BOARD_WIDTH_MM, BOARD_GAP_MM } from "@/lib/deckingGeometry";
+import {
+  mmToPx,
+  pxToMm,
+  BOARD_WIDTH_MM,
+  BOARD_GAP_MM,
+  BREAKER_WIDTH_MM,
+  BREAKER_HALF_MM,
+} from "@/lib/deckingGeometry";
 import {
   CLOSE_SHAPE_SNAP_RADIUS_MM,
   ENDPOINT_SNAP_RADIUS_MM,
@@ -443,6 +450,7 @@ export function DeckingCanvasStage() {
   const drawingPointsPx = drawingPointsMm.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)]);
   const isConfirmingDelete = selectedDeck?.id === pendingDeleteDeckId;
   const boardRenderWidthMm = BOARD_WIDTH_MM + 0.5;
+  const breakerRenderWidthMm = BREAKER_WIDTH_MM + 0.5;
   const gridLines: JSX.Element[] = [];
 
   const getSnappedPointer = (
@@ -849,6 +857,7 @@ export function DeckingCanvasStage() {
     if (deck.infillPolygon.length < 3 || deck.boards.length === 0) return null;
     const boardClipPointsPxCoords = deck.infillPolygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) }));
     const joinLines: JSX.Element[] = [];
+    const joinStrokeWidth = 1.25 / stageScale;
 
     const boardRects = deck.boards.map((board) => {
       const isHorizontal = board.start.y === board.end.y;
@@ -864,7 +873,7 @@ export function DeckingCanvasStage() {
               key={`join-${board.id}`}
               points={[mmToPx(xJoin), mmToPx(board.start.y - BOARD_WIDTH_MM / 2), mmToPx(xJoin), mmToPx(board.start.y + BOARD_WIDTH_MM / 2)]}
               stroke="#0f172a"
-              strokeWidth={1.25 / stageScale}
+              strokeWidth={joinStrokeWidth}
             />
           );
         }
@@ -893,7 +902,7 @@ export function DeckingCanvasStage() {
             key={`join-${board.id}`}
             points={[mmToPx(board.start.x - BOARD_WIDTH_MM / 2), mmToPx(yJoin), mmToPx(board.start.x + BOARD_WIDTH_MM / 2), mmToPx(yJoin)]}
             stroke="#0f172a"
-            strokeWidth={1.25 / stageScale}
+            strokeWidth={joinStrokeWidth}
           />
         );
       }
@@ -916,32 +925,70 @@ export function DeckingCanvasStage() {
       if (isVertical) {
         const yStart = Math.min(board.start.y, board.end.y);
         const heightMm = Math.abs(board.end.y - board.start.y);
-        const xLeftMm = board.start.x - BOARD_WIDTH_MM / 2;
+        const xLeftMm = board.start.x - BREAKER_HALF_MM;
+        const xRightMm = board.start.x + BREAKER_HALF_MM;
+        joinLines.push(
+          <Line
+            key={`breaker-edge-left-${board.id}`}
+            points={[mmToPx(xLeftMm), mmToPx(yStart), mmToPx(xLeftMm), mmToPx(yStart + heightMm)]}
+            stroke="#0f172a"
+            strokeWidth={joinStrokeWidth}
+          />
+        );
+        joinLines.push(
+          <Line
+            key={`breaker-edge-right-${board.id}`}
+            points={[mmToPx(xRightMm), mmToPx(yStart), mmToPx(xRightMm), mmToPx(yStart + heightMm)]}
+            stroke="#0f172a"
+            strokeWidth={joinStrokeWidth}
+          />
+        );
         return (
           <Rect
             key={board.id}
             x={mmToPx(xLeftMm)}
             y={mmToPx(yStart)}
-            width={mmToPx(boardRenderWidthMm)}
+            width={mmToPx(breakerRenderWidthMm)}
             height={mmToPx(heightMm)}
             fill="#0f172a"
             opacity={0.65}
+            stroke="#0f172a"
+            strokeWidth={joinStrokeWidth}
           />
         );
       }
 
       const xStart = Math.min(board.start.x, board.end.x);
       const widthMm = Math.abs(board.end.x - board.start.x);
-      const yTopMm = board.start.y - BOARD_WIDTH_MM / 2;
+      const yTopMm = board.start.y - BREAKER_HALF_MM;
+      const yBottomMm = board.start.y + BREAKER_HALF_MM;
+      joinLines.push(
+        <Line
+          key={`breaker-edge-top-${board.id}`}
+          points={[mmToPx(xStart), mmToPx(yTopMm), mmToPx(xStart + widthMm), mmToPx(yTopMm)]}
+          stroke="#0f172a"
+          strokeWidth={joinStrokeWidth}
+        />
+      );
+      joinLines.push(
+        <Line
+          key={`breaker-edge-bottom-${board.id}`}
+          points={[mmToPx(xStart), mmToPx(yBottomMm), mmToPx(xStart + widthMm), mmToPx(yBottomMm)]}
+          stroke="#0f172a"
+          strokeWidth={joinStrokeWidth}
+        />
+      );
       return (
         <Rect
           key={board.id}
           x={mmToPx(xStart)}
           y={mmToPx(yTopMm)}
           width={mmToPx(widthMm)}
-          height={mmToPx(boardRenderWidthMm)}
+          height={mmToPx(breakerRenderWidthMm)}
           fill="#0f172a"
           opacity={0.65}
+          stroke="#0f172a"
+          strokeWidth={joinStrokeWidth}
         />
       );
     });
@@ -957,8 +1004,8 @@ export function DeckingCanvasStage() {
         }}
       >
         {boardRects}
-        {joinLines}
         {breakerRects}
+        {joinLines}
       </Group>
     );
   };
