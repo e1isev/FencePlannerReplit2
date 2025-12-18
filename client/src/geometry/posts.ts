@@ -164,29 +164,24 @@ export function getPostAngleDeg(
   return normaliseAngleDeg(radToDeg(Math.atan2(sy, sx)));
 }
 
-const categorizePost = (pos: Point, lines: FenceLine[]): PostCategory => {
-  const connectingLines = lines.filter((l) => samePoint(l.a, pos) || samePoint(l.b, pos));
-
-  // Treat gate segments as not panels for T post logic
-  const panelConnections = connectingLines.filter((l) => !l.gateId);
-
-  // If 3 or 4 panels meet, it is a T post
-  if (panelConnections.length >= 3) return "t";
-
-  // Gate adjacency still forces end posts for gate openings
-  const isNextToGate = connectingLines.some((l) => l.gateId);
+const categorizePost = (pos: Point, lines: FenceLine[], _gates: Gate[] = []): PostCategory => {
+  const isNextToGate = lines.some(
+    (l) => l.gateId && (samePoint(l.a, pos) || samePoint(l.b, pos))
+  );
   if (isNextToGate) return "end";
 
-  // One connected panel segment means end post
-  if (panelConnections.length === 1) return "end";
+  const connectingLines = lines.filter((l) => samePoint(l.a, pos) || samePoint(l.b, pos));
 
-  if (panelConnections.length === 2) {
+  if (connectingLines.length <= 1) return "end";
+  if (connectingLines.length >= 3) return "t";
+
+  if (connectingLines.length === 2) {
     const angleForLine = (line: FenceLine) => {
       const target = samePoint(line.a, pos) ? line.b : line.a;
       return Math.atan2(target.y - pos.y, target.x - pos.x);
     };
 
-    const [lineA, lineB] = panelConnections;
+    const [lineA, lineB] = connectingLines;
     const angleA = angleForLine(lineA);
     const angleB = angleForLine(lineB);
     const diff = Math.abs(angleA - angleB);
@@ -204,7 +199,7 @@ const categorizePost = (pos: Point, lines: FenceLine[]): PostCategory => {
 
 export function generatePosts(
   lines: FenceLine[],
-  _gates: Gate[],
+  gates: Gate[],
   panelPositionsMap: Map<string, number[]> = new Map(),
   mmPerPixel: number = 1
 ): Post[] {
@@ -309,7 +304,7 @@ export function generatePosts(
 
   const posts = Array.from(adjacency.values()).map((entry) => {
     const category =
-      entry.source === "panel" ? entry.category ?? "line" : categorizePost(entry.pos, lines);
+      entry.source === "panel" ? entry.category ?? "line" : categorizePost(entry.pos, lines, gates);
     return {
       id: generateId("post"),
       pos: entry.pos,

@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
-import { ENDPOINT_SNAP_RADIUS_MM, findSnapPoint, findSnapPointOnSegment } from "@/geometry/snapping";
+import {
+  ENDPOINT_SNAP_RADIUS_MM,
+  findSnapOnLines,
+  findSnapPoint,
+  findSnapPointOnSegment,
+} from "@/geometry/snapping";
 import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
@@ -221,17 +226,16 @@ export function CanvasStage() {
         return { type: "endpoint", point: snappedEndpoint };
       }
 
-      const snappedSegment = findSnapPointOnSegment(point, lines, snapTolerance);
-      if (snappedSegment) {
-        if (snappedSegment.kind === "endpoint") {
-          return { type: "endpoint", point: snappedSegment.point };
-        }
-        return {
-          type: "segment",
-          point: snappedSegment.point,
-          lineId: snappedSegment.lineId,
-          t: snappedSegment.t,
-        };
+      const lineSnap = findSnapOnLines(point, lines, snapTolerance);
+      if (lineSnap) {
+        return lineSnap.kind === "endpoint"
+          ? { type: "endpoint", point: lineSnap.point }
+          : {
+              type: "segment",
+              point: lineSnap.point,
+              lineId: lineSnap.lineId,
+              t: lineSnap.t,
+            };
       }
 
       return { type: "free", point };

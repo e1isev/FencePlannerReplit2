@@ -32,7 +32,7 @@ export function PostShape({
   const angleDeg = getPostAngleDeg({ x, y }, neighbours, lines, category);
 
   const categoryColor = {
-    end: "#10b981",
+    end: "#22c55e",
     corner: "#ef4444",
     line: "#3b82f6",
     t: "#a855f7",

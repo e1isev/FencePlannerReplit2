@@ -42,6 +42,26 @@ const normalise = (v: { x: number; y: number }) => {
   return { x: v.x / mag, y: v.y / mag };
 };
 
+export function pointOnSegmentInterior(p: Point, a: Point, b: Point, tolPx: number) {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const apx = p.x - a.x;
+  const apy = p.y - a.y;
+  const ab2 = abx * abx + aby * aby;
+  if (ab2 === 0) return { ok: false, t: 0, closest: a, dist2: Infinity };
+
+  let t = (apx * abx + apy * aby) / ab2;
+  t = Math.max(0, Math.min(1, t));
+  const closest = { x: a.x + t * abx, y: a.y + t * aby };
+  const dx = p.x - closest.x;
+  const dy = p.y - closest.y;
+  const dist2 = dx * dx + dy * dy;
+
+  const interior = t > 0.02 && t < 0.98;
+  const ok = interior && dist2 <= tolPx * tolPx;
+  return { ok, t, closest, dist2 };
+}
+
 const angleBetweenLinesAbs = (l1: FenceLine, l2: FenceLine) => {
   const d1 = normalise({ x: l1.b.x - l1.a.x, y: l1.b.y - l1.a.y });
   const d2 = normalise({ x: l2.b.x - l2.a.x, y: l2.b.y - l2.a.y });
@@ -219,12 +239,50 @@ export const linesShareAnyGateOrOpening = (lineA: FenceLine, lineB: FenceLine): 
   return Array.from(aIds).some((id) => bIds.has(id));
 };
 
-const countLinesAtPoint = (lines: FenceLine[], point: Point, epsPx: number): number => {
+const endpointConnectionCount = (lines: FenceLine[], point: Point): number => {
   return lines.reduce((count, line) => {
-    const atA = Math.hypot(line.a.x - point.x, line.a.y - point.y) <= epsPx;
-    const atB = Math.hypot(line.b.x - point.x, line.b.y - point.y) <= epsPx;
+    const atA = pointsMatch(line.a, point);
+    const atB = pointsMatch(line.b, point);
     return count + (atA || atB ? 1 : 0);
   }, 0);
+};
+
+const splitLineAtPointImmutable = (
+  lines: FenceLine[],
+  targetId: string,
+  p: Point,
+  mmPerPixel: number
+): { lines: FenceLine[]; junction: Point | null } => {
+  const idx = lines.findIndex((l) => l.id === targetId);
+  if (idx < 0) return { lines, junction: null };
+
+  const line = lines[idx];
+  if (lineHasGateOrOpening(line)) return { lines, junction: null };
+
+  const hit = pointOnSegmentInterior(p, line.a, line.b, 2);
+  if (!hit.ok) return { lines, junction: null };
+
+  const junction = quantizePoint(hit.closest, mmPerPixel);
+
+  const lineA: FenceLine = {
+    ...line,
+    id: line.id,
+    a: line.a,
+    b: junction,
+    length_mm: Math.hypot(junction.x - line.a.x, junction.y - line.a.y) * mmPerPixel,
+  };
+  const lineB: FenceLine = {
+    ...line,
+    id: generateId("line"),
+    a: junction,
+    b: line.b,
+    length_mm: Math.hypot(line.b.x - junction.x, line.b.y - junction.y) * mmPerPixel,
+  };
+
+  const next = [...lines];
+  next.splice(idx, 1, lineA, lineB);
+
+  return { lines: next, junction };
 };
 
 const mergeCollinearLines = (
@@ -265,8 +323,14 @@ const mergeCollinearLines = (
         continue;
       }
 
-      const junctionDegree = countLinesAtPoint(updatedLines, sharedEndpoint.sharedPoint, ENDPOINT_WELD_EPS_PX);
-      if (junctionDegree !== 2) {
+      const sharedPoint = sharedEndpoint.sharedPoint;
+      const junctionDegree = endpointConnectionCount(updatedLines, sharedPoint);
+      const junctionHasBlockingLine = updatedLines.some(
+        (line) =>
+          (pointsMatch(line.a, sharedPoint) || pointsMatch(line.b, sharedPoint)) &&
+          lineHasGateOrOpening(line)
+      );
+      if (junctionDegree !== 2 || junctionHasBlockingLine) {
         continue;
       }
 
@@ -311,6 +375,14 @@ const mergeConnectedLines = (
 
         if (angleBetweenLinesAbs(baseLine, otherLine) > degToRad(MERGE_ANGLE_TOL_DEG)) continue;
         if (!segmentsOverlapOnLine(baseLine, otherLine, ENDPOINT_WELD_EPS_PX)) continue;
+        const sharedPoint = sharedEndpoint.sharedPoint;
+        const junctionDegree = endpointConnectionCount(updatedLines, sharedPoint);
+        const junctionHasBlockingLine = updatedLines.some(
+          (line) =>
+            (pointsMatch(line.a, sharedPoint) || pointsMatch(line.b, sharedPoint)) &&
+            lineHasGateOrOpening(line)
+        );
+        if (junctionDegree !== 2 || junctionHasBlockingLine) continue;
 
         const mergedLine = buildMergedLine(baseLine, otherLine, sharedEndpoint, mmPerPixel);
         updatedLines = updatedLines
@@ -516,40 +588,42 @@ export const useAppStore = create<AppState>()(
           return target.b;
         }
 
-        if (lineHasGateOrOpening(target)) {
-          return null;
-        }
+        const splitResult = splitLineAtPointImmutable(lines, lineId, quantizedSplit, mmPerPixel);
+        if (!splitResult.junction) return null;
 
-        const newLineA: FenceLine = {
-          ...target,
-          id: generateId("line"),
-          b: quantizedSplit,
-          length_mm: Math.hypot(quantizedSplit.x - target.a.x, quantizedSplit.y - target.a.y) * mmPerPixel,
-        };
+        set({ lines: splitResult.lines });
 
-        const newLineB: FenceLine = {
-          ...target,
-          id: generateId("line"),
-          a: quantizedSplit,
-          length_mm: Math.hypot(target.b.x - quantizedSplit.x, target.b.y - quantizedSplit.y) * mmPerPixel,
-        };
-
-        const newLines = [
-          ...lines.slice(0, targetIndex),
-          newLineA,
-          newLineB,
-          ...lines.slice(targetIndex + 1),
-        ];
-
-        set({ lines: newLines });
-
-        return quantizedSplit;
+        return splitResult.junction;
       },
 
       addLine: (a, b) => {
         const mmPerPixel = get().mmPerPixel;
-        const quantizedA = quantizePoint(a, mmPerPixel);
-        const quantizedB = quantizePoint(b, mmPerPixel);
+        let workingLines = get().lines;
+
+        const applySplit = (point: Point): Point => {
+          for (const candidate of workingLines) {
+            const hit = pointOnSegmentInterior(point, candidate.a, candidate.b, 2);
+            if (!hit.ok) continue;
+
+            const splitResult = splitLineAtPointImmutable(
+              workingLines,
+              candidate.id,
+              hit.closest,
+              mmPerPixel
+            );
+            if (splitResult.junction) {
+              workingLines = splitResult.lines;
+              return splitResult.junction;
+            }
+          }
+          return point;
+        };
+
+        const snappedA = applySplit(a);
+        const snappedB = applySplit(b);
+
+        const quantizedA = quantizePoint(snappedA, mmPerPixel);
+        const quantizedB = quantizePoint(snappedB, mmPerPixel);
         const dx = quantizedB.x - quantizedA.x;
         const dy = quantizedB.y - quantizedA.y;
         const length_px = Math.hypot(dx, dy);
@@ -576,8 +650,8 @@ export const useAppStore = create<AppState>()(
           even_spacing: false,
         };
 
-        const nextLines = [...get().lines, newLine];
-        const mergeResult = mergeCollinearLines(nextLines, newLine.id, get().mmPerPixel);
+        const nextLines = [...workingLines, newLine];
+        const mergeResult = mergeCollinearLines(nextLines, newLine.id, mmPerPixel);
         const mergedLines = mergeResult.lines;
         const selectedLineId = mergeResult.merged ? mergeResult.primaryId : newLine.id;
 

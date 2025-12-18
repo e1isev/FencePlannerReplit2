@@ -75,32 +75,89 @@ export type SnapPointOnSegmentResult =
   | { point: Point; kind: "endpoint"; lineId?: string; t?: number }
   | { point: Point; kind: "segment"; lineId: string; t: number };
 
+export type SnapOnLineResult =
+  | { point: Point; kind: "endpoint"; lineId: string; t: number }
+  | { point: Point; kind: "segment"; lineId: string; t: number };
+
+export function closestPointOnSegment(point: Point, a: Point, b: Point) {
+  const ab = { x: b.x - a.x, y: b.y - a.y };
+  const abLenSq = ab.x * ab.x + ab.y * ab.y;
+  if (abLenSq === 0) {
+    const dx = point.x - a.x;
+    const dy = point.y - a.y;
+    return { point: a, t: 0, distSq: dx * dx + dy * dy };
+  }
+
+  const ap = { x: point.x - a.x, y: point.y - a.y };
+  let t = (ap.x * ab.x + ap.y * ab.y) / abLenSq;
+  t = Math.max(0, Math.min(1, t));
+
+  const proj = { x: a.x + ab.x * t, y: a.y + ab.y * t };
+  const distSq = (point.x - proj.x) ** 2 + (point.y - proj.y) ** 2;
+
+  return { point: proj, t, distSq };
+}
+
+export function findSnapOnLines(
+  point: Point,
+  lines: FenceLine[],
+  tolerance: number
+): SnapOnLineResult | null {
+  let bestEndpoint: SnapOnLineResult | null = null;
+  let bestEndpointDistSq = tolerance * tolerance;
+  let bestSegment: SnapOnLineResult | null = null;
+  let bestSegmentDistSq = tolerance * tolerance;
+
+  for (const line of lines) {
+    const endpoints: Array<{ point: Point; t: number }> = [
+      { point: line.a, t: 0 },
+      { point: line.b, t: 1 },
+    ];
+
+    endpoints.forEach(({ point: endpoint, t }) => {
+      const distSq = (point.x - endpoint.x) ** 2 + (point.y - endpoint.y) ** 2;
+      if (distSq < bestEndpointDistSq) {
+        bestEndpointDistSq = distSq;
+        bestEndpoint = { point: endpoint, kind: "endpoint", lineId: line.id, t };
+      }
+    });
+
+    if (lineHasBlockingFeatures(line)) continue;
+
+    const { point: proj, t, distSq } = closestPointOnSegment(point, line.a, line.b);
+    const epsilon = endpointProximityEpsilon(tolerance);
+    const nearEndpoint = t <= epsilon || t >= 1 - epsilon;
+
+    if (nearEndpoint) {
+      if (distSq < bestEndpointDistSq) {
+        bestEndpointDistSq = distSq;
+        bestEndpoint = { point: t < 0.5 ? line.a : line.b, kind: "endpoint", lineId: line.id, t };
+      }
+      continue;
+    }
+
+    if (distSq < bestSegmentDistSq) {
+      bestSegmentDistSq = distSq;
+      bestSegment = { point: proj, kind: "segment", lineId: line.id, t };
+    }
+  }
+
+  return bestEndpoint ?? bestSegment;
+}
+
 export function findSnapPointOnSegment(
   point: Point,
   lines: FenceLine[],
   tolerance: number
 ): SnapPointOnSegmentResult | null {
-  let closest: SnapPointOnSegmentResult | null = null;
-  let minDistance = tolerance;
+  const candidate = findSnapOnLines(point, lines, tolerance);
+  if (!candidate) return null;
 
-  for (const line of lines) {
-    if (lineHasBlockingFeatures(line)) continue;
-
-    const { t, proj } = projectPointToSegment(point, line.a, line.b);
-    const distance = Math.hypot(point.x - proj.x, point.y - proj.y);
-    if (distance >= minDistance) continue;
-
-    const epsilon = endpointProximityEpsilon(tolerance);
-    const kind = t <= epsilon || t >= 1 - epsilon ? "endpoint" : "segment";
-
-    minDistance = distance;
-    closest =
-      kind === "endpoint"
-        ? { point: t < 0.5 ? line.a : line.b, kind, lineId: line.id, t }
-        : { point: proj, kind, lineId: line.id, t };
+  if (candidate.kind === "endpoint") {
+    return { point: candidate.point, kind: "endpoint", lineId: candidate.lineId, t: candidate.t };
   }
 
-  return closest;
+  return { point: candidate.point, kind: "segment", lineId: candidate.lineId, t: candidate.t };
 }
 
 export function getDistance(start: Point, end: Point): number {
