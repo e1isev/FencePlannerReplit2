@@ -15,6 +15,14 @@ export interface Point {
   y: number;
 }
 
+export type BreakerAxis = "x" | "y";
+
+export interface BreakerLine {
+  id: string;
+  axis: BreakerAxis;
+  posMm: number;
+}
+
 export type EdgeLockMode = "locked" | "unlocked";
 
 export interface EdgeConstraint {
@@ -116,6 +124,7 @@ export interface DeckEntity {
   infillPolygon: Point[];
   boards: Board[];
   breakerBoards: Board[];
+  breakerLines: BreakerLine[];
   pictureFramePieces: Point[][];
   fasciaPieces: Point[][];
   selectedColor: DeckColor;
@@ -148,6 +157,7 @@ export interface DeckRenderModel {
   infillPolygon: Point[];
   boards: Board[];
   breakerBoards: Board[];
+  breakerLines: BreakerLine[];
   pictureFramePieces: Point[][];
   fasciaPieces: Point[][];
   clips: Clip[];

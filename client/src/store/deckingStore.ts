@@ -27,6 +27,8 @@ import type {
   DeckingSelectionState,
   JoistSpacingMode,
   ClipSummary,
+  BreakerLine,
+  BreakerAxis,
 } from "@/types/decking";
 import {
   findBottomEdgeIndex,
@@ -41,6 +43,7 @@ import {
 import { offsetPolygonMiter } from "@/geometry/pictureFrame";
 import { buildFasciaPieces } from "@/geometry/fascia";
 import { getClipsPerJoist, getFasciaClipCount, getJoistCount } from "@/geometry/clipCalc";
+import { breakerAxisForDirection, generateDefaultBreakerLines } from "@/lib/deckingBreaker";
 
 const DEFAULT_COLOR: DeckColor = "mallee-bark";
 const DEFAULT_FASCIA_THICKNESS = 20;
@@ -313,6 +316,7 @@ function createDeckEntity(points: Point[], name: string): DeckEntity {
     infillPolygon: normalizedPolygon,
     boards: [],
     breakerBoards: [],
+    breakerLines: [],
     pictureFramePieces: [],
     fasciaPieces: [],
     selectedColor: DEFAULT_COLOR,
@@ -449,6 +453,7 @@ function buildDeckRenderModel(deck: DeckEntity): DeckRenderModel {
     infillPolygon: deck.infillPolygon,
     boards: deck.boards,
     breakerBoards: deck.breakerBoards,
+    breakerLines: deck.breakerLines,
     pictureFramePieces: deck.pictureFramePieces,
     fasciaPieces: deck.fasciaPieces,
     clips: buildClipOverlays([...deck.boards, ...deck.breakerBoards]),
@@ -489,6 +494,12 @@ interface DeckingStoreState {
   activeDeckId: string | null;
   selectedDeckId: string | null;
   pendingDeleteDeckId: string | null;
+  hasHydrated: boolean;
+  selectedBreakerId: string | null;
+  editingBreakerId: string | null;
+  breakerDraftPosMm: Record<string, number>;
+  breakerConfirmId: string | null;
+  breakerConfirmPosMm: number | null;
   joistSpacingMode: JoistSpacingMode;
   showClips: boolean;
   history: Array<{
@@ -522,6 +533,13 @@ interface DeckingStoreState {
   cancelDeleteDeck: () => void;
   setJoistSpacingMode: (mode: JoistSpacingMode) => void;
   setShowClips: (show: boolean) => void;
+  selectBreakerLine: (deckId: string, breakerId: string) => void;
+  startEditBreakerLine: (deckId: string, breakerId: string) => void;
+  setBreakerDraftPos: (deckId: string, breakerId: string, posMm: number) => void;
+  requestConfirmBreaker: (deckId: string, breakerId: string, posMm: number) => void;
+  confirmBreakerPlacement: (deckId: string, breakerId: string) => void;
+  rejectBreakerPlacement: (deckId: string, breakerId: string) => void;
+  exitEditBreakerLine: () => void;
 }
 
 export const useDeckingStore = create<DeckingStoreState>()(
@@ -531,6 +549,12 @@ export const useDeckingStore = create<DeckingStoreState>()(
       activeDeckId: null,
       selectedDeckId: null,
       pendingDeleteDeckId: null,
+      hasHydrated: false,
+      selectedBreakerId: null,
+      editingBreakerId: null,
+      breakerDraftPosMm: {},
+      breakerConfirmId: null,
+      breakerConfirmPosMm: null,
       joistSpacingMode: "residential",
       showClips: false,
       history: [],
@@ -562,6 +586,11 @@ export const useDeckingStore = create<DeckingStoreState>()(
           activeDeckId: nextActive,
           selectedDeckId: nextSelected,
           pendingDeleteDeckId: nextPending,
+          selectedBreakerId: null,
+          editingBreakerId: null,
+          breakerConfirmId: null,
+          breakerConfirmPosMm: null,
+          breakerDraftPosMm: {},
         });
         get().saveHistory();
       },
@@ -583,6 +612,93 @@ export const useDeckingStore = create<DeckingStoreState>()(
       setShowClips: (show) => {
         set({ showClips: show });
         get().saveHistory();
+      },
+
+      selectBreakerLine: (deckId, breakerId) => {
+        const deck = get().decks.find((d) => d.id === deckId);
+        if (!deck || !deck.finishes.breakerBoardsEnabled) return;
+        const exists = deck.breakerLines?.some((line) => line.id === breakerId);
+        if (!exists) return;
+        set({
+          selectedBreakerId: breakerId,
+          editingBreakerId: null,
+          breakerConfirmId: null,
+          breakerConfirmPosMm: null,
+        });
+      },
+
+      startEditBreakerLine: (deckId, breakerId) => {
+        const deck = get().decks.find((d) => d.id === deckId);
+        if (!deck || !deck.finishes.breakerBoardsEnabled) return;
+        const exists = deck.breakerLines?.some((line) => line.id === breakerId);
+        if (!exists) return;
+        set({
+          selectedBreakerId: breakerId,
+          editingBreakerId: breakerId,
+          breakerConfirmId: null,
+          breakerConfirmPosMm: null,
+        });
+      },
+
+      setBreakerDraftPos: (deckId, breakerId, posMm) => {
+        const deck = get().decks.find((d) => d.id === deckId);
+        if (!deck || !deck.finishes.breakerBoardsEnabled) return;
+        set((state) => ({
+          breakerDraftPosMm: { ...state.breakerDraftPosMm, [breakerId]: posMm },
+        }));
+      },
+
+      requestConfirmBreaker: (deckId, breakerId, posMm) => {
+        const deck = get().decks.find((d) => d.id === deckId);
+        if (!deck || !deck.finishes.breakerBoardsEnabled) return;
+        const exists = deck.breakerLines?.some((line) => line.id === breakerId);
+        if (!exists) return;
+        set((state) => ({
+          breakerConfirmId: breakerId,
+          breakerConfirmPosMm: posMm,
+          breakerDraftPosMm: { ...state.breakerDraftPosMm, [breakerId]: posMm },
+        }));
+      },
+
+      confirmBreakerPlacement: (deckId, breakerId) => {
+        const { decks, breakerDraftPosMm } = get();
+        const idx = decks.findIndex((d) => d.id === deckId);
+        if (idx === -1) return;
+        const posMm = breakerDraftPosMm[breakerId];
+        if (!Number.isFinite(posMm)) return;
+
+        const deck = decks[idx];
+        const updatedLines =
+          deck.breakerLines?.map((line) => (line.id === breakerId ? { ...line, posMm: posMm as number } : line)) ?? [];
+        const nextDraft = { ...breakerDraftPosMm };
+        delete nextDraft[breakerId];
+
+        const nextDecks = [...decks];
+        nextDecks[idx] = { ...deck, breakerLines: updatedLines };
+
+        set({
+          decks: nextDecks,
+          breakerDraftPosMm: nextDraft,
+          breakerConfirmId: null,
+          breakerConfirmPosMm: null,
+          editingBreakerId: null,
+          selectedBreakerId: breakerId,
+        });
+        get().calculateBoardsForDeck(deckId);
+      },
+
+      rejectBreakerPlacement: (_deckId, _breakerId) => {
+        set({ breakerConfirmId: null, breakerConfirmPosMm: null });
+      },
+
+      exitEditBreakerLine: () => {
+        set({
+          selectedBreakerId: null,
+          editingBreakerId: null,
+          breakerConfirmId: null,
+          breakerConfirmPosMm: null,
+          breakerDraftPosMm: {},
+        });
       },
 
       updateActiveDeck: (patch) => {
@@ -656,26 +772,29 @@ export const useDeckingStore = create<DeckingStoreState>()(
         const boardWidthWithGap = BOARD_WIDTH_MM + BOARD_GAP_MM;
         const bounds = getBounds(infillPolygon);
 
+        const breakerAxis: BreakerAxis = breakerAxisForDirection(deck.boardDirection);
+        const existingBreakerLines = deck.breakerLines ?? [];
+        let activeBreakerLines = existingBreakerLines.filter((line) => line.axis === breakerAxis);
+        let nextBreakerLines = existingBreakerLines;
+
+        if (finishes.breakerBoardsEnabled && activeBreakerLines.length === 0) {
+          const generated = generateDefaultBreakerLines(
+            { ...deck, boardDirection: deck.boardDirection, infillPolygon },
+            infillPolygon
+          );
+          activeBreakerLines = generated;
+          nextBreakerLines = [...existingBreakerLines.filter((line) => line.axis !== breakerAxis), ...generated];
+        }
+
+        const breakerPositions: number[] = finishes.breakerBoardsEnabled
+          ? activeBreakerLines.map((line) => line.posMm)
+          : [];
+
         let totalWasteMm = 0;
         let totalOverflowMm = 0;
         let totalBoards = 0;
         let rowsWithBoards = 0;
         let currentRowIndex = 0;
-
-        const breakerPositions: number[] = [];
-        if (deck.boardDirection === "horizontal") {
-          let cursor = bounds.minX + MAX_BOARD_LENGTH_MM;
-          while (cursor < bounds.maxX) {
-            breakerPositions.push(cursor);
-            cursor += MAX_BOARD_LENGTH_MM;
-          }
-        } else {
-          let cursor = bounds.minY + MAX_BOARD_LENGTH_MM;
-          while (cursor < bounds.maxY) {
-            breakerPositions.push(cursor);
-            cursor += MAX_BOARD_LENGTH_MM;
-          }
-        }
 
         if (deck.boardDirection === "horizontal") {
           const span = bounds.maxY - bounds.minY;
@@ -900,6 +1019,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
           infillPolygon,
           boards,
           breakerBoards,
+          breakerLines: nextBreakerLines,
           pictureFramePieces,
           fasciaPieces,
           pictureFrameWarning,
@@ -931,7 +1051,17 @@ export const useDeckingStore = create<DeckingStoreState>()(
       },
 
       clearAllDecks: () => {
-        set({ decks: [], activeDeckId: null, selectedDeckId: null, pendingDeleteDeckId: null });
+        set({
+          decks: [],
+          activeDeckId: null,
+          selectedDeckId: null,
+          pendingDeleteDeckId: null,
+          selectedBreakerId: null,
+          editingBreakerId: null,
+          breakerConfirmId: null,
+          breakerConfirmPosMm: null,
+          breakerDraftPosMm: {},
+        });
         get().saveHistory();
       },
 
@@ -1257,8 +1387,17 @@ export const useDeckingStore = create<DeckingStoreState>()(
           (persistedState as Partial<DeckingStoreState>);
 
         if (!incomingState || typeof incomingState !== "object") {
-          return currentState;
+          return { ...currentState, hasHydrated: true };
         }
+
+        const decks = Array.isArray(incomingState.decks)
+          ? incomingState.decks.map((deck) => ({
+              ...deck,
+              breakerLines: Array.isArray((deck as DeckEntity).breakerLines)
+                ? (deck as DeckEntity).breakerLines
+                : [],
+            }))
+          : currentState.decks;
 
         const history = Array.isArray(incomingState.history)
           ? incomingState.history.map((entry) => ({
@@ -1272,6 +1411,28 @@ export const useDeckingStore = create<DeckingStoreState>()(
         return {
           ...currentState,
           ...incomingState,
+          decks,
+          hasHydrated: true,
+          selectedBreakerId:
+            (incomingState as Partial<DeckingStoreState>).selectedBreakerId ??
+            currentState.selectedBreakerId ??
+            null,
+          editingBreakerId:
+            (incomingState as Partial<DeckingStoreState>).editingBreakerId ??
+            currentState.editingBreakerId ??
+            null,
+          breakerDraftPosMm:
+            (incomingState as Partial<DeckingStoreState>).breakerDraftPosMm ??
+            currentState.breakerDraftPosMm ??
+            {},
+          breakerConfirmId:
+            (incomingState as Partial<DeckingStoreState>).breakerConfirmId ??
+            currentState.breakerConfirmId ??
+            null,
+          breakerConfirmPosMm:
+            (incomingState as Partial<DeckingStoreState>).breakerConfirmPosMm ??
+            currentState.breakerConfirmPosMm ??
+            null,
           history,
           historyIndex:
             typeof incomingState.historyIndex === "number"

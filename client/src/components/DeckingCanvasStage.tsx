@@ -10,6 +10,7 @@ import {
   BREAKER_WIDTH_MM,
   BREAKER_HALF_MM,
 } from "@/lib/deckingGeometry";
+import { breakerAxisForDirection, getBreakerLineSegments, snapBreakerPosition } from "@/lib/deckingBreaker";
 import {
   CLOSE_SHAPE_SNAP_RADIUS_MM,
   ENDPOINT_SNAP_RADIUS_MM,
@@ -27,6 +28,7 @@ import {
   getJoistPositions,
   getRowAxisStart,
 } from "@/geometry/clipCalc";
+import type { BreakerLine } from "@/types/decking";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -173,6 +175,18 @@ export function DeckingCanvasStage() {
     unlockEdgeLength,
     joistSpacingMode,
     showClips,
+    selectedBreakerId,
+    editingBreakerId,
+    breakerDraftPosMm,
+    breakerConfirmId,
+    breakerConfirmPosMm,
+    selectBreakerLine,
+    startEditBreakerLine,
+    setBreakerDraftPos,
+    requestConfirmBreaker,
+    confirmBreakerPlacement,
+    rejectBreakerPlacement,
+    exitEditBreakerLine,
   } = useDeckingStore();
 
   const activeDeck = useMemo(
@@ -304,6 +318,7 @@ export function DeckingCanvasStage() {
   const handleStageClick = (e: any) => {
     if (e.evt.button === 2) return;
     if (e.target !== e.target.getStage()) return;
+    if (breakerConfirmId) return;
     if (pendingSegment || isLengthPromptOpen) return;
 
     const stage = e.target.getStage();
@@ -503,6 +518,24 @@ export function DeckingCanvasStage() {
     [activeDeck?.polygon]
   );
   const drawingSegments = useMemo(() => getSegments(draftPointsMm, false), [draftPointsMm]);
+  const selectedBreakerAnchor = useMemo(
+    () => getBreakerAnchor(selectedBreakerId),
+    [
+      selectedBreakerId,
+      decks,
+      breakerDraftPosMm,
+      breakerConfirmId,
+      breakerConfirmPosMm,
+      stagePos.x,
+      stagePos.y,
+      scale,
+      editingBreakerId,
+    ]
+  );
+  const confirmBreakerAnchor = useMemo(
+    () => getBreakerAnchor(breakerConfirmId),
+    [breakerConfirmId, decks, breakerDraftPosMm, breakerConfirmPosMm, stagePos.x, stagePos.y, scale, editingBreakerId]
+  );
 
   const computeLabelPosition = (
     segment: Segment,
@@ -1010,6 +1043,149 @@ export function DeckingCanvasStage() {
     );
   };
 
+  const getBreakerPolygon = (deck: DeckEntity) =>
+    deck.finishes.pictureFrameEnabled && deck.infillPolygon.length >= 3 ? deck.infillPolygon : deck.polygon;
+
+  const getBreakerEffectivePos = (line: BreakerLine) => {
+    if (editingBreakerId === line.id && breakerDraftPosMm[line.id] !== undefined) {
+      return breakerDraftPosMm[line.id];
+    }
+    if (breakerConfirmId === line.id && typeof breakerConfirmPosMm === "number") {
+      return breakerConfirmPosMm;
+    }
+    return line.posMm;
+  };
+
+  const renderBreakerLines = (deck: DeckEntity) => {
+    if (!deck.finishes.breakerBoardsEnabled || (deck.breakerLines?.length ?? 0) === 0) return null;
+    const breakerAxis = breakerAxisForDirection(deck.boardDirection);
+    const lines = deck.breakerLines.filter((line) => line.axis === breakerAxis);
+    if (lines.length === 0) return null;
+    const polygon = getBreakerPolygon(deck);
+    if (polygon.length < 2) return null;
+
+    return lines.map((line) => {
+      const posMm = getBreakerEffectivePos(line);
+      const displayLine: BreakerLine = { ...line, posMm };
+      const segments = getBreakerLineSegments(displayLine, polygon);
+      if (segments.length === 0) return null;
+
+      const isSelected = selectedBreakerId === line.id;
+      const isEditing = editingBreakerId === line.id;
+      const strokeWidth = 2 / stageScale;
+      const hitThicknessPx = 18 / stageScale;
+      const paddingPx = 10 / stageScale;
+
+      const extent = segments.reduce(
+        (acc, segment) => {
+          const min = Math.min(line.axis === "x" ? segment.start.y : segment.start.x, line.axis === "x" ? segment.end.y : segment.end.x);
+          const max = Math.max(line.axis === "x" ? segment.start.y : segment.start.x, line.axis === "x" ? segment.end.y : segment.end.x);
+          return { min: Math.min(acc.min, min), max: Math.max(acc.max, max) };
+        },
+        { min: Infinity, max: -Infinity }
+      );
+      if (!Number.isFinite(extent.min) || !Number.isFinite(extent.max)) return null;
+
+      const hitRect =
+        line.axis === "x"
+          ? {
+              x: mmToPx(posMm) - hitThicknessPx / 2,
+              y: mmToPx(extent.min) - paddingPx,
+              width: hitThicknessPx,
+              height: mmToPx(extent.max - extent.min) + paddingPx * 2,
+            }
+          : {
+              x: mmToPx(extent.min) - paddingPx,
+              y: mmToPx(posMm) - hitThicknessPx / 2,
+              width: mmToPx(extent.max - extent.min) + paddingPx * 2,
+              height: hitThicknessPx,
+            };
+
+      const handleSelect = (evt: any) => {
+        evt.cancelBubble = true;
+        if (isDrawing || pendingSegment || isLengthPromptOpen || breakerConfirmId) return;
+        selectBreakerLine(deck.id, line.id);
+      };
+
+      const handleDragMove = (evt: any) => {
+        evt.cancelBubble = true;
+        const stage = evt.target.getStage();
+        const pointer = stage?.getPointerPosition();
+        if (!pointer) return;
+        const world = screenToWorld(pointer);
+        const polygonForSnap = getBreakerPolygon(deck);
+        const rawPos = line.axis === "x" ? world.x : world.y;
+        const snapped = snapBreakerPosition(line.axis, rawPos, polygonForSnap);
+        setBreakerDraftPos(deck.id, line.id, snapped);
+
+        if (line.axis === "x") {
+          evt.target.x(mmToPx(snapped) - hitThicknessPx / 2);
+        } else {
+          evt.target.y(mmToPx(snapped) - hitThicknessPx / 2);
+        }
+      };
+
+      const handleDragEnd = (evt: any) => {
+        evt.cancelBubble = true;
+        const draftPos = breakerDraftPosMm[line.id] ?? posMm;
+        requestConfirmBreaker(deck.id, line.id, draftPos);
+      };
+
+      const lineColor = isEditing ? "#2563eb" : isSelected ? "#0f172a" : "#334155";
+
+      return (
+        <Group key={`breaker-line-${line.id}`} listening>
+          {segments.map((segment, idx) => (
+            <Line
+              key={`${line.id}-segment-${idx}`}
+              points={[
+                mmToPx(segment.start.x),
+                mmToPx(segment.start.y),
+                mmToPx(segment.end.x),
+                mmToPx(segment.end.y),
+              ]}
+              stroke={lineColor}
+              strokeWidth={strokeWidth}
+              dash={isEditing ? [8 / stageScale, 6 / stageScale] : undefined}
+              opacity={isSelected || isEditing ? 0.9 : 0.6}
+              listening={false}
+            />
+          ))}
+          <Rect
+            {...hitRect}
+            fill="transparent"
+            onClick={handleSelect}
+            draggable={isEditing && !breakerConfirmId}
+            dragBoundFunc={(pos) =>
+              line.axis === "x" ? { x: pos.x, y: hitRect.y } : { x: hitRect.x, y: pos.y }
+            }
+            onDragMove={handleDragMove}
+            onDragEnd={handleDragEnd}
+          />
+        </Group>
+      );
+    });
+  };
+
+  const getBreakerAnchor = (breakerId: string | null) => {
+    if (!breakerId) return null;
+    const deck = decks.find((d) => d.breakerLines?.some((line) => line.id === breakerId));
+    if (!deck) return null;
+    const breakerAxis = breakerAxisForDirection(deck.boardDirection);
+    const line = deck.breakerLines.find((l) => l.id === breakerId && l.axis === breakerAxis);
+    if (!line) return null;
+    const polygon = getBreakerPolygon(deck);
+    const posMm = getBreakerEffectivePos(line);
+    const segments = getBreakerLineSegments({ ...line, posMm }, polygon);
+    if (segments.length === 0) return null;
+    const midPoint = {
+      x: (segments[0].start.x + segments[0].end.x) / 2,
+      y: (segments[0].start.y + segments[0].end.y) / 2,
+    };
+    const screen = worldToScreen(midPoint);
+    return { deckId: deck.id, lineId: line.id, screen };
+  };
+
   return (
     <div
       ref={containerRef}
@@ -1200,6 +1376,64 @@ export function DeckingCanvasStage() {
         </div>
       )}
 
+      {confirmBreakerAnchor && breakerConfirmId && (
+        <div
+          className="absolute z-50"
+          style={{
+            left: confirmBreakerAnchor.screen.x,
+            top: confirmBreakerAnchor.screen.y - 32,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="bg-white border border-slate-200 shadow-lg rounded-md p-3 text-xs text-slate-700 min-w-[220px]">
+            <div className="font-semibold text-slate-900 mb-2">Is this correct placement?</div>
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-3 py-1 bg-blue-600 text-white rounded text-xs"
+                onClick={() => confirmBreakerPlacement(confirmBreakerAnchor.deckId, confirmBreakerAnchor.lineId)}
+              >
+                Yes
+              </button>
+              <button
+                className="px-3 py-1 bg-slate-200 rounded text-xs"
+                onClick={() => rejectBreakerPlacement(confirmBreakerAnchor.deckId, confirmBreakerAnchor.lineId)}
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedBreakerAnchor && !breakerConfirmId && (
+        <div
+          className="absolute z-40"
+          style={{
+            left: selectedBreakerAnchor.screen.x,
+            top: selectedBreakerAnchor.screen.y - 28,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="bg-white border border-slate-200 shadow-lg rounded-md p-3 text-xs text-slate-700 min-w-[180px]">
+            <div className="font-semibold text-slate-900 mb-2">Breaker line</div>
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-3 py-1 bg-blue-600 text-white rounded text-xs"
+                onClick={() => startEditBreakerLine(selectedBreakerAnchor.deckId, selectedBreakerAnchor.lineId)}
+              >
+                Edit
+              </button>
+              <button
+                className="px-3 py-1 bg-slate-200 rounded text-xs"
+                onClick={() => exitEditBreakerLine()}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white px-4 py-2 rounded shadow text-xs text-slate-600">
         {isDrawing ? "Click near the first point to close the shape." : "Click to start outlining your deck."}
       </div>
@@ -1241,7 +1475,7 @@ export function DeckingCanvasStage() {
                 key={deck.id}
                 listening
                 onClick={(event) => {
-                  if (isDrawing || pendingSegment || isLengthPromptOpen) return;
+                  if (isDrawing || pendingSegment || isLengthPromptOpen || breakerConfirmId) return;
                   event.cancelBubble = true;
                   setSelectedDeck(deck.id);
                   cancelDeleteDeck();
@@ -1260,6 +1494,7 @@ export function DeckingCanvasStage() {
                 )}
 
                 {renderBoardRects(deck)}
+                {renderBreakerLines(deck)}
                 {renderClipOverlay(deck)}
 
                 {deck.pictureFramePieces.length > 0 && (
