@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { useDeckingStore } from "@/store/deckingStore";
-import { mmToPx, pxToMm, BOARD_WIDTH_MM } from "@/lib/deckingGeometry";
+import { mmToPx, pxToMm, BOARD_WIDTH_MM, BOARD_GAP_MM } from "@/lib/deckingGeometry";
 import {
   CLOSE_SHAPE_SNAP_RADIUS_MM,
   ENDPOINT_SNAP_RADIUS_MM,
@@ -13,6 +13,13 @@ import {
 import { angleDegAtVertex, normalise } from "@/geometry/deckingAngles";
 import { edgeLengthMm, isEdgeLocked } from "@/geometry/deckingEdges";
 import type { DeckEntity, Point, PolygonBounds } from "@/types/decking";
+import {
+  getClipsPerJoist,
+  getDeckBounds,
+  getFasciaClipPositions,
+  getJoistPositions,
+  getRowAxisStart,
+} from "@/geometry/clipCalc";
 
 const BASE_LABEL_OFFSET = 32;
 const BASE_FONT_SIZE = 14;
@@ -157,6 +164,8 @@ export function DeckingCanvasStage() {
     updateEdgeLength,
     lockEdgeLength,
     unlockEdgeLength,
+    joistSpacingMode,
+    showClips,
   } = useDeckingStore();
 
   const activeDeck = useMemo(
@@ -730,6 +739,112 @@ export function DeckingCanvasStage() {
     y: 32,
   };
 
+  const renderClipOverlay = (deck: DeckEntity) => {
+    if (!showClips || deck.infillPolygon.length < 3 || deck.rowCount <= 0) return null;
+    const bounds = getDeckBounds(deck.infillPolygon);
+    if (!bounds) return null;
+
+    const joistSpacing = deck.clipSummary?.joistSpacingMm ?? (joistSpacingMode === "commercial" ? 350 : 450);
+    const joistPositions = getJoistPositions(deck.infillPolygon, deck.boardDirection, joistSpacing);
+    if (joistPositions.length === 0) return null;
+
+    const pitchMm = BOARD_WIDTH_MM + BOARD_GAP_MM;
+    const clipThicknessMm = 20;
+    const clipCounts = getClipsPerJoist(deck.rowCount);
+    const rowAxisStart = getRowAxisStart(bounds, deck.boardDirection);
+
+    const clipPointsPx = deck.infillPolygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) }));
+    const fasciaClipPointsPx = deck.finishes.fasciaEnabled
+      ? getFasciaClipPositions(deck.polygon, joistSpacing).map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) }))
+      : [];
+
+    const joistLines = joistPositions.map((pos, index) => {
+      const isHorizontal = deck.boardDirection === "horizontal";
+      const points = isHorizontal
+        ? [mmToPx(pos), mmToPx(bounds.minY), mmToPx(pos), mmToPx(bounds.maxY)]
+        : [mmToPx(bounds.minX), mmToPx(pos), mmToPx(bounds.maxX), mmToPx(pos)];
+      return (
+        <Line
+          key={`joist-${deck.id}-${index}`}
+          points={points}
+          stroke="#0ea5e9"
+          strokeWidth={1 / stageScale}
+          dash={[4 / stageScale, 6 / stageScale]}
+          opacity={0.35}
+          listening={false}
+        />
+      );
+    });
+
+    const clipRects = joistPositions.map((pos, idx) => {
+      let cursor = rowAxisStart;
+      const segments = Array.from({ length: clipCounts.clipsPerJoist }, (_, clipIndex) => {
+        const lengthMm = (clipIndex === 0 ? 2.5 : 3) * pitchMm;
+        const start = cursor;
+        cursor += lengthMm;
+        return { start, lengthMm, isStarter: clipIndex === 0 };
+      });
+
+      return segments.map((segment, segmentIdx) => {
+        const isHorizontal = deck.boardDirection === "horizontal";
+        const widthMm = isHorizontal ? clipThicknessMm : segment.lengthMm;
+        const heightMm = isHorizontal ? segment.lengthMm : clipThicknessMm;
+        const xMm = isHorizontal ? pos - clipThicknessMm / 2 : segment.start;
+        const yMm = isHorizontal ? segment.start : pos - clipThicknessMm / 2;
+        return (
+          <Rect
+            key={`clip-${deck.id}-${idx}-${segmentIdx}`}
+            x={mmToPx(xMm)}
+            y={mmToPx(yMm)}
+            width={mmToPx(widthMm)}
+            height={mmToPx(heightMm)}
+            fill={segment.isStarter ? "rgba(14,165,233,0.4)" : "rgba(14,165,233,0.25)"}
+            stroke={segment.isStarter ? "#0284c7" : "#0ea5e9"}
+            strokeWidth={segment.isStarter ? 1.5 / stageScale : 1 / stageScale}
+            dash={segment.isStarter ? [6 / stageScale, 4 / stageScale] : undefined}
+            cornerRadius={2}
+            listening={false}
+            opacity={0.85}
+          />
+        );
+      });
+    });
+
+    const fasciaMarkers = fasciaClipPointsPx.map((point, idx) => (
+      <Rect
+        key={`fascia-clip-${deck.id}-${idx}`}
+        x={point.x - (6 / stageScale)}
+        y={point.y - (6 / stageScale)}
+        width={12 / stageScale}
+        height={12 / stageScale}
+        fill="#0ea5e9"
+        stroke="#0369a1"
+        strokeWidth={1 / stageScale}
+        listening={false}
+        opacity={0.9}
+      />
+    ));
+
+    return (
+      <Group listening={false}>
+        <Group
+          listening={false}
+          clipFunc={(ctx) => {
+            if (clipPointsPx.length === 0) return;
+            ctx.beginPath();
+            ctx.moveTo(clipPointsPx[0].x, clipPointsPx[0].y);
+            clipPointsPx.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+            ctx.closePath();
+          }}
+        >
+          {joistLines}
+          {clipRects}
+        </Group>
+        {fasciaMarkers}
+      </Group>
+    );
+  };
+
   const renderBoardRects = (deck: DeckEntity) => {
     if (deck.infillPolygon.length < 3 || deck.boards.length === 0) return null;
     const boardClipPointsPxCoords = deck.infillPolygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) }));
@@ -1098,6 +1213,7 @@ export function DeckingCanvasStage() {
                 )}
 
                 {renderBoardRects(deck)}
+                {renderClipOverlay(deck)}
 
                 {deck.pictureFramePieces.length > 0 && (
                   <Group listening={false}>
