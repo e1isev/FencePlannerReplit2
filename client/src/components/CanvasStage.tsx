@@ -3,7 +3,6 @@ import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import {
-  ENDPOINT_SNAP_RADIUS_MM,
   findSnapOnLines,
   findSnapPoint,
   findSnapPointOnSegment,
@@ -23,6 +22,8 @@ const TEN_YARDS_METERS = 9.144;
 const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 const LABEL_OFFSET_PX = 14;
 const MIN_LINE_HIT_PX = 10;
+const ENDPOINT_SNAP_PX = 14;
+const SEGMENT_SNAP_PX = 10;
 
 type ScreenPoint = { x: number; y: number };
 type CameraState = { scale: number; offsetX: number; offsetY: number };
@@ -66,6 +67,8 @@ export function CanvasStage() {
   const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
   const [startSnap, setStartSnap] = useState<SnapTarget | null>(null);
   const [currentSnap, setCurrentSnap] = useState<SnapTarget | null>(null);
+  const [hoverSnap, setHoverSnap] = useState<SnapTarget | null>(null);
+  const [showSnapDebug, setShowSnapDebug] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [labelUnit, setLabelUnit] = useState<"mm" | "m">("mm");
@@ -77,6 +80,7 @@ export function CanvasStage() {
   const baseMetersPerPixelRef = useRef<number | null>(null);
   const mapMetersPerPixelRef = useRef<number | null>(null);
   const calibrationFactorRef = useRef(1);
+  const isDev = import.meta.env.DEV;
 
   const {
     lines,
@@ -211,8 +215,8 @@ export function CanvasStage() {
     });
   };
 
-  const snapTolerance =
-    mmPerPixel > 0 ? ENDPOINT_SNAP_RADIUS_MM / mmPerPixel : ENDPOINT_SNAP_RADIUS_MM;
+  const snapTolerance = ENDPOINT_SNAP_PX;
+  const segmentSnapTolPx = SEGMENT_SNAP_PX;
 
   const resolveSnapTarget = useCallback(
     (point: Point): SnapTarget => {
@@ -226,7 +230,7 @@ export function CanvasStage() {
         return { type: "endpoint", point: snappedEndpoint };
       }
 
-      const lineSnap = findSnapOnLines(point, lines, snapTolerance);
+      const lineSnap = findSnapOnLines(point, lines, segmentSnapTolPx);
       if (lineSnap) {
         return lineSnap.kind === "endpoint"
           ? { type: "endpoint", point: lineSnap.point }
@@ -240,7 +244,7 @@ export function CanvasStage() {
 
       return { type: "free", point };
     },
-    [lines, posts, snapTolerance]
+    [lines, posts, segmentSnapTolPx, snapTolerance]
   );
 
   const handleCalibrationComplete = useCallback(
@@ -321,6 +325,7 @@ export function CanvasStage() {
     }
 
     const snap = resolveSnapTarget(point);
+    setHoverSnap(snap);
     const snappedPoint = snap.point;
 
     if (selectedGateType) {
@@ -363,9 +368,10 @@ export function CanvasStage() {
       return;
     }
 
-    if (!isDrawing || !startPoint) return;
-
     const point = screenToWorld(pointerScreen, cameraState);
+    setHoverSnap(resolveSnapTarget(point));
+
+    if (!isDrawing || !startPoint) return;
 
     const snap = resolveSnapTarget(point);
 
@@ -426,7 +432,11 @@ export function CanvasStage() {
       resolvedStart = applySegmentSnap(startSnap, startPoint);
 
       if (currentSnap?.type === "segment" && currentSnap.lineId === startSnap.lineId) {
-        const refreshed = findSnapPointOnSegment(currentSnap.point, latestLines, snapTolerance);
+        const refreshed = findSnapPointOnSegment(
+          currentSnap.point,
+          latestLines,
+          segmentSnapTolPx
+        );
         if (refreshed && refreshed.kind === "segment" && refreshed.lineId) {
           endSnap = {
             type: "segment",
@@ -461,7 +471,7 @@ export function CanvasStage() {
     currentPoint,
     currentSnap,
     isDrawing,
-    snapTolerance,
+    segmentSnapTolPx,
     splitLineAtPoint,
     startPoint,
     startSnap,
@@ -607,6 +617,7 @@ export function CanvasStage() {
 
         const snap = resolveSnapTarget(point);
 
+        setHoverSnap(snap);
         setCurrentPoint(snap.point);
         setCurrentSnap(snap);
       }
@@ -998,6 +1009,27 @@ export function CanvasStage() {
           )}
         </div>
       </div>
+
+      {isDev && (
+        <div className="absolute bottom-3 left-3 z-30 flex flex-col gap-2 items-start">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSnapDebug((prev) => !prev)}
+            className="shadow"
+          >
+            {showSnapDebug ? "Hide snap debug" : "Show snap debug"}
+          </Button>
+          {showSnapDebug && (
+            <div className="text-xs bg-white/90 backdrop-blur rounded-md shadow px-3 py-2 border border-slate-200">
+              <p className="font-semibold text-slate-700">Snap</p>
+              <p className="font-mono text-slate-600">
+                {hoverSnap ? hoverSnap.type : "none"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
         <Card className="px-4 py-3 shadow-lg flex items-center gap-3">
