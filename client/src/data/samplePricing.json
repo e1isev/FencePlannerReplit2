@@ -1,6 +1,62 @@
 {
   "styles": [
     {
+      "id": "bellbrae",
+      "name": "Bellbrae",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "jabiru",
+      "name": "Jabiru",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "kestrel",
+      "name": "Kestrel",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "kookaburra",
+      "name": "Kookaburra",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
       "id": "mystique_lattice",
       "name": "Mystique Lattice",
       "panel_mm": 2390,
@@ -29,6 +85,34 @@
       }
     },
     {
+      "id": "rosella",
+      "name": "Rosella",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "toucan",
+      "name": "Toucan",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
       "id": "wren",
       "name": "Wren",
       "panel_mm": 2390,
@@ -40,6 +124,160 @@
         "double_900": 720,
         "double_1800": 960,
         "sliding_4800": 1900
+      }
+    },
+    {
+      "id": "1_rail_140x40",
+      "name": "1 Rail 140x40",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "1_rail_150x50",
+      "name": "1 Rail 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "2_rails_140x40",
+      "name": "2 Rails 140x40",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "2_rails_150x50",
+      "name": "2 Rails 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "3_rails_140x40",
+      "name": "3 Rails 140x40",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "3_rails_150x50",
+      "name": "3 Rails 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "4_rails_140x40",
+      "name": "4 Rails 140x40",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "4_rails_150x50",
+      "name": "4 Rails 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "caviar_150x50",
+      "name": "Caviar 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "crossbuck_150x50",
+      "name": "Crossbuck 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
+      }
+    },
+    {
+      "id": "mesh_150x50",
+      "name": "Mesh 150x50",
+      "panel_mm": 2390,
+      "panel_unit_price": 120,
+      "post_unit_price": 35,
+      "gate_prices": {
+        "single_900": 420,
+        "single_1800": 540,
+        "double_900": 840,
+        "double_1800": 1080,
+        "sliding_4800": 2200
       }
     }
   ]

@@ -1,24 +1,17 @@
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useAppStore } from "@/store/appStore";
-import { ProductKind, FenceStyleId, GateType } from "@/types/models";
+import { ProductKind, GateType } from "@/types/models";
 import { calculateCosts } from "@/lib/pricing";
-import { Check } from "lucide-react";
 import { useLocation } from "wouter";
+import { FenceStylePicker } from "@/components/FenceStylePicker";
+import { getFenceStyleLabel } from "@/config/fenceStyles";
 
 const PRODUCTS: ProductKind[] = [
   "Decking",
   "Titan rail",
   "Residential fencing",
   "Rural fencing",
-];
-
-const FENCE_STYLES: { id: FenceStyleId; name: string }[] = [
-  { id: "mystique_lattice", name: "Mystique Lattice" },
-  { id: "mystique_solid", name: "Mystique Solid" },
-  { id: "wren", name: "Wren" },
 ];
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
@@ -40,15 +33,12 @@ export function LeftPanel() {
     posts,
     gates,
     setProductKind,
-    setFenceStyle,
     setSelectedGateType,
   } = useAppStore();
   const [, setLocation] = useLocation();
 
-  const selectedLine = lines.find((l) => !l.gateId);
-  const canToggleSpacing = selectedLine !== undefined;
-
   const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
+  const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
 
   return (
     <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
@@ -88,27 +78,7 @@ export function LeftPanel() {
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Fence Style
           </Label>
-          <div className="space-y-2">
-            {FENCE_STYLES.map((style) => (
-              <Card
-                key={style.id}
-                className={`p-4 cursor-pointer transition-all ${
-                  fenceStyleId === style.id
-                    ? "border-2 border-primary bg-primary/5"
-                    : "border-2 border-transparent hover-elevate"
-                }`}
-                onClick={() => setFenceStyle(style.id)}
-                data-testid={`card-style-${style.id}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{style.name}</span>
-                  {fenceStyleId === style.id && (
-                    <Check className="w-4 h-4 text-primary" />
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
+          <FenceStylePicker />
         </div>
 
 <div>
@@ -138,6 +108,9 @@ export function LeftPanel() {
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Cutting List
           </Label>
+          <p className="text-xs text-slate-500 mb-2">
+            Style: <span className="font-medium text-slate-700">{fenceStyleLabel}</span>
+          </p>
           <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
             <table className="w-full text-xs">
               <thead>

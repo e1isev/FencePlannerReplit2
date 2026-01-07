@@ -1,6 +1,28 @@
 export type ProductKind = "Decking" | "Titan rail" | "Residential fencing" | "Rural fencing";
 
-export type FenceStyleId = "mystique_lattice" | "mystique_solid" | "wren";
+export type FenceCategoryId = "residential" | "rural";
+
+export type FenceStyleId =
+  | "bellbrae"
+  | "jabiru"
+  | "kestrel"
+  | "kookaburra"
+  | "mystique_lattice"
+  | "mystique_solid"
+  | "rosella"
+  | "toucan"
+  | "wren"
+  | "1_rail_140x40"
+  | "1_rail_150x50"
+  | "2_rails_140x40"
+  | "2_rails_150x50"
+  | "3_rails_140x40"
+  | "3_rails_150x50"
+  | "4_rails_140x40"
+  | "4_rails_150x50"
+  | "caviar_150x50"
+  | "crossbuck_150x50"
+  | "mesh_150x50";
 
 export type GateType = 
   | "single_900"

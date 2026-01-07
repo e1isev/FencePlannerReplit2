@@ -10,6 +10,7 @@ import { calculateCosts } from "@/lib/pricing";
 import { PostShape } from "@/components/PostShape";
 import { getPostNeighbours } from "@/geometry/posts";
 import { FENCE_THICKNESS_MM } from "@/constants/geometry";
+import { getFenceStyleLabel } from "@/config/fenceStyles";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
@@ -256,9 +257,7 @@ export default function DrawingPage() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <div className="text-slate-600">Fence Style</div>
-              <div className="font-medium">
-                {fenceStyleId.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-              </div>
+              <div className="font-medium">{getFenceStyleLabel(fenceStyleId)}</div>
             </div>
             <div>
               <div className="text-slate-600">Total Fence Length</div>
