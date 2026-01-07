@@ -18,7 +18,7 @@ import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PostShape } from "./PostShape";
-import { getPostNeighbours } from "@/geometry/posts";
+import { getJunctionAngleDegForPost, getPostNeighbours } from "@/geometry/posts";
 
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
@@ -77,6 +77,7 @@ export function CanvasStage() {
   const [currentSnap, setCurrentSnap] = useState<SnapTarget | null>(null);
   const [hoverSnap, setHoverSnap] = useState<SnapTarget | null>(null);
   const [showSnapDebug, setShowSnapDebug] = useState(false);
+  const [showPostAngleDebug, setShowPostAngleDebug] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [labelUnit, setLabelUnit] = useState<"mm" | "m">("mm");
@@ -989,18 +990,32 @@ export function CanvasStage() {
 
             {posts.map((post) => {
               const neighbours = getPostNeighbours(post.pos, lines);
+              const junctionAngle = showPostAngleDebug
+                ? getJunctionAngleDegForPost(post.pos, lines)
+                : null;
 
               return (
-                <PostShape
-                  key={post.id}
-                  x={post.pos.x}
-                  y={post.pos.y}
-                  neighbours={neighbours}
-                  mmPerPixel={mmPerPixel}
-                  category={post.category}
-                  lines={lines}
-                  isSatelliteMode={mapMode === "satellite"}
-                />
+                <Group key={post.id}>
+                  <PostShape
+                    x={post.pos.x}
+                    y={post.pos.y}
+                    neighbours={neighbours}
+                    mmPerPixel={mmPerPixel}
+                    category={post.category}
+                    lines={lines}
+                    isSatelliteMode={mapMode === "satellite"}
+                  />
+                  {junctionAngle !== null && (
+                    <Text
+                      x={post.pos.x + 8 / viewScale}
+                      y={post.pos.y - 18 / viewScale}
+                      text={`${junctionAngle.toFixed(1)}°`}
+                      fontSize={12 / viewScale}
+                      fill={mapMode === "satellite" ? "#0f172a" : "#1e293b"}
+                      listening={false}
+                    />
+                  )}
+                </Group>
               );
             })}
 
@@ -1065,6 +1080,14 @@ export function CanvasStage() {
             className="shadow"
           >
             {showSnapDebug ? "Hide snap debug" : "Show snap debug"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowPostAngleDebug((prev) => !prev)}
+            className="shadow"
+          >
+            {showPostAngleDebug ? "Hide post angles" : "Show post angles"}
           </Button>
           {showSnapDebug && (
             <div className="text-xs bg-white/90 backdrop-blur rounded-md shadow px-3 py-2 border border-slate-200">
