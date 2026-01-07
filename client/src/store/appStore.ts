@@ -1,17 +1,23 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
+  FenceCategoryId,
   FenceLine,
-  Post,
-  Gate,
-  PanelSegment,
-  Leftover,
-  WarningMsg,
   FenceStyleId,
-  ProductKind,
-  Point,
+  Gate,
   GateType,
+  Leftover,
+  PanelSegment,
+  Point,
+  Post,
+  ProductKind,
+  WarningMsg,
 } from "@/types/models";
+import {
+  getDefaultFenceStyleId,
+  getFenceStyleCategory,
+  getFenceStylesByCategory,
+} from "@/config/fenceStyles";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
@@ -468,6 +474,7 @@ const weldSharedEndpoints = (
 interface AppState {
   productKind: ProductKind;
   fenceStyleId: FenceStyleId;
+  fenceCategoryId: FenceCategoryId;
   lines: FenceLine[];
   posts: Post[];
   gates: Gate[];
@@ -488,6 +495,7 @@ interface AppState {
   historyIndex: number;
   
   setProductKind: (kind: ProductKind) => void;
+  setFenceCategory: (categoryId: FenceCategoryId) => void;
   setFenceStyle: (styleId: FenceStyleId) => void;
   setSelectedGateType: (type: GateType | null) => void;
   setSelectedLineId: (id: string | null) => void;
@@ -521,7 +529,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       productKind: "Residential fencing",
-      fenceStyleId: "mystique_lattice",
+      fenceStyleId: getDefaultFenceStyleId("residential"),
+      fenceCategoryId: "residential",
       lines: [],
       posts: [],
       gates: [],
@@ -539,9 +548,37 @@ export const useAppStore = create<AppState>()(
       historyIndex: -1,
       
       setProductKind: (kind) => set({ productKind: kind }),
+
+      setFenceCategory: (categoryId) => {
+        const { fenceCategoryId, fenceStyleId } = get();
+        if (fenceCategoryId === categoryId) return;
+
+        const stylesForCategory = getFenceStylesByCategory(categoryId);
+        const hasStyleInCategory = stylesForCategory.some(
+          (style) => style.id === fenceStyleId
+        );
+        const nextStyleId = hasStyleInCategory
+          ? fenceStyleId
+          : getDefaultFenceStyleId(categoryId);
+
+        set({
+          fenceCategoryId: categoryId,
+          fenceStyleId: nextStyleId,
+        });
+
+        if (nextStyleId !== fenceStyleId) {
+          get().recalculate();
+        }
+      },
       
       setFenceStyle: (styleId) => {
-        set({ fenceStyleId: styleId });
+        const { fenceStyleId } = get();
+        if (fenceStyleId === styleId) return;
+
+        set({
+          fenceStyleId: styleId,
+          fenceCategoryId: getFenceStyleCategory(styleId),
+        });
         get().recalculate();
       },
       
@@ -1178,7 +1215,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "fence-planner-storage",
-      version: 1,
+      version: 2,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
@@ -1220,11 +1257,25 @@ export const useAppStore = create<AppState>()(
           };
         }
 
+        if (version < 2) {
+          const fenceStyleId =
+            persistedState?.state?.fenceStyleId ?? getDefaultFenceStyleId("residential");
+
+          return {
+            ...persistedState,
+            state: {
+              ...persistedState.state,
+              fenceCategoryId: getFenceStyleCategory(fenceStyleId),
+            },
+          };
+        }
+
         return persistedState;
       },
       partialize: (state) => ({
         productKind: state.productKind,
         fenceStyleId: state.fenceStyleId,
+        fenceCategoryId: state.fenceCategoryId,
         lines: state.lines,
         gates: state.gates,
         selectedGateType: state.selectedGateType,
