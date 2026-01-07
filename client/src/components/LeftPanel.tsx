@@ -41,7 +41,7 @@ export function LeftPanel() {
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
 
   return (
-    <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
+    <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
       <div className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold mb-4">Fence Planner</h2>
