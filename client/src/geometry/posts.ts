@@ -103,19 +103,16 @@ const lineHasBlockingFeatures = (line: FenceLine): boolean => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+const angleBetweenVectorsDeg = (u: { x: number; y: number }, v: { x: number; y: number }) =>
+  radToDeg(Math.acos(clamp(u.x * v.x + u.y * v.y, -1, 1)));
+
 export function getJunctionAngleDeg(node: Point, a: Point, b: Point): number | null {
-  const vA = { x: a.x - node.x, y: a.y - node.y };
-  const vB = { x: b.x - node.x, y: b.y - node.y };
-  const lenA = Math.hypot(vA.x, vA.y);
-  const lenB = Math.hypot(vB.x, vB.y);
+  const vA = normalise(a.x - node.x, a.y - node.y);
+  const vB = normalise(b.x - node.x, b.y - node.y);
 
-  if (lenA < 1e-9 || lenB < 1e-9) return null;
+  if (Math.hypot(vA.x, vA.y) < 1e-9 || Math.hypot(vB.x, vB.y) < 1e-9) return null;
 
-  const inDir = { x: -vA.x / lenA, y: -vA.y / lenA };
-  const outDir = { x: vB.x / lenB, y: vB.y / lenB };
-  const dot = inDir.x * outDir.x + inDir.y * outDir.y;
-  const clamped = clamp(dot, -1, 1);
-  return radToDeg(Math.acos(clamped));
+  return angleBetweenVectorsDeg(vA, vB);
 }
 
 export function getJunctionAngleDegForPost(pos: Point, lines: FenceLine[]): number | null {
@@ -216,7 +213,7 @@ const categorizePost = (pos: Point, lines: FenceLine[], _gates: Gate[] = []): Po
     const a = samePoint(lineA.a, pos) ? lineA.b : lineA.a;
     const b = samePoint(lineB.a, pos) ? lineB.b : lineB.a;
     const turnDeg = getJunctionAngleDeg(pos, a, b);
-    const isLine = turnDeg !== null && turnDeg <= 30;
+    const isLine = turnDeg !== null && (turnDeg <= 30 || turnDeg >= 160);
 
     return isLine ? "line" : "corner";
   }
