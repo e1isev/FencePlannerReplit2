@@ -24,9 +24,8 @@ function samePoint(a: Point, b: Point, eps = POINT_EPS_MM) {
   return Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps;
 }
 
-const STRAIGHT_EPS = 0.1;
-const RIGHT_ANGLE = Math.PI / 2;
-const CORNER_ANGLE_EPS = Math.PI / 12;
+const LINE_ANGLE_MIN_DEG = 160;
+const LINE_ANGLE_MAX_DEG = 190;
 
 const projectPointToSegment = (p: Point, a: Point, b: Point) => {
   const ab = { x: b.x - a.x, y: b.y - a.y };
@@ -89,6 +88,46 @@ function pointToSegmentDistanceSq(p: Point, a: Point, b: Point) {
   const dy = p.y - proj.y;
 
   return dx * dx + dy * dy;
+}
+
+const lineHasBlockingFeatures = (line: FenceLine): boolean => {
+  const segmentHasOpening = line.segments?.some(
+    (segment) => segment?.type === "opening" || segment?.type === "gate"
+  );
+
+  return Boolean(
+    line.isGateLine === true ||
+      line.gateId ||
+      (line.openings && line.openings.length > 0) ||
+      (line.gates && line.gates.length > 0) ||
+      segmentHasOpening
+  );
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+export function getJunctionAngleDeg(node: Point, a: Point, b: Point): number | null {
+  const v1 = { x: a.x - node.x, y: a.y - node.y };
+  const v2 = { x: b.x - node.x, y: b.y - node.y };
+  const len1 = Math.hypot(v1.x, v1.y);
+  const len2 = Math.hypot(v2.x, v2.y);
+
+  if (len1 < 1e-9 || len2 < 1e-9) return null;
+
+  const dot = (v1.x / len1) * (v2.x / len2) + (v1.y / len1) * (v2.y / len2);
+  const clamped = clamp(dot, -1, 1);
+  return radToDeg(Math.acos(clamped));
+}
+
+export function getJunctionAngleDegForPost(pos: Point, lines: FenceLine[]): number | null {
+  const connectingLines = lines.filter((l) => samePoint(l.a, pos) || samePoint(l.b, pos));
+  if (connectingLines.length !== 2) return null;
+
+  const [lineA, lineB] = connectingLines;
+  const a = samePoint(lineA.a, pos) ? lineA.b : lineA.a;
+  const b = samePoint(lineB.a, pos) ? lineB.b : lineB.a;
+
+  return getJunctionAngleDeg(pos, a, b);
 }
 
 export function getPostAngleDeg(
@@ -165,33 +204,27 @@ export function getPostAngleDeg(
 }
 
 const categorizePost = (pos: Point, lines: FenceLine[], _gates: Gate[] = []): PostCategory => {
-  const isNextToGate = lines.some(
-    (l) => l.gateId && (samePoint(l.a, pos) || samePoint(l.b, pos))
-  );
-  if (isNextToGate) return "end";
-
   const connectingLines = lines.filter((l) => samePoint(l.a, pos) || samePoint(l.b, pos));
+
+  const hasBlockingFeature = connectingLines.some((line) => lineHasBlockingFeatures(line));
+  if (hasBlockingFeature) return "end";
 
   if (connectingLines.length <= 1) return "end";
   if (connectingLines.length >= 3) return "t";
 
   if (connectingLines.length === 2) {
-    const angleForLine = (line: FenceLine) => {
-      const target = samePoint(line.a, pos) ? line.b : line.a;
-      return Math.atan2(target.y - pos.y, target.x - pos.x);
-    };
-
     const [lineA, lineB] = connectingLines;
-    const angleA = angleForLine(lineA);
-    const angleB = angleForLine(lineB);
-    const diff = Math.abs(angleA - angleB);
-    const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
-    const isStraight =
-      normalizedDiff < STRAIGHT_EPS || Math.abs(normalizedDiff - Math.PI) < STRAIGHT_EPS;
-    if (isStraight) return "line";
+    const a = samePoint(lineA.a, pos) ? lineA.b : lineA.a;
+    const b = samePoint(lineB.a, pos) ? lineB.b : lineB.a;
+    const angleDeg = getJunctionAngleDeg(pos, a, b);
+    if (angleDeg === null) return "corner";
 
-    const isCorner = Math.abs(normalizedDiff - RIGHT_ANGLE) <= CORNER_ANGLE_EPS;
-    return isCorner ? "corner" : "line";
+    const reflexAngle = 360 - angleDeg;
+    const isLine =
+      (angleDeg >= LINE_ANGLE_MIN_DEG && angleDeg <= LINE_ANGLE_MAX_DEG) ||
+      (reflexAngle >= LINE_ANGLE_MIN_DEG && reflexAngle <= LINE_ANGLE_MAX_DEG);
+
+    return isLine ? "line" : "corner";
   }
 
   return "line";
@@ -211,20 +244,6 @@ export function generatePosts(
     gateBlocked: boolean;
     source: Post["source"];
     category?: PostCategory;
-  };
-
-  const lineHasBlockingFeatures = (line: FenceLine): boolean => {
-    const segmentHasOpening = line.segments?.some(
-      (segment) => segment?.type === "opening" || segment?.type === "gate"
-    );
-
-    return Boolean(
-      line.isGateLine === true ||
-        line.gateId ||
-        (line.openings && line.openings.length > 0) ||
-        (line.gates && line.gates.length > 0) ||
-        segmentHasOpening
-    );
   };
 
   const quantize = (point: Point) =>
