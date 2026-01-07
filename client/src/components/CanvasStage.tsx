@@ -264,6 +264,8 @@ export function CanvasStage() {
   const dragThresholdWorld = DRAG_THRESHOLD_PX / cameraState.scale;
   const lineHitStrokeWidth = Math.max(MIN_LINE_HIT_PX / cameraState.scale, 1);
   const snapToleranceScreenPx = snapTolerance * cameraState.scale;
+  const previewStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
+  const previewDashLength = mmToPx(FENCE_THICKNESS_MM);
 
   const resolveSnapTarget = useCallback(
     (point: Point): SnapTarget => {
@@ -983,8 +985,9 @@ export function CanvasStage() {
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke="#94a3b8"
-                strokeWidth={mmToPx(FENCE_THICKNESS_MM)}
-                dash={[5, 5]}
+                strokeWidth={previewStrokeWidth}
+                dash={[previewDashLength, previewDashLength]}
+                strokeScaleEnabled
               />
             )}
 
