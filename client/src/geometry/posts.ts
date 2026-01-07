@@ -24,9 +24,6 @@ function samePoint(a: Point, b: Point, eps = POINT_EPS_MM) {
   return Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps;
 }
 
-const LINE_ANGLE_MIN_DEG = 160;
-const LINE_ANGLE_MAX_DEG = 190;
-
 const projectPointToSegment = (p: Point, a: Point, b: Point) => {
   const ab = { x: b.x - a.x, y: b.y - a.y };
   const abLenSq = ab.x * ab.x + ab.y * ab.y;
@@ -107,14 +104,16 @@ const lineHasBlockingFeatures = (line: FenceLine): boolean => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export function getJunctionAngleDeg(node: Point, a: Point, b: Point): number | null {
-  const v1 = { x: a.x - node.x, y: a.y - node.y };
-  const v2 = { x: b.x - node.x, y: b.y - node.y };
-  const len1 = Math.hypot(v1.x, v1.y);
-  const len2 = Math.hypot(v2.x, v2.y);
+  const vA = { x: a.x - node.x, y: a.y - node.y };
+  const vB = { x: b.x - node.x, y: b.y - node.y };
+  const lenA = Math.hypot(vA.x, vA.y);
+  const lenB = Math.hypot(vB.x, vB.y);
 
-  if (len1 < 1e-9 || len2 < 1e-9) return null;
+  if (lenA < 1e-9 || lenB < 1e-9) return null;
 
-  const dot = (v1.x / len1) * (v2.x / len2) + (v1.y / len1) * (v2.y / len2);
+  const inDir = { x: -vA.x / lenA, y: -vA.y / lenA };
+  const outDir = { x: vB.x / lenB, y: vB.y / lenB };
+  const dot = inDir.x * outDir.x + inDir.y * outDir.y;
   const clamped = clamp(dot, -1, 1);
   return radToDeg(Math.acos(clamped));
 }
@@ -216,13 +215,8 @@ const categorizePost = (pos: Point, lines: FenceLine[], _gates: Gate[] = []): Po
     const [lineA, lineB] = connectingLines;
     const a = samePoint(lineA.a, pos) ? lineA.b : lineA.a;
     const b = samePoint(lineB.a, pos) ? lineB.b : lineB.a;
-    const angleDeg = getJunctionAngleDeg(pos, a, b);
-    if (angleDeg === null) return "corner";
-
-    const reflexAngle = 360 - angleDeg;
-    const isLine =
-      (angleDeg >= LINE_ANGLE_MIN_DEG && angleDeg <= LINE_ANGLE_MAX_DEG) ||
-      (reflexAngle >= LINE_ANGLE_MIN_DEG && reflexAngle <= LINE_ANGLE_MAX_DEG);
+    const turnDeg = getJunctionAngleDeg(pos, a, b);
+    const isLine = turnDeg !== null && turnDeg <= 30;
 
     return isLine ? "line" : "corner";
   }
