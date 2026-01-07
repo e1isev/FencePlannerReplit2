@@ -349,7 +349,7 @@ function buildBoardPlan(
   totalOverflowMm: number,
   rowsWithBoards: number
 ): DeckingBoardPlan {
-  const areaMm2 = polygonArea(finishes.pictureFrameEnabled ? deck.polygon : infillPolygon);
+  const areaMm2 = polygonArea(infillPolygon);
   return {
     boardLengthMm: MAX_BOARD_LENGTH_MM,
     boardWidthMm: BOARD_WIDTH_MM,
@@ -798,10 +798,10 @@ export const useDeckingStore = create<DeckingStoreState>()(
         let currentRowIndex = 0;
 
         if (deck.boardDirection === "horizontal") {
-          const span = bounds.maxY - bounds.minY;
-          const numRows = Math.ceil(span / boardWidthWithGap) + 1;
-          for (let i = 0; i < numRows; i++) {
-            const y = bounds.minY + i * boardWidthWithGap;
+          const overscanMm = boardWidthWithGap;
+          const startY = bounds.minY - overscanMm;
+          const endY = bounds.maxY + overscanMm;
+          for (let y = startY; y <= endY; y += boardWidthWithGap) {
             const intersections = getHorizontalIntersections(infillPolygon, y);
             if (intersections.length < 2) continue;
             const rowIndex = currentRowIndex++;
@@ -884,10 +884,10 @@ export const useDeckingStore = create<DeckingStoreState>()(
             });
           }
         } else {
-          const span = bounds.maxX - bounds.minX;
-          const numRows = Math.ceil(span / boardWidthWithGap) + 1;
-          for (let i = 0; i < numRows; i++) {
-            const x = bounds.minX + i * boardWidthWithGap;
+          const overscanMm = boardWidthWithGap;
+          const startX = bounds.minX - overscanMm;
+          const endX = bounds.maxX + overscanMm;
+          for (let x = startX; x <= endX; x += boardWidthWithGap) {
             const intersections = getVerticalIntersections(infillPolygon, x);
             if (intersections.length < 2) continue;
             const rowIndex = currentRowIndex++;
