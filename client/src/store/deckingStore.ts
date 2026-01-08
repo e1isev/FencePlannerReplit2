@@ -867,10 +867,10 @@ export const useDeckingStore = create<DeckingStoreState>()(
           if (finishes.breakerBoardsEnabled) {
             breakerPositions.forEach((xBreaker) => {
               const spans = getVerticalSpansMm(infillPolygon, xBreaker);
-              spans.forEach(([yStart, yEnd]) => {
-                const height = yEnd - yStart;
-                if (height <= MIN_SEGMENT_LENGTH_MM) continue;
-                breakerBoards.push({
+    spans.forEach(([yStart, yEnd]) => {
+      const height = yEnd - yStart;
+      if (height <= MIN_SEGMENT_LENGTH_MM) return;
+      breakerBoards.push({
                   id: generateId("breaker"),
                   start: { x: xBreaker, y: yStart },
                   end: { x: xBreaker, y: yEnd },
@@ -909,10 +909,10 @@ export const useDeckingStore = create<DeckingStoreState>()(
           if (finishes.breakerBoardsEnabled) {
             breakerPositions.forEach((yBreaker) => {
               const spans = getHorizontalSpansMm(infillPolygon, yBreaker);
-              spans.forEach(([xStart, xEnd]) => {
-                const width = xEnd - xStart;
-                if (width <= MIN_SEGMENT_LENGTH_MM) continue;
-                breakerBoards.push({
+    spans.forEach(([xStart, xEnd]) => {
+      const width = xEnd - xStart;
+      if (width <= MIN_SEGMENT_LENGTH_MM) return;
+      breakerBoards.push({
                   id: generateId("breaker"),
                   start: { x: xStart, y: yBreaker },
                   end: { x: xEnd, y: yBreaker },
