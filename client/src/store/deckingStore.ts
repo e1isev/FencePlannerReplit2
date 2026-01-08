@@ -6,6 +6,8 @@ import {
   BOARD_WIDTH_MM,
   JOIST_SPACING_MM,
   MAX_BOARD_LENGTH_MM,
+  getHorizontalSpansMm,
+  getVerticalSpansMm,
   Interval,
   planBoardsForRun,
 } from "@/lib/deckingGeometry";
@@ -122,36 +124,6 @@ function polygonPerimeter(points: Point[]): number {
   return length;
 }
 
-function getHorizontalIntersections(polygon: Point[], y: number): number[] {
-  const intersections: number[] = [];
-  for (let i = 0; i < polygon.length; i++) {
-    const p1 = polygon[i];
-    const p2 = polygon[(i + 1) % polygon.length];
-
-    if ((p1.y <= y && p2.y > y) || (p2.y <= y && p1.y > y)) {
-      const t = (y - p1.y) / (p2.y - p1.y);
-      const x = p1.x + t * (p2.x - p1.x);
-      intersections.push(x);
-    }
-  }
-  return intersections.sort((a, b) => a - b);
-}
-
-function getVerticalIntersections(polygon: Point[], x: number): number[] {
-  const intersections: number[] = [];
-  for (let i = 0; i < polygon.length; i++) {
-    const p1 = polygon[i];
-    const p2 = polygon[(i + 1) % polygon.length];
-
-    if ((p1.x <= x && p2.x > x) || (p2.x <= x && p1.x > x)) {
-      const t = (x - p1.x) / (p2.x - p1.x);
-      const y = p1.y + t * (p2.y - p1.y);
-      intersections.push(y);
-    }
-  }
-  return intersections.sort((a, b) => a - b);
-}
-
 function calculatePerimeterMm(polygon: Point[]): number {
   if (polygon.length < 2) return 0;
   let perimeter = 0;
@@ -190,6 +162,75 @@ function splitRunAroundBreakers(runStart: number, runEnd: number, breakerCenters
   }
 
   return segments;
+}
+
+function buildBoardsForSpan(params: {
+  start: number;
+  end: number;
+  fixedAxis: number;
+  direction: BoardDirection;
+  rowIndex: number;
+  breakerPositions: number[];
+  breakersEnabled: boolean;
+}) {
+  const { start, end, fixedAxis, direction, rowIndex, breakerPositions, breakersEnabled } = params;
+  const runLength = end - start;
+  if (runLength <= MIN_SEGMENT_LENGTH_MM) {
+    return { boards: [] as Board[], wasteMm: 0, overflowMm: 0 };
+  }
+
+  const runId = generateId("run");
+  const segments = breakersEnabled
+    ? splitRunAroundBreakers(
+        start,
+        end,
+        breakerPositions.filter(
+          (pos) => pos + BREAKER_HALF_MM > start && pos - BREAKER_HALF_MM < end
+        )
+      )
+    : [{ start, end }];
+
+  const boards: Board[] = [];
+  let totalWasteMm = 0;
+  let totalOverflowMm = 0;
+
+  segments.forEach((segment) => {
+    const plan = planBoardsForRun(segment.end - segment.start);
+    let cursor = segment.start;
+    plan.boardLengths.forEach((length) => {
+      const startPoint = direction === "horizontal" ? { x: cursor, y: fixedAxis } : { x: fixedAxis, y: cursor };
+      const endPoint =
+        direction === "horizontal"
+          ? { x: cursor + length, y: fixedAxis }
+          : { x: fixedAxis, y: cursor + length };
+      boards.push({
+        id: generateId("board"),
+        start: startPoint,
+        end: endPoint,
+        length,
+        runId,
+        segmentIndex: boards.length,
+        segmentCount: 0,
+        isRunStart: false,
+        isRunEnd: false,
+        kind: "field",
+        rowIndex,
+      });
+      cursor += length;
+    });
+    totalWasteMm += plan.wasteMm;
+    totalOverflowMm += plan.overflowMm;
+  });
+
+  const segmentCount = boards.length;
+  boards.forEach((board, index) => {
+    board.segmentIndex = index;
+    board.segmentCount = segmentCount;
+    board.isRunStart = index === 0;
+    board.isRunEnd = index === segmentCount - 1;
+  });
+
+  return { boards, wasteMm: totalWasteMm, overflowMm: totalOverflowMm };
 }
 
 function aggregateBoardsByLength(
@@ -802,75 +843,31 @@ export const useDeckingStore = create<DeckingStoreState>()(
           const startY = bounds.minY - overscanMm;
           const endY = bounds.maxY + overscanMm;
           for (let y = startY; y <= endY; y += boardWidthWithGap) {
-            const intersections = getHorizontalIntersections(infillPolygon, y);
-            if (intersections.length < 2) continue;
+            const spans = getHorizontalSpansMm(infillPolygon, y);
+            if (spans.length === 0) continue;
             const rowIndex = currentRowIndex++;
             rowsWithBoards = currentRowIndex;
-            for (let j = 0; j < intersections.length - 1; j += 2) {
-              const startX = intersections[j];
-              const endX = intersections[j + 1];
-              const runLength = endX - startX;
-              if (runLength <= 0) continue;
-
-              const runId = generateId("run");
-
-              if (finishes.breakerBoardsEnabled) {
-                const runBreakers = breakerPositions.filter(
-                  (x) => x + BREAKER_HALF_MM > startX && x - BREAKER_HALF_MM < endX
-                );
-                const segments = splitRunAroundBreakers(startX, endX, runBreakers);
-                const segmentCount = segments.length;
-
-                segments.forEach((segment, idx) => {
-                  const length = segment.end - segment.start;
-                  boards.push({
-                    id: generateId("board"),
-                    start: { x: segment.start, y },
-                    end: { x: segment.end, y },
-                    length,
-                    runId,
-                    segmentIndex: idx,
-                    segmentCount,
-                    isRunStart: idx === 0,
-                    isRunEnd: idx === segmentCount - 1,
-                    kind: "field",
-                    rowIndex,
-                  });
-                  totalBoards += 1;
-                });
-              } else {
-                const plan = planBoardsForRun(runLength);
-                let cursorX = startX;
-                plan.boardLengths.forEach((length, idx) => {
-                  const segmentCount = plan.boardLengths.length;
-                  boards.push({
-                    id: generateId("board"),
-                    start: { x: cursorX, y },
-                    end: { x: cursorX + length, y },
-                    length,
-                    runId,
-                    segmentIndex: idx,
-                    segmentCount,
-                    isRunStart: idx === 0,
-                    isRunEnd: idx === segmentCount - 1,
-                    kind: "field",
-                    rowIndex,
-                  });
-                  cursorX += length;
-                });
-                totalWasteMm += plan.wasteMm;
-                totalOverflowMm += plan.overflowMm;
-                totalBoards += plan.boardLengths.length;
-              }
-            }
+            spans.forEach(([startX, endX]) => {
+              const build = buildBoardsForSpan({
+                start: startX,
+                end: endX,
+                fixedAxis: y,
+                direction: "horizontal",
+                rowIndex,
+                breakerPositions,
+                breakersEnabled: finishes.breakerBoardsEnabled,
+              });
+              boards.push(...build.boards);
+              totalWasteMm += build.wasteMm;
+              totalOverflowMm += build.overflowMm;
+              totalBoards += build.boards.length;
+            });
           }
 
           if (finishes.breakerBoardsEnabled) {
             breakerPositions.forEach((xBreaker) => {
-              const intersections = getVerticalIntersections(infillPolygon, xBreaker);
-              for (let k = 0; k < intersections.length - 1; k += 2) {
-                const yStart = intersections[k];
-                const yEnd = intersections[k + 1];
+              const spans = getVerticalSpansMm(infillPolygon, xBreaker);
+              spans.forEach(([yStart, yEnd]) => {
                 const height = yEnd - yStart;
                 if (height <= MIN_SEGMENT_LENGTH_MM) continue;
                 breakerBoards.push({
@@ -880,7 +877,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
                   length: height,
                   kind: "breaker",
                 });
-              }
+              });
             });
           }
         } else {
@@ -888,75 +885,31 @@ export const useDeckingStore = create<DeckingStoreState>()(
           const startX = bounds.minX - overscanMm;
           const endX = bounds.maxX + overscanMm;
           for (let x = startX; x <= endX; x += boardWidthWithGap) {
-            const intersections = getVerticalIntersections(infillPolygon, x);
-            if (intersections.length < 2) continue;
+            const spans = getVerticalSpansMm(infillPolygon, x);
+            if (spans.length === 0) continue;
             const rowIndex = currentRowIndex++;
             rowsWithBoards = currentRowIndex;
-            for (let j = 0; j < intersections.length - 1; j += 2) {
-              const startY = intersections[j];
-              const endY = intersections[j + 1];
-              const runLength = endY - startY;
-              if (runLength <= 0) continue;
-
-              const runId = generateId("run");
-
-              if (finishes.breakerBoardsEnabled) {
-                const runBreakers = breakerPositions.filter(
-                  (yPos) => yPos + BREAKER_HALF_MM > startY && yPos - BREAKER_HALF_MM < endY
-                );
-                const segments = splitRunAroundBreakers(startY, endY, runBreakers);
-                const segmentCount = segments.length;
-
-                segments.forEach((segment, idx) => {
-                  const length = segment.end - segment.start;
-                  boards.push({
-                    id: generateId("board"),
-                    start: { x, y: segment.start },
-                    end: { x, y: segment.end },
-                    length,
-                    runId,
-                    segmentIndex: idx,
-                    segmentCount,
-                    isRunStart: idx === 0,
-                    isRunEnd: idx === segmentCount - 1,
-                    kind: "field",
-                    rowIndex,
-                  });
-                  totalBoards += 1;
-                });
-              } else {
-                const plan = planBoardsForRun(runLength);
-                let cursorY = startY;
-                plan.boardLengths.forEach((length, idx) => {
-                  const segmentCount = plan.boardLengths.length;
-                  boards.push({
-                    id: generateId("board"),
-                    start: { x, y: cursorY },
-                    end: { x, y: cursorY + length },
-                    length,
-                    runId,
-                    segmentIndex: idx,
-                    segmentCount,
-                    isRunStart: idx === 0,
-                    isRunEnd: idx === segmentCount - 1,
-                    kind: "field",
-                    rowIndex,
-                  });
-                  cursorY += length;
-                });
-                totalWasteMm += plan.wasteMm;
-                totalOverflowMm += plan.overflowMm;
-                totalBoards += plan.boardLengths.length;
-              }
-            }
+            spans.forEach(([startY, endY]) => {
+              const build = buildBoardsForSpan({
+                start: startY,
+                end: endY,
+                fixedAxis: x,
+                direction: "vertical",
+                rowIndex,
+                breakerPositions,
+                breakersEnabled: finishes.breakerBoardsEnabled,
+              });
+              boards.push(...build.boards);
+              totalWasteMm += build.wasteMm;
+              totalOverflowMm += build.overflowMm;
+              totalBoards += build.boards.length;
+            });
           }
 
           if (finishes.breakerBoardsEnabled) {
             breakerPositions.forEach((yBreaker) => {
-              const intersections = getHorizontalIntersections(infillPolygon, yBreaker);
-              for (let k = 0; k < intersections.length - 1; k += 2) {
-                const xStart = intersections[k];
-                const xEnd = intersections[k + 1];
+              const spans = getHorizontalSpansMm(infillPolygon, yBreaker);
+              spans.forEach(([xStart, xEnd]) => {
                 const width = xEnd - xStart;
                 if (width <= MIN_SEGMENT_LENGTH_MM) continue;
                 breakerBoards.push({
@@ -966,7 +919,7 @@ export const useDeckingStore = create<DeckingStoreState>()(
                   length: width,
                   kind: "breaker",
                 });
-              }
+              });
             });
           }
         }
