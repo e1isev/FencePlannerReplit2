@@ -10,6 +10,8 @@ export const GRID_SIZE_MM = 100;
 export const SNAP_TOLERANCE_PX = 8;
 export const BOARD_OVERFLOW_ALLOWANCE_MM = 50;
 export const MAX_OVERHANG_MM = BOARD_OVERFLOW_ALLOWANCE_MM;
+const INTERSECTION_EPS = 1e-6;
+const MIN_SPAN_EPS_MM = 0.5;
 
 export interface Point {
   x: number;
@@ -174,6 +176,86 @@ export function shapeToRect(shape: {
 export interface Interval {
   start: number;
   end: number;
+}
+
+function dedupeHits(hits: number[]): number[] {
+  if (hits.length === 0) return [];
+  const sorted = [...hits].sort((a, b) => a - b);
+  const deduped: number[] = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    if (Math.abs(sorted[i] - deduped[deduped.length - 1]) > INTERSECTION_EPS) {
+      deduped.push(sorted[i]);
+    }
+  }
+  return deduped;
+}
+
+export function getHorizontalSpansMm(polygonMm: Point[], yMm: number): Array<[number, number]> {
+  const hits: number[] = [];
+  for (let i = 0; i < polygonMm.length; i++) {
+    const p1 = polygonMm[i];
+    const p2 = polygonMm[(i + 1) % polygonMm.length];
+    if (Math.abs(p1.y - p2.y) < INTERSECTION_EPS) continue;
+    const minY = Math.min(p1.y, p2.y);
+    const maxY = Math.max(p1.y, p2.y);
+    if (yMm < minY || yMm >= maxY) continue;
+    const t = (yMm - p1.y) / (p2.y - p1.y);
+    const x = p1.x + t * (p2.x - p1.x);
+    hits.push(x);
+  }
+
+  let orderedHits = hits.sort((a, b) => a - b);
+  if (orderedHits.length % 2 === 1) {
+    orderedHits = dedupeHits(orderedHits);
+    if (orderedHits.length % 2 === 1) {
+      console.warn("Odd horizontal intersection count", { yMm, hits: orderedHits });
+      return [];
+    }
+  }
+
+  const spans: Array<[number, number]> = [];
+  for (let k = 0; k < orderedHits.length; k += 2) {
+    const xA = orderedHits[k];
+    const xB = orderedHits[k + 1];
+    if (xB - xA > MIN_SPAN_EPS_MM) {
+      spans.push([xA, xB]);
+    }
+  }
+  return spans;
+}
+
+export function getVerticalSpansMm(polygonMm: Point[], xMm: number): Array<[number, number]> {
+  const hits: number[] = [];
+  for (let i = 0; i < polygonMm.length; i++) {
+    const p1 = polygonMm[i];
+    const p2 = polygonMm[(i + 1) % polygonMm.length];
+    if (Math.abs(p1.x - p2.x) < INTERSECTION_EPS) continue;
+    const minX = Math.min(p1.x, p2.x);
+    const maxX = Math.max(p1.x, p2.x);
+    if (xMm < minX || xMm >= maxX) continue;
+    const t = (xMm - p1.x) / (p2.x - p1.x);
+    const y = p1.y + t * (p2.y - p1.y);
+    hits.push(y);
+  }
+
+  let orderedHits = hits.sort((a, b) => a - b);
+  if (orderedHits.length % 2 === 1) {
+    orderedHits = dedupeHits(orderedHits);
+    if (orderedHits.length % 2 === 1) {
+      console.warn("Odd vertical intersection count", { xMm, hits: orderedHits });
+      return [];
+    }
+  }
+
+  const spans: Array<[number, number]> = [];
+  for (let k = 0; k < orderedHits.length; k += 2) {
+    const yA = orderedHits[k];
+    const yB = orderedHits[k + 1];
+    if (yB - yA > MIN_SPAN_EPS_MM) {
+      spans.push([yA, yB]);
+    }
+  }
+  return spans;
 }
 
 export function mergeIntervals(
