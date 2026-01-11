@@ -1,11 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAppStore } from "@/store/appStore";
 import { ProductKind, GateType } from "@/types/models";
 import { calculateCosts } from "@/lib/pricing";
 import { useLocation } from "wouter";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
+import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 
 const PRODUCTS: ProductKind[] = [
   "Decking",
@@ -27,6 +35,7 @@ export function LeftPanel() {
   const {
     productKind,
     fenceStyleId,
+    fenceHeightM,
     selectedGateType,
     lines,
     panels,
@@ -34,6 +43,7 @@ export function LeftPanel() {
     gates,
     setProductKind,
     setSelectedGateType,
+    setFenceHeightM,
   } = useAppStore();
   const [, setLocation] = useLocation();
 
@@ -81,7 +91,32 @@ export function LeftPanel() {
           <FenceStylePicker />
         </div>
 
-<div>
+        <div>
+          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+            Height
+          </Label>
+          <Select
+            value={String(fenceHeightM)}
+            onValueChange={(value) => {
+              const parsed = Number(value) as FenceHeightM;
+              if (!FENCE_HEIGHTS_M.includes(parsed)) return;
+              setFenceHeightM(parsed);
+            }}
+          >
+            <SelectTrigger className="w-full text-xs">
+              <SelectValue placeholder="Select height" />
+            </SelectTrigger>
+            <SelectContent>
+              {FENCE_HEIGHTS_M.map((height) => (
+                <SelectItem key={height} value={String(height)}>
+                  {height} m
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Gate Types
           </Label>
