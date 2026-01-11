@@ -887,19 +887,64 @@ export function DeckingCanvasStage() {
   };
 
   const renderBoardRects = (deck: DeckEntity) => {
-    if (deck.infillPolygon.length < 3 || deck.boards.length === 0) return null;
+    if (deck.infillPolygon.length < 3) return null;
+    const bounds = getDeckBounds(deck.infillPolygon);
+    if (!bounds) return null;
+
     const boardClipPointsPxCoords = deck.infillPolygon.map((p) => ({ x: mmToPx(p.x), y: mmToPx(p.y) }));
     const joinLines: JSX.Element[] = [];
     const joinStrokeWidth = 1.25 / stageScale;
+    const pitchMm = BOARD_WIDTH_MM + BOARD_GAP_MM;
+    const marginMm = pitchMm * 2;
+    const boardOverlapMm = 2;
+    const boardHeightMm = BOARD_WIDTH_MM + boardOverlapMm;
+    const fillColor = getFillColor(deck);
 
-    const boardRects = deck.boards.map((board) => {
-      const isHorizontal = board.start.y === board.end.y;
-      if (isHorizontal) {
-        const xStart = Math.min(board.start.x, board.end.x);
-        const widthMm = Math.abs(board.end.x - board.start.x);
-        const yTopMm = board.start.y - BOARD_WIDTH_MM / 2;
+    const fieldPlanks: JSX.Element[] = [];
+    if (deck.boardDirection === "horizontal") {
+      const widthMm = bounds.maxX - bounds.minX + marginMm * 2;
+      const rowCount = Math.ceil((bounds.maxY - bounds.minY + marginMm * 2) / pitchMm) + 2;
+      const startCenterY = bounds.minY - marginMm - pitchMm;
+      for (let row = 0; row < rowCount; row += 1) {
+        const centerY = startCenterY + row * pitchMm;
+        const yTop = centerY - boardHeightMm / 2;
+        fieldPlanks.push(
+          <Rect
+            key={`plank-${deck.id}-${row}`}
+            x={mmToPx(bounds.minX - marginMm)}
+            y={mmToPx(yTop)}
+            width={mmToPx(widthMm)}
+            height={mmToPx(boardHeightMm)}
+            fill={fillColor}
+            opacity={0.7}
+          />
+        );
+      }
+    } else {
+      const heightMm = bounds.maxY - bounds.minY + marginMm * 2;
+      const columnCount = Math.ceil((bounds.maxX - bounds.minX + marginMm * 2) / pitchMm) + 2;
+      const startCenterX = bounds.minX - marginMm - pitchMm;
+      for (let column = 0; column < columnCount; column += 1) {
+        const centerX = startCenterX + column * pitchMm;
+        const xLeft = centerX - boardHeightMm / 2;
+        fieldPlanks.push(
+          <Rect
+            key={`plank-${deck.id}-${column}`}
+            x={mmToPx(xLeft)}
+            y={mmToPx(bounds.minY - marginMm)}
+            width={mmToPx(boardHeightMm)}
+            height={mmToPx(heightMm)}
+            fill={fillColor}
+            opacity={0.7}
+          />
+        );
+      }
+    }
 
-        if (board.segmentIndex !== undefined && board.segmentCount !== undefined && board.segmentIndex < board.segmentCount - 1) {
+    deck.boards.forEach((board) => {
+      if (board.segmentIndex !== undefined && board.segmentCount !== undefined && board.segmentIndex < board.segmentCount - 1) {
+        const isHorizontal = board.start.y === board.end.y;
+        if (isHorizontal) {
           const xJoin = Math.max(board.start.x, board.end.x);
           joinLines.push(
             <Line
@@ -909,48 +954,18 @@ export function DeckingCanvasStage() {
               strokeWidth={joinStrokeWidth}
             />
           );
+        } else {
+          const yJoin = Math.max(board.start.y, board.end.y);
+          joinLines.push(
+            <Line
+              key={`join-${board.id}`}
+              points={[mmToPx(board.start.x - BOARD_WIDTH_MM / 2), mmToPx(yJoin), mmToPx(board.start.x + BOARD_WIDTH_MM / 2), mmToPx(yJoin)]}
+              stroke="#0f172a"
+              strokeWidth={joinStrokeWidth}
+            />
+          );
         }
-
-        return (
-          <Rect
-            key={board.id}
-            x={mmToPx(xStart)}
-            y={mmToPx(yTopMm)}
-            width={mmToPx(widthMm)}
-            height={mmToPx(boardRenderWidthMm)}
-            fill={getFillColor(deck)}
-            opacity={0.7}
-          />
-        );
       }
-
-      const yStart = Math.min(board.start.y, board.end.y);
-      const heightMm = Math.abs(board.end.y - board.start.y);
-      const xLeftMm = board.start.x - BOARD_WIDTH_MM / 2;
-
-      if (board.segmentIndex !== undefined && board.segmentCount !== undefined && board.segmentIndex < board.segmentCount - 1) {
-        const yJoin = Math.max(board.start.y, board.end.y);
-        joinLines.push(
-          <Line
-            key={`join-${board.id}`}
-            points={[mmToPx(board.start.x - BOARD_WIDTH_MM / 2), mmToPx(yJoin), mmToPx(board.start.x + BOARD_WIDTH_MM / 2), mmToPx(yJoin)]}
-            stroke="#0f172a"
-            strokeWidth={joinStrokeWidth}
-          />
-        );
-      }
-
-      return (
-        <Rect
-          key={board.id}
-          x={mmToPx(xLeftMm)}
-          y={mmToPx(yStart)}
-          width={mmToPx(boardRenderWidthMm)}
-          height={mmToPx(heightMm)}
-          fill={getFillColor(deck)}
-          opacity={0.7}
-        />
-      );
     });
 
     const breakerRects = deck.breakerBoards.map((board) => {
@@ -1036,7 +1051,14 @@ export function DeckingCanvasStage() {
           ctx.closePath();
         }}
       >
-        {boardRects}
+        <Line
+          points={deck.infillPolygon.flatMap((p) => [mmToPx(p.x), mmToPx(p.y)])}
+          closed
+          fill={fillColor}
+          opacity={0.7}
+          listening={false}
+        />
+        {fieldPlanks}
         {breakerRects}
         {joinLines}
       </Group>
