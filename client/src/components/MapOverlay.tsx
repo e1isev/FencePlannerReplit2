@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
+import { geocode } from "@/lib/geocode";
 import {
   MIN_QUERY_LENGTH,
   useAddressAutocomplete,
   type AddressSuggestion,
 } from "@/hooks/use-address-autocomplete";
+import { aflVenues } from "@/data/aflVenues";
+import { useMapViewportStore } from "@/store/mapViewportStore";
 
 type SearchResult = AddressSuggestion;
 
@@ -81,7 +84,8 @@ const PROVIDER_MIN_ZOOM: Record<SatelliteProvider, number> = {
 
 const BASE_SATELLITE_PROVIDER: SatelliteProvider = "esri";
 
-const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
+const MAP_VIEW_STORAGE_KEY = "lastMapViewport";
+const DEFAULT_VENUE_STORAGE_KEY = "defaultVenueId";
 
 const PROVIDER_LABELS: Record<SatelliteProvider, string> = {
   nearmap: "Nearmap",
@@ -284,13 +288,15 @@ function lngLatToTile(lng: number, lat: number, zoom: number): TileCoord {
 type StoredMapView = {
   center: [number, number];
   zoom: number;
+  bearing: number;
+  pitch: number;
 };
 
 function loadStoredView(): StoredMapView | null {
   if (typeof window === "undefined") return null;
 
   try {
-    const stored = localStorage.getItem(MAP_VIEW_STORAGE_KEY);
+    const stored = sessionStorage.getItem(MAP_VIEW_STORAGE_KEY);
     if (!stored) return null;
 
     const parsed = JSON.parse(stored) as Partial<StoredMapView>;
@@ -300,12 +306,19 @@ function loadStoredView(): StoredMapView | null {
       parsed.center.length !== 2 ||
       typeof parsed.center[0] !== "number" ||
       typeof parsed.center[1] !== "number" ||
-      typeof parsed.zoom !== "number"
+      typeof parsed.zoom !== "number" ||
+      typeof parsed.bearing !== "number" ||
+      typeof parsed.pitch !== "number"
     ) {
       return null;
     }
 
-    return { center: parsed.center as [number, number], zoom: parsed.zoom };
+    return {
+      center: parsed.center as [number, number],
+      zoom: parsed.zoom,
+      bearing: parsed.bearing,
+      pitch: parsed.pitch,
+    };
   } catch (error) {
     console.warn("[MapOverlay] Failed to load stored map view", error);
     return null;
@@ -316,10 +329,42 @@ function persistView(view: StoredMapView) {
   if (typeof window === "undefined") return;
 
   try {
-    localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify(view));
+    sessionStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify(view));
   } catch (error) {
     console.warn("[MapOverlay] Failed to persist map view", error);
   }
+}
+
+function loadStoredDefaultVenueId(): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return sessionStorage.getItem(DEFAULT_VENUE_STORAGE_KEY);
+  } catch (error) {
+    console.warn("[MapOverlay] Failed to load stored default venue id", error);
+    return null;
+  }
+}
+
+function persistDefaultVenueId(id: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.setItem(DEFAULT_VENUE_STORAGE_KEY, id);
+  } catch (error) {
+    console.warn("[MapOverlay] Failed to persist default venue id", error);
+  }
+}
+
+function pickRandomVenueId(): string {
+  if (aflVenues.length === 0) return "";
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    const buffer = new Uint32Array(1);
+    crypto.getRandomValues(buffer);
+    return aflVenues[buffer[0] % aflVenues.length]?.id ?? aflVenues[0].id;
+  }
+  const index = Math.floor(Math.random() * aflVenues.length);
+  return aflVenues[index]?.id ?? aflVenues[0].id;
 }
 
 function moveMapInstant(
@@ -488,6 +533,8 @@ export function MapOverlay({
     maptiler: 0,
     esri: 0,
   });
+  const storedViewport = useMapViewportStore((state) => state.viewport);
+  const setStoredViewport = useMapViewportStore((state) => state.setViewport);
   const mapCenterValue = useMemo(
     () => (mapCenter ? { lng: mapCenter[0], lat: mapCenter[1] } : null),
     [mapCenter]
@@ -507,6 +554,11 @@ export function MapOverlay({
     maptiler: 0,
     esri: 0,
   });
+  const suppressViewportSaveRef = useRef(false);
+  const initialViewportRef = useRef<StoredMapView | null>(null);
+  const defaultVenueAppliedRef = useRef(false);
+  const viewportSaveTimeoutRef = useRef<number | null>(null);
+  const defaultVenueAbortRef = useRef<AbortController | null>(null);
 
   const getTileCoordForCurrentView = useCallback(
     (provider: SatelliteProvider): TileCoord => {
@@ -694,7 +746,13 @@ export function MapOverlay({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const storedView = loadStoredView();
+    const storedView = storedViewport ?? loadStoredView();
+    if (storedView && !storedViewport) {
+      setStoredViewport(storedView);
+    }
+    initialViewportRef.current = storedView;
+    suppressViewportSaveRef.current = true;
+
     const initialCenter = storedView?.center ?? DEFAULT_CENTER;
     const initialProvider =
       mapMode === "satellite" ? satelliteProviderRef.current : BASE_SATELLITE_PROVIDER;
@@ -702,6 +760,9 @@ export function MapOverlay({
     const initialMaxZoom = maxZoomForMode(mapMode, initialProvider);
     const requestedZoom = storedView?.zoom ?? mapZoom;
     const initialZoom = Math.max(initialMinZoom, Math.min(requestedZoom, initialMaxZoom));
+    const initialBearing = storedView?.bearing ?? 0;
+    const initialPitch = storedView?.pitch ?? 0;
+    const initialMaxPitch = Math.max(0, storedView?.pitch ?? 0);
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -713,14 +774,20 @@ export function MapOverlay({
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
-      bearing: 0,
-      pitch: 0,
-      maxPitch: 0,
+      bearing: initialBearing,
+      pitch: initialPitch,
+      maxPitch: initialMaxPitch,
     });
 
     map.touchZoomRotate.disableRotation();
 
     mapRef.current = map;
+
+    if (storedView) {
+      map.once("idle", () => {
+        suppressViewportSaveRef.current = false;
+      });
+    }
 
     return () => {
       map.remove();
@@ -850,6 +917,41 @@ export function MapOverlay({
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map) return;
+
+    const handleMoveEnd = () => {
+      if (suppressViewportSaveRef.current) return;
+
+      if (viewportSaveTimeoutRef.current) {
+        window.clearTimeout(viewportSaveTimeoutRef.current);
+      }
+
+      viewportSaveTimeoutRef.current = window.setTimeout(() => {
+        const center = map.getCenter();
+        const nextView: StoredMapView = {
+          center: [center.lng, center.lat],
+          zoom: map.getZoom(),
+          bearing: map.getBearing(),
+          pitch: map.getPitch(),
+        };
+        setStoredViewport(nextView);
+        persistView(nextView);
+      }, 200);
+    };
+
+    map.on("moveend", handleMoveEnd);
+
+    return () => {
+      map.off("moveend", handleMoveEnd);
+      if (viewportSaveTimeoutRef.current) {
+        window.clearTimeout(viewportSaveTimeoutRef.current);
+        viewportSaveTimeoutRef.current = null;
+      }
+    };
+  }, [setStoredViewport]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map || !panByDelta) return;
 
     map.panBy([panByDelta.x, panByDelta.y], { animate: false });
@@ -909,8 +1011,10 @@ export function MapOverlay({
     map.touchZoomRotate.disable();
     map.touchZoomRotate.disableRotation();
     map.dragRotate.disable();
-    map.setPitch(0);
-    map.setBearing(0);
+    if (!initialViewportRef.current) {
+      map.setPitch(0);
+      map.setBearing(0);
+    }
   }, [onPanOffsetChange, onPanReferenceReset]);
 
   const flyToSearchResult = useCallback(
@@ -977,7 +1081,7 @@ export function MapOverlay({
     [onPanOffsetChange, onPanReferenceReset]
   );
 
-  const recenterToResult = (result: SearchResult) => {
+  const recenterToResult = useCallback((result: SearchResult, inputValue?: string) => {
     const map = mapRef.current;
     if (!map) {
       console.warn("[MapOverlay] recenterToResult: mapRef is null");
@@ -987,7 +1091,7 @@ export function MapOverlay({
     const lat = Number(result.lat);
     const lon = Number(result.lon);
 
-    setQuery(result.label);
+    setQuery(inputValue ?? result.label);
     setIsDropdownOpen(false);
     setActiveIndex(-1);
 
@@ -1000,7 +1104,73 @@ export function MapOverlay({
       .addTo(map);
 
     flyToSearchResult(lon, lat, 18);
-  };
+  }, [flyToSearchResult]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (defaultVenueAppliedRef.current) return;
+    if (initialViewportRef.current || storedViewport || loadStoredView()) return;
+
+    defaultVenueAppliedRef.current = true;
+
+    const storedVenueId = loadStoredDefaultVenueId();
+    const storedVenue = storedVenueId
+      ? aflVenues.find((venue) => venue.id === storedVenueId)
+      : null;
+    const fallbackVenueId = pickRandomVenueId();
+    const venue =
+      storedVenue ?? aflVenues.find((item) => item.id === fallbackVenueId) ?? aflVenues[0];
+
+    if (!venue) {
+      suppressViewportSaveRef.current = false;
+      return;
+    }
+
+    if (!storedVenueId || storedVenueId !== venue.id) {
+      persistDefaultVenueId(venue.id);
+    }
+
+    setQuery(venue.query);
+    setIsDropdownOpen(false);
+    setActiveIndex(-1);
+    suppressViewportSaveRef.current = false;
+
+    const applyFallback = () => {
+      if (!venue.fallbackCenter) return;
+      if (markerRef.current) {
+        markerRef.current.remove();
+      }
+      markerRef.current = new maplibregl.Marker({ color: "#2563eb" })
+        .setLngLat(venue.fallbackCenter)
+        .addTo(map);
+      flyToSearchResult(venue.fallbackCenter[0], venue.fallbackCenter[1], 18);
+    };
+
+    const controller = new AbortController();
+    defaultVenueAbortRef.current?.abort();
+    defaultVenueAbortRef.current = controller;
+
+    geocode(venue.query, { signal: controller.signal })
+      .then((results) => {
+        if (controller.signal.aborted) return;
+        const result = results[0];
+        if (result) {
+          recenterToResult(result, venue.query);
+          return;
+        }
+        applyFallback();
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.warn("[MapOverlay] Failed to geocode default venue", error);
+        applyFallback();
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [flyToSearchResult, recenterToResult, storedViewport]);
 
   useEffect(() => {
     if (!isDropdownOpen) return;
