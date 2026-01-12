@@ -523,7 +523,7 @@ export function MapOverlay({
   const resultsListRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER);
-  const [mapMode, setMapMode] = useState<MapStyleMode>("street");
+  const [mapMode, setMapMode] = useState<MapStyleMode>("satellite");
   const [satelliteProvider, setSatelliteProvider] = useState<SatelliteProvider>("esri");
   const [satelliteWarning, setSatelliteWarning] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);

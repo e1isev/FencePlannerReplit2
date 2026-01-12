@@ -984,7 +984,7 @@ export function CanvasStage() {
             {isDrawing && startPoint && currentPoint && (
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
-                stroke="#94a3b8"
+                stroke={mapMode === "satellite" ? "#ffffff" : "#94a3b8"}
                 strokeWidth={previewStrokeWidth}
                 dash={[previewDashLength, previewDashLength]}
                 strokeScaleEnabled
