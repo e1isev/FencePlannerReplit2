@@ -14,6 +14,7 @@ import { useLocation } from "wouter";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
+import { FENCE_COLORS } from "@/config/fenceColors";
 
 const PRODUCTS: ProductKind[] = [
   "Decking",
@@ -36,6 +37,7 @@ export function LeftPanel() {
     productKind,
     fenceStyleId,
     fenceHeightM,
+    fenceColorId,
     selectedGateType,
     lines,
     panels,
@@ -44,6 +46,7 @@ export function LeftPanel() {
     setProductKind,
     setSelectedGateType,
     setFenceHeightM,
+    setFenceColorId,
   } = useAppStore();
   const [, setLocation] = useLocation();
 
@@ -114,6 +117,34 @@ export function LeftPanel() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
+            Colour
+          </Label>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-7">
+            {FENCE_COLORS.map((colorOption) => (
+              <button
+                key={colorOption.id}
+                type="button"
+                onClick={() => setFenceColorId(colorOption.id)}
+                className="flex flex-col items-center gap-2 text-[11px] text-slate-600"
+                title={colorOption.label}
+                data-testid={`button-fence-color-${colorOption.id}`}
+              >
+                <span
+                  className={`h-10 w-10 rounded-md border-2 transition ${
+                    fenceColorId === colorOption.id
+                      ? "border-primary ring-2 ring-primary/30"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                  style={colorOption.swatch}
+                />
+                <span className="text-center leading-tight">{colorOption.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div>

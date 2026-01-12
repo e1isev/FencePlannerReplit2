@@ -19,6 +19,7 @@ import {
   getFenceStylesByCategory,
 } from "@/config/fenceStyles";
 import { DEFAULT_FENCE_HEIGHT_M, FenceHeightM } from "@/config/fenceHeights";
+import { DEFAULT_FENCE_COLOR, FenceColorId } from "@/config/fenceColors";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
@@ -476,6 +477,7 @@ interface AppState {
   productKind: ProductKind;
   fenceStyleId: FenceStyleId;
   fenceHeightM: FenceHeightM;
+  fenceColorId: FenceColorId;
   fenceCategoryId: FenceCategoryId;
   lines: FenceLine[];
   posts: Post[];
@@ -500,6 +502,7 @@ interface AppState {
   setFenceCategory: (categoryId: FenceCategoryId) => void;
   setFenceStyle: (styleId: FenceStyleId) => void;
   setFenceHeightM: (height: FenceHeightM) => void;
+  setFenceColorId: (colorId: FenceColorId) => void;
   setSelectedGateType: (type: GateType | null) => void;
   setSelectedLineId: (id: string | null) => void;
   setDrawingMode: (mode: boolean) => void;
@@ -534,6 +537,7 @@ export const useAppStore = create<AppState>()(
       productKind: "Residential fencing",
       fenceStyleId: getDefaultFenceStyleId("residential"),
       fenceHeightM: DEFAULT_FENCE_HEIGHT_M,
+      fenceColorId: DEFAULT_FENCE_COLOR,
       fenceCategoryId: "residential",
       lines: [],
       posts: [],
@@ -590,6 +594,12 @@ export const useAppStore = create<AppState>()(
         const { fenceHeightM } = get();
         if (fenceHeightM === height) return;
         set({ fenceHeightM: height });
+      },
+
+      setFenceColorId: (colorId) => {
+        const { fenceColorId } = get();
+        if (fenceColorId === colorId) return;
+        set({ fenceColorId: colorId });
       },
       
       setSelectedGateType: (type) =>
@@ -1225,7 +1235,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "fence-planner-storage",
-      version: 3,
+      version: 4,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
@@ -1290,12 +1300,23 @@ export const useAppStore = create<AppState>()(
           };
         }
 
+        if (version < 4) {
+          return {
+            ...persistedState,
+            state: {
+              ...persistedState.state,
+              fenceColorId: DEFAULT_FENCE_COLOR,
+            },
+          };
+        }
+
         return persistedState;
       },
       partialize: (state) => ({
         productKind: state.productKind,
         fenceStyleId: state.fenceStyleId,
         fenceHeightM: state.fenceHeightM,
+        fenceColorId: state.fenceColorId,
         fenceCategoryId: state.fenceCategoryId,
         lines: state.lines,
         gates: state.gates,
