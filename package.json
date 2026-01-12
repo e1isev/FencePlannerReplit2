@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
+    "preinstall": "node scripts/check-node-version.js",
     "predev": "node scripts/check-maplibre.js",
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "prebuild": "node scripts/check-maplibre.js",

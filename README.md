@@ -13,8 +13,38 @@ This repo contains a combined Express + Vite setup for the fence and decking pla
 > If `dir package.json` does not list the file, you are in the wrong folder—`cd` into the directory that shows `package.json` first.
 
 ## Prerequisites
-- Node.js 18 or newer
+- Node.js 22 LTS (preferred) or Node.js 20 LTS
 - npm 9+
+
+## Node version (required)
+Verify your current version:
+```bash
+node -v
+```
+
+### Windows (nvm-windows)
+Install and use Node 22 LTS:
+```powershell
+nvm install 22
+nvm use 22
+```
+
+Clean install (PowerShell):
+```powershell
+taskkill /F /IM node.exe 2>nul
+rmdir /s /q node_modules
+del package-lock.json
+npm cache clean --force
+npm install
+```
+
+Run the app:
+```powershell
+npm run dev
+```
+
+### Windows (installer fallback)
+If you do not use nvm-windows, download and install Node 22 LTS from https://nodejs.org/en/download. After installing, run the clean install steps above to refresh dependencies.
 
 ## Install dependencies
 ```bash
