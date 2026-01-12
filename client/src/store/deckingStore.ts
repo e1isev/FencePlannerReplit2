@@ -46,6 +46,8 @@ import { offsetPolygonMiter } from "@/geometry/pictureFrame";
 import { buildFasciaPieces } from "@/geometry/fascia";
 import { getClipsPerJoist, getFasciaClipCount, getJoistCount } from "@/geometry/clipCalc";
 import { breakerAxisForDirection, generateDefaultBreakerLines } from "@/lib/deckingBreaker";
+import type { DeckInput } from "@shared/project";
+import type { ProjectState } from "@/types/project";
 
 const DEFAULT_COLOR: DeckColor = "mallee-bark";
 const DEFAULT_FASCIA_THICKNESS = 20;
@@ -381,6 +383,35 @@ function createDeckEntity(points: Point[], name: string): DeckEntity {
   };
 }
 
+function hydrateDeckFromInput(input: DeckInput): DeckEntity {
+  const { baselineEdgeIndex, normalizedPolygon } = normalisePolygon(input.polygon);
+
+  return {
+    id: input.id,
+    name: input.name,
+    polygon: normalizedPolygon,
+    infillPolygon: normalizedPolygon,
+    boards: [],
+    breakerBoards: [],
+    breakerLines: input.breakerLines ?? [],
+    pictureFramePieces: [],
+    fasciaPieces: [],
+    selectedColor: input.selectedColor,
+    boardDirection: input.boardDirection,
+    boardPlan: null,
+    rowCount: 0,
+    clipSummary: null,
+    joistSpacingMode: input.joistSpacingMode ?? "residential",
+    finishes: input.finishes,
+    pictureFrameBoardWidthMm: input.pictureFrameBoardWidthMm,
+    pictureFrameGapMm: input.pictureFrameGapMm,
+    pictureFrameWarning: null,
+    fasciaThicknessMm: input.fasciaThicknessMm,
+    edgeConstraints: input.edgeConstraints ?? {},
+    baselineEdgeIndex: input.baselineEdgeIndex ?? baselineEdgeIndex ?? null,
+  };
+}
+
 function buildBoardPlan(
   deck: DeckEntity,
   finishes: DeckEntity["finishes"],
@@ -582,6 +613,8 @@ interface DeckingStoreState {
   confirmBreakerPlacement: (deckId: string, breakerId: string) => void;
   rejectBreakerPlacement: (deckId: string, breakerId: string) => void;
   exitEditBreakerLine: () => void;
+  getProjectState: () => ProjectState;
+  applyProjectState: (projectState: ProjectState) => void;
 }
 
 export const useDeckingStore = create<DeckingStoreState>()(
@@ -741,6 +774,51 @@ export const useDeckingStore = create<DeckingStoreState>()(
           breakerConfirmPosMm: null,
           breakerDraftPosMm: {},
         });
+      },
+
+      getProjectState: () => ({
+        decks: get().decks.map((deck) => ({
+          id: deck.id,
+          name: deck.name,
+          polygon: JSON.parse(JSON.stringify(deck.polygon)),
+          selectedColor: deck.selectedColor,
+          boardDirection: deck.boardDirection,
+          finishes: JSON.parse(JSON.stringify(deck.finishes)),
+          pictureFrameBoardWidthMm: deck.pictureFrameBoardWidthMm,
+          pictureFrameGapMm: deck.pictureFrameGapMm,
+          fasciaThicknessMm: deck.fasciaThicknessMm,
+          edgeConstraints: JSON.parse(JSON.stringify(deck.edgeConstraints ?? {})),
+          baselineEdgeIndex: deck.baselineEdgeIndex ?? null,
+          breakerLines: JSON.parse(JSON.stringify(deck.breakerLines ?? [])),
+          joistSpacingMode: deck.joistSpacingMode ?? get().joistSpacingMode,
+        })),
+        activeDeckId: get().activeDeckId,
+        joistSpacingMode: get().joistSpacingMode,
+        showClips: get().showClips,
+        uiState: {
+          selectedDeckId: get().selectedDeckId ?? null,
+          selectedBreakerId: get().selectedBreakerId ?? null,
+          editingBreakerId: get().editingBreakerId ?? null,
+        },
+      }),
+
+      applyProjectState: (projectState) => {
+        const decks = projectState.decks.map(hydrateDeckFromInput);
+        const activeDeckId =
+          decks.find((deck) => deck.id === projectState.activeDeckId)?.id ?? null;
+        set({
+          decks,
+          activeDeckId,
+          selectedDeckId: projectState.uiState.selectedDeckId ?? null,
+          selectedBreakerId: projectState.uiState.selectedBreakerId ?? null,
+          editingBreakerId: projectState.uiState.editingBreakerId ?? null,
+          joistSpacingMode: projectState.joistSpacingMode,
+          showClips: projectState.showClips,
+          history: [],
+          historyIndex: -1,
+        });
+        get().calculateBoardsForAllDecks();
+        get().saveHistory();
       },
 
       updateActiveDeck: (patch) => {

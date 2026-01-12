@@ -1,11 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { Undo2, Redo2, Trash2, Fence, FileText } from "lucide-react";
+import { Save, Undo2, Redo2, Trash2, Fence, FileText, FolderOpen } from "lucide-react";
 import { useLocation } from "wouter";
 import { useDeckingStore } from "@/store/deckingStore";
+import { useProjectStore } from "@/store/projectStore";
+import { ProjectManagerDialog } from "@/components/ProjectManagerDialog";
+import { useState } from "react";
 
 export function DeckingToolbar() {
   const [, setLocation] = useLocation();
   const { clearAllDecks, undo, redo, history, historyIndex } = useDeckingStore();
+  const { saveCurrentProject, saveStatus, saveMessage } = useProjectStore();
+  const [projectsOpen, setProjectsOpen] = useState(false);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -61,6 +66,33 @@ export function DeckingToolbar() {
           <Redo2 className="w-4 h-4 mr-2" />
           Redo
         </Button>
+      </div>
+      <div className="flex items-center gap-2">
+        {saveMessage && (
+          <span className="text-xs text-slate-500" data-testid="text-save-status">
+            {saveMessage}
+          </span>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => saveCurrentProject({ manual: true })}
+          disabled={saveStatus === "saving"}
+          data-testid="button-save-project"
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Save
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setProjectsOpen(true)}
+          data-testid="button-projects"
+        >
+          <FolderOpen className="w-4 h-4 mr-2" />
+          Projects
+        </Button>
+        <ProjectManagerDialog open={projectsOpen} onOpenChange={setProjectsOpen} />
       </div>
     </div>
   );
