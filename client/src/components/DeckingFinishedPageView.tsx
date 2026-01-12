@@ -4,6 +4,7 @@ import { Stage, Layer, Line, Rect, Group, Circle, Text } from "react-konva";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDeckingStore } from "@/store/deckingStore";
+import { useMapViewportStore } from "@/store/mapViewportStore";
 import {
   BOARD_GAP_MM,
   BOARD_WIDTH_MM,
@@ -319,6 +320,7 @@ export function DeckingFinishedPageView() {
   const hasHydrated = useDeckingStore((state) => state.hasHydrated);
   const getReportData = useDeckingStore((state) => state.getReportData);
   const getDeckRenderModel = useDeckingStore((state) => state.getDeckRenderModel);
+  const mapViewport = useMapViewportStore((state) => state.viewport);
   const reportData = useMemo(
     () =>
       hasHydrated
@@ -387,7 +389,10 @@ export function DeckingFinishedPageView() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 print:bg-white decking-finished-page">
+    <div
+      className="min-h-screen bg-slate-50 print:bg-white decking-finished-page"
+      data-map-viewport={mapViewport ? "restored" : "none"}
+    >
       <div className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
