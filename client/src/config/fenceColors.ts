@@ -1,3 +1,5 @@
+import type { FenceColourMode } from "@/types/models";
+
 export type FenceColorId =
   | "white"
   | "cream"
@@ -72,3 +74,6 @@ export const FENCE_COLORS: FenceColorOption[] = [
 ];
 
 export const DEFAULT_FENCE_COLOR: FenceColorId = "white";
+
+export const getFenceColourMode = (colorId: FenceColorId): FenceColourMode =>
+  colorId === "white" ? "White" : "Colour";

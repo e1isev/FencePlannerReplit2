@@ -2,6 +2,8 @@ export type ProductKind = "Decking" | "Titan rail" | "Residential fencing" | "Ru
 
 export type FenceCategoryId = "residential" | "rural";
 
+export type FenceColourMode = "White" | "Colour";
+
 export type FenceStyleId =
   | "bellbrae"
   | "jabiru"

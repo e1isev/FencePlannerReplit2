@@ -1,114 +1,226 @@
-import { FenceStyleId, PanelSegment, Post, Gate } from "@/types/models";
-import pricingData from "@/data/samplePricing.json";
+import type { FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
+import type { FenceLine } from "@/types/models";
 import { countBoardsPurchased } from "@/geometry/panels";
+import {
+  resolveSkuForLineItem,
+  roundToTenth,
+  formatHeightM,
+  type LineItemType,
+  type GateSkuType,
+} from "@/pricing/skuResolver";
+import { getFenceStyleLabel } from "@/config/fenceStyles";
 
-export function getPricing(styleId: FenceStyleId) {
-  return pricingData.styles.find((s) => s.id === styleId)!;
-}
+export type PricingCatalogEntry = { name: string; unitPrice: number };
 
-export interface CostBreakdown {
-  panels: { quantity: number; unitPrice: number; total: number };
-  posts: {
-    end: { quantity: number; unitPrice: number; total: number };
-    corner: { quantity: number; unitPrice: number; total: number };
-    t: { quantity: number; unitPrice: number; total: number };
-    line: { quantity: number; unitPrice: number; total: number };
+export type PricingBySku = Record<string, PricingCatalogEntry>;
+
+export type QuoteLineItem = {
+  name: string;
+  quantity: number;
+  sku: string | null;
+  unitPrice: number | null;
+  lineTotal: number | null;
+  missingReason?: string;
+  itemType: LineItemType;
+};
+
+export type QuoteSummary = {
+  lineItems: QuoteLineItem[];
+  missingItems: QuoteLineItem[];
+  pricedTotal: number;
+  grandTotal: number | null;
+  totalLengthMm: number;
+};
+
+const toCurrency = (value: number) => Math.round(value * 100) / 100;
+
+const getGateSkuType = (gate: Gate): GateSkuType | null => {
+  if (gate.type.startsWith("double")) return "Double";
+  if (gate.type.startsWith("single")) return "Single";
+  return null;
+};
+
+const formatGateLabel = (gate: Gate, widthM: number) => {
+  const roundedWidth = roundToTenth(widthM).toFixed(1);
+  const gateType = getGateSkuType(gate);
+  if (gateType) {
+    return `${gateType} Gate ${roundedWidth}m`;
+  }
+  return `Gate ${roundedWidth}m`;
+};
+
+const resolveLineItemPricing = (
+  item: QuoteLineItem,
+  pricingBySku: PricingBySku
+): QuoteLineItem => {
+  if (!item.sku) {
+    return item;
+  }
+
+  const pricing = pricingBySku[item.sku];
+  if (!pricing) {
+    return {
+      ...item,
+      unitPrice: null,
+      lineTotal: null,
+      missingReason: item.missingReason ?? "No price found for SKU",
+    };
+  }
+
+  const unitPrice = pricing.unitPrice;
+  return {
+    ...item,
+    unitPrice,
+    lineTotal: toCurrency(unitPrice * item.quantity),
   };
-  gates: {
-    single_900: { quantity: number; unitPrice: number; total: number };
-    single_1800: { quantity: number; unitPrice: number; total: number };
-    double_900: { quantity: number; unitPrice: number; total: number };
-    double_1800: { quantity: number; unitPrice: number; total: number };
-    sliding_4800: { quantity: number; unitPrice: number; total: number };
-    opening_custom: { quantity: number; unitPrice: number; total: number };
-  };
-  grandTotal: number;
-  totalLength_mm: number;
-}
+};
 
-export function calculateCosts(
-  styleId: FenceStyleId,
-  panels: PanelSegment[],
-  posts: Post[],
-  gates: Gate[],
-  lines: any[]
-): CostBreakdown {
-  const pricing = getPricing(styleId);
+export function calculateCosts(args: {
+  fenceStyleId: FenceStyleId;
+  fenceHeightM: number;
+  fenceColourMode: FenceColourMode;
+  panels: PanelSegment[];
+  posts: Post[];
+  gates: Gate[];
+  lines: FenceLine[];
+  pricingBySku: PricingBySku;
+}): QuoteSummary {
+  const {
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode,
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingBySku,
+  } = args;
 
-  const toCurrency = (value: number) => Math.round(value * 100) / 100;
+  const lineItems: QuoteLineItem[] = [];
 
-  const numPanels = countBoardsPurchased(panels);
-  
-  const endPosts = posts.filter((p) => p.category === "end").length;
-  const cornerPosts = posts.filter((p) => p.category === "corner").length;
-  const tPosts = posts.filter((p) => p.category === "t").length;
-  const linePosts = posts.filter((p) => p.category === "line").length;
-  
-  const gatesByType = {
-    single_900: gates.filter((g) => g.type === "single_900").length,
-    single_1800: gates.filter((g) => g.type === "single_1800").length,
-    double_900: gates.filter((g) => g.type === "double_900").length,
-    double_1800: gates.filter((g) => g.type === "double_1800").length,
-    sliding_4800: gates.filter((g) => g.type === "sliding_4800").length,
-    opening_custom: gates.filter((g) => g.type === "opening_custom").length,
-  };
-  
-  const totalFenceLength = lines.reduce(
-    (sum, line) => sum + line.length_mm,
+  const totalLengthMm = lines.reduce((sum, line) => sum + line.length_mm, 0);
+
+  const panelQuantity = countBoardsPurchased(panels);
+  if (panelQuantity > 0) {
+    const skuResult = resolveSkuForLineItem({
+      fenceStyleId,
+      fenceHeightM,
+      fenceColourMode,
+      lineItemType: "panel",
+    });
+    lineItems.push({
+      name: `${getFenceStyleLabel(fenceStyleId)} Panel ${formatHeightM(fenceHeightM)}`,
+      quantity: panelQuantity,
+      sku: skuResult.sku,
+      unitPrice: null,
+      lineTotal: null,
+      missingReason: skuResult.reason,
+      itemType: "panel",
+    });
+  }
+
+  const postCounts = posts.reduce(
+    (acc, post) => {
+      acc[post.category] = (acc[post.category] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  const postItems: Array<{ label: string; quantity: number; itemType: LineItemType }> = [
+    { label: "End Posts", quantity: postCounts.end || 0, itemType: "post_end" },
+    { label: "Corner Posts", quantity: postCounts.corner || 0, itemType: "post_corner" },
+    { label: "T Posts", quantity: postCounts.t || 0, itemType: "post_t" },
+    { label: "Line Posts", quantity: postCounts.line || 0, itemType: "post_line" },
+  ];
+
+  postItems.forEach((postItem) => {
+    if (postItem.quantity <= 0) return;
+    const skuResult = resolveSkuForLineItem({
+      fenceStyleId,
+      fenceHeightM,
+      fenceColourMode,
+      lineItemType: postItem.itemType,
+    });
+    lineItems.push({
+      name: postItem.label,
+      quantity: postItem.quantity,
+      sku: skuResult.sku,
+      unitPrice: null,
+      lineTotal: null,
+      missingReason: skuResult.reason,
+      itemType: postItem.itemType,
+    });
+  });
+
+  const gateGroups = new Map<
+    string,
+    { quantity: number; skuResult: { sku: string | null; reason?: string }; name: string }
+  >();
+
+  gates.forEach((gate) => {
+    const gateWidthM = gate.opening_mm / 1000;
+    const gateType = getGateSkuType(gate);
+    const skuResult = resolveSkuForLineItem({
+      fenceStyleId,
+      fenceHeightM,
+      fenceColourMode,
+      lineItemType: "gate",
+      gateWidthM,
+      gateType,
+    });
+    const name = formatGateLabel(gate, gateWidthM);
+    const key = `${name}|${skuResult.sku ?? skuResult.reason ?? "missing"}`;
+    const existing = gateGroups.get(key);
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      gateGroups.set(key, { quantity: 1, skuResult, name });
+    }
+  });
+
+  gateGroups.forEach((group) => {
+    lineItems.push({
+      name: group.name,
+      quantity: group.quantity,
+      sku: group.skuResult.sku,
+      unitPrice: null,
+      lineTotal: null,
+      missingReason: group.skuResult.reason,
+      itemType: "gate",
+    });
+  });
+
+  const pricedLineItems = lineItems.map((item) =>
+    resolveLineItemPricing(item, pricingBySku)
+  );
+
+  const missingItems = pricedLineItems.filter(
+    (item) => !item.sku || item.unitPrice === null
+  );
+
+  if (import.meta.env.DEV && missingItems.length > 0) {
+    missingItems.forEach((item) => {
+      // eslint-disable-next-line no-console
+      console.warn("Missing pricing", {
+        name: item.name,
+        sku: item.sku,
+        reason: item.missingReason,
+      });
+    });
+  }
+
+  const pricedTotal = pricedLineItems.reduce(
+    (sum, item) => sum + (item.lineTotal ?? 0),
     0
   );
-  
-  const panelCost = toCurrency(numPanels * pricing.panel_unit_price);
-  const endPostCost = toCurrency(endPosts * pricing.post_unit_price);
-  const cornerPostCost = toCurrency(cornerPosts * pricing.post_unit_price);
-  const tPostCost = toCurrency(tPosts * pricing.post_unit_price);
-  const linePostCost = toCurrency(linePosts * pricing.post_unit_price);
+  const grandTotal = missingItems.length === 0 ? pricedTotal : null;
 
-  const gateCosts = {
-    single_900: toCurrency(
-      gatesByType.single_900 * pricing.gate_prices.single_900
-    ),
-    single_1800: toCurrency(
-      gatesByType.single_1800 * pricing.gate_prices.single_1800
-    ),
-    double_900: toCurrency(
-      gatesByType.double_900 * pricing.gate_prices.double_900
-    ),
-    double_1800: toCurrency(
-      gatesByType.double_1800 * pricing.gate_prices.double_1800
-    ),
-    sliding_4800: toCurrency(
-      gatesByType.sliding_4800 * pricing.gate_prices.sliding_4800
-    ),
-    opening_custom: toCurrency(gatesByType.opening_custom * 500),
-  };
-
-  const grandTotal = toCurrency(
-    panelCost +
-      endPostCost +
-      cornerPostCost +
-      tPostCost +
-      linePostCost +
-      Object.values(gateCosts).reduce((sum, cost) => sum + cost, 0)
-  );
-  
   return {
-    panels: { quantity: numPanels, unitPrice: pricing.panel_unit_price, total: panelCost },
-    posts: {
-      end: { quantity: endPosts, unitPrice: pricing.post_unit_price, total: endPostCost },
-      corner: { quantity: cornerPosts, unitPrice: pricing.post_unit_price, total: cornerPostCost },
-      t: { quantity: tPosts, unitPrice: pricing.post_unit_price, total: tPostCost },
-      line: { quantity: linePosts, unitPrice: pricing.post_unit_price, total: linePostCost },
-    },
-    gates: {
-      single_900: { quantity: gatesByType.single_900, unitPrice: pricing.gate_prices.single_900, total: gateCosts.single_900 },
-      single_1800: { quantity: gatesByType.single_1800, unitPrice: pricing.gate_prices.single_1800, total: gateCosts.single_1800 },
-      double_900: { quantity: gatesByType.double_900, unitPrice: pricing.gate_prices.double_900, total: gateCosts.double_900 },
-      double_1800: { quantity: gatesByType.double_1800, unitPrice: pricing.gate_prices.double_1800, total: gateCosts.double_1800 },
-      sliding_4800: { quantity: gatesByType.sliding_4800, unitPrice: pricing.gate_prices.sliding_4800, total: gateCosts.sliding_4800 },
-      opening_custom: { quantity: gatesByType.opening_custom, unitPrice: 500, total: gateCosts.opening_custom },
-    },
+    lineItems: pricedLineItems,
+    missingItems,
+    pricedTotal,
     grandTotal,
-    totalLength_mm: totalFenceLength,
+    totalLengthMm,
   };
 }

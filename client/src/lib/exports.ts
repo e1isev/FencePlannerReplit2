@@ -1,99 +1,56 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FenceLine, Post, Gate, PanelSegment } from "@/types/models";
+import { FenceLine, Post, Gate, PanelSegment, FenceColourMode } from "@/types/models";
 import { FenceStyleId } from "@/types/models";
-import { getPricing } from "./pricing";
+import { calculateCosts, type PricingBySku } from "./pricing";
+import { getFenceStyleLabel } from "@/config/fenceStyles";
 
-export function exportCuttingListCSV(
-  fenceStyleId: FenceStyleId,
-  panels: PanelSegment[],
-  posts: Post[],
-  gates: Gate[],
-  lines: FenceLine[]
-): void {
-  const pricing = getPricing(fenceStyleId);
+export function exportCuttingListCSV(args: {
+  fenceStyleId: FenceStyleId;
+  fenceHeightM: number;
+  fenceColourMode: FenceColourMode;
+  panels: PanelSegment[];
+  posts: Post[];
+  gates: Gate[];
+  lines: FenceLine[];
+  pricingBySku: PricingBySku;
+}): void {
+  const { fenceStyleId, fenceHeightM, fenceColourMode, panels, posts, gates, lines, pricingBySku } =
+    args;
+  const costs = calculateCosts({
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode,
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingBySku,
+  });
 
   const rows: string[][] = [
-    ["Product Code", "Description", "Quantity", "Unit Price", "Total Price"],
+    ["Item", "SKU", "Quantity", "Unit Price", "Total Price"],
   ];
 
-  const numPanels = panels.filter((p) => !p.uses_leftover_id).length;
-  if (numPanels > 0) {
+  costs.lineItems.forEach((item) => {
     rows.push([
-      `PANEL-${fenceStyleId.toUpperCase()}`,
-      `${pricing.name} Panel`,
-      numPanels.toString(),
-      `$${pricing.panel_unit_price.toFixed(2)}`,
-      `$${(numPanels * pricing.panel_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  const postCounts = posts.reduce(
-    (acc, p) => {
-      acc[p.category] = (acc[p.category] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-  
-  if (postCounts.end > 0) {
-    rows.push([
-      `POST-END-${fenceStyleId.toUpperCase()}`,
-      `End Post (${pricing.name})`,
-      (postCounts.end || 0).toString(),
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.end || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  if ((postCounts.corner || 0) > 0) {
-    rows.push([
-      `POST-CORNER-${fenceStyleId.toUpperCase()}`,
-      `Corner Post (${pricing.name})`,
-      (postCounts.corner || 0).toString(),
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.corner || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-
-  if ((postCounts.t || 0) > 0) {
-    rows.push([
-      `POST-T-${fenceStyleId.toUpperCase()}`,
-      `T Post (${pricing.name})`,
-      (postCounts.t || 0).toString(),
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.t || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  if ((postCounts.line || 0) > 0) {
-    rows.push([
-      `POST-LINE-${fenceStyleId.toUpperCase()}`,
-      `Line Post (${pricing.name})`,
-      (postCounts.line || 0).toString(),
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.line || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  gates.forEach((gate) => {
-    const gatePrice = (pricing.gate_prices as any)[gate.type] || 0;
-    const gateDesc = gate.type
-      .split("_")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-    rows.push([
-      `GATE-${gate.type.toUpperCase()}`,
-      gateDesc,
-      "1",
-      `$${gatePrice.toFixed(2)}`,
-      `$${gatePrice.toFixed(2)}`,
+      item.name,
+      item.sku ?? "",
+      item.quantity.toString(),
+      item.unitPrice === null ? "" : `$${item.unitPrice.toFixed(2)}`,
+      item.lineTotal === null ? "" : `$${item.lineTotal.toFixed(2)}`,
     ]);
   });
-  
-  const totalLength = lines.reduce((sum, line) => sum + line.length_mm, 0);
+
   rows.push([]);
-  rows.push(["", "Total Length", `${(totalLength / 1000).toFixed(2)}m`, "", ""]);
+  rows.push(["", "Total Length", `${(costs.totalLengthMm / 1000).toFixed(2)}m`, "", ""]);
+  rows.push([
+    "",
+    "Grand Total",
+    "",
+    "",
+    costs.grandTotal === null ? "" : `$${costs.grandTotal.toFixed(2)}`,
+  ]);
   
   const csvContent = rows.map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
   
@@ -108,101 +65,51 @@ export function exportCuttingListCSV(
   document.body.removeChild(link);
 }
 
-export function exportPDF(
-  fenceStyleId: FenceStyleId,
-  panels: PanelSegment[],
-  posts: Post[],
-  gates: Gate[],
-  lines: FenceLine[]
-): void {
+export function exportPDF(args: {
+  fenceStyleId: FenceStyleId;
+  fenceHeightM: number;
+  fenceColourMode: FenceColourMode;
+  panels: PanelSegment[];
+  posts: Post[];
+  gates: Gate[];
+  lines: FenceLine[];
+  pricingBySku: PricingBySku;
+}): void {
+  const { fenceStyleId, fenceHeightM, fenceColourMode, panels, posts, gates, lines, pricingBySku } =
+    args;
   const doc = new jsPDF();
-  const pricing = getPricing(fenceStyleId);
+  const costs = calculateCosts({
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode,
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingBySku,
+  });
 
   doc.setFontSize(20);
   doc.text("Fence Plan - Cutting List", 14, 20);
 
   doc.setFontSize(12);
-  doc.text(`Fence Style: ${pricing.name}`, 14, 30);
+  doc.text(`Fence Style: ${getFenceStyleLabel(fenceStyleId)}`, 14, 30);
   doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 37);
 
   const tableData: any[] = [];
 
-  const numPanels = panels.filter((p) => !p.uses_leftover_id).length;
-  if (numPanels > 0) {
+  costs.lineItems.forEach((item) => {
     tableData.push([
-      `PANEL-${fenceStyleId.toUpperCase()}`,
-      `${pricing.name} Panel`,
-      numPanels,
-      `$${pricing.panel_unit_price.toFixed(2)}`,
-      `$${(numPanels * pricing.panel_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  const postCounts = posts.reduce(
-    (acc, p) => {
-      acc[p.category] = (acc[p.category] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-  
-  if (postCounts.end > 0) {
-    tableData.push([
-      `POST-END`,
-      `End Post`,
-      postCounts.end || 0,
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.end || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  if ((postCounts.corner || 0) > 0) {
-    tableData.push([
-      `POST-CORNER`,
-      `Corner Post`,
-      postCounts.corner || 0,
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.corner || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-
-  if ((postCounts.t || 0) > 0) {
-    tableData.push([
-      `POST-T`,
-      `T Post`,
-      postCounts.t || 0,
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.t || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  if ((postCounts.line || 0) > 0) {
-    tableData.push([
-      `POST-LINE`,
-      `Line Post`,
-      postCounts.line || 0,
-      `$${pricing.post_unit_price.toFixed(2)}`,
-      `$${((postCounts.line || 0) * pricing.post_unit_price).toFixed(2)}`,
-    ]);
-  }
-  
-  gates.forEach((gate) => {
-    const gatePrice = (pricing.gate_prices as any)[gate.type] || 0;
-    const gateDesc = gate.type
-      .split("_")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-    tableData.push([
-      `GATE-${gate.type.toUpperCase()}`,
-      gateDesc,
-      1,
-      `$${gatePrice.toFixed(2)}`,
-      `$${gatePrice.toFixed(2)}`,
+      item.name,
+      item.sku ?? "",
+      item.quantity,
+      item.unitPrice === null ? "" : `$${item.unitPrice.toFixed(2)}`,
+      item.lineTotal === null ? "" : `$${item.lineTotal.toFixed(2)}`,
     ]);
   });
   
   autoTable(doc, {
-    head: [["Product Code", "Description", "Qty", "Unit Price", "Total"]],
+    head: [["Item", "SKU", "Qty", "Unit Price", "Total"]],
     body: tableData,
     startY: 45,
     theme: "grid",
@@ -212,16 +119,14 @@ export function exportPDF(
   
   const finalY = (doc as any).lastAutoTable.finalY || 45;
   
-  const totalLength = lines.reduce((sum, line) => sum + line.length_mm, 0);
-  const grandTotal = tableData.reduce((sum, row) => {
-    const price = parseFloat(row[4].replace("$", "").replace(",", ""));
-    return sum + price;
-  }, 0);
-
   doc.setFontSize(12);
-  doc.text(`Total Length: ${(totalLength / 1000).toFixed(2)}m`, 14, finalY + 10);
+  doc.text(`Total Length: ${(costs.totalLengthMm / 1000).toFixed(2)}m`, 14, finalY + 10);
   doc.setFont("helvetica", "bold");
-  doc.text(`Grand Total: $${grandTotal.toFixed(2)}`, 14, finalY + 18);
+  doc.text(
+    `Grand Total: ${costs.grandTotal === null ? "N/A" : `$${costs.grandTotal.toFixed(2)}`}`,
+    14,
+    finalY + 18
+  );
   
   doc.save(`fence-plan-${Date.now()}.pdf`);
 }
