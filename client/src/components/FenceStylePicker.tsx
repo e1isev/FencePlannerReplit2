@@ -8,11 +8,31 @@ import {
 } from "@/config/fenceStyles";
 import { FenceCategoryId } from "@/types/models";
 
-export const FenceStylePicker = React.memo(function FenceStylePicker() {
+type FenceStylePickerProps = {
+  availableCategories?: FenceCategoryId[];
+};
+
+export const FenceStylePicker = React.memo(function FenceStylePicker({
+  availableCategories,
+}: FenceStylePickerProps) {
   const fenceStyleId = useAppStore((state) => state.fenceStyleId);
   const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
   const setFenceCategory = useAppStore((state) => state.setFenceCategory);
   const setFenceStyle = useAppStore((state) => state.setFenceStyle);
+  const categories = React.useMemo(() => {
+    if (!availableCategories || availableCategories.length === 0) {
+      return FENCE_CATEGORIES;
+    }
+    return FENCE_CATEGORIES.filter((category) =>
+      availableCategories.includes(category.id)
+    );
+  }, [availableCategories]);
+
+  React.useEffect(() => {
+    if (!categories.length) return;
+    if (categories.some((category) => category.id === fenceCategoryId)) return;
+    setFenceCategory(categories[0].id);
+  }, [categories, fenceCategoryId, setFenceCategory]);
 
   return (
     <Tabs
@@ -20,19 +40,21 @@ export const FenceStylePicker = React.memo(function FenceStylePicker() {
       onValueChange={(value) => setFenceCategory(value as FenceCategoryId)}
       className="space-y-3"
     >
-      <TabsList className="grid w-full grid-cols-2">
-        {FENCE_CATEGORIES.map((category) => (
-          <TabsTrigger
-            key={category.id}
-            value={category.id}
-            className="text-xs"
-            data-testid={`tab-fence-category-${category.id}`}
-          >
-            {category.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {FENCE_CATEGORIES.map((category) => (
+      {categories.length > 1 && (
+        <TabsList className="grid w-full grid-cols-2">
+          {categories.map((category) => (
+            <TabsTrigger
+              key={category.id}
+              value={category.id}
+              className="text-xs"
+              data-testid={`tab-fence-category-${category.id}`}
+            >
+              {category.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      )}
+      {categories.map((category) => (
         <TabsContent key={category.id} value={category.id} className="m-0">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {getFenceStylesByCategory(category.id).map((style) => (

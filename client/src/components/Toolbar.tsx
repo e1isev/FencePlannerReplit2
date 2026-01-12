@@ -8,7 +8,6 @@ import {
   ArrowLeftRight,
   FileDown,
   FileSpreadsheet,
-  Grid3x3,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { exportPDF, exportCuttingListCSV } from "@/lib/exports";
@@ -31,7 +30,7 @@ export function Toolbar() {
     posts,
     lines,
   } = useAppStore();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { pricingBySku } = usePricingCatalog();
 
   const selectedGate = gates.find((g) =>
@@ -71,16 +70,6 @@ export function Toolbar() {
   return (
     <div className="h-14 border-b border-slate-200 bg-white px-6 flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <Button
-          variant={location === "/decking" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setLocation("/decking")}
-          data-testid="button-decking"
-        >
-          <Grid3x3 className="w-4 h-4 mr-2" />
-          Decking
-        </Button>
-        <div className="h-8 w-px bg-slate-300 mx-1" />
         <Button
           variant="outline"
           size="sm"

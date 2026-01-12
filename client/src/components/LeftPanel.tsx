@@ -10,12 +10,12 @@ import {
 import { useAppStore } from "@/store/appStore";
 import { ProductKind, GateType } from "@/types/models";
 import { calculateCosts } from "@/lib/pricing";
-import { useLocation } from "wouter";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
+import { fencingModeFromProjectType, plannerOptions, projectTypeFromProduct } from "@/config/plannerOptions";
 
 const PRODUCTS: ProductKind[] = [
   "Decking",
@@ -44,12 +44,10 @@ export function LeftPanel() {
     panels,
     posts,
     gates,
-    setProductKind,
     setSelectedGateType,
     setFenceHeightM,
     setFenceColorId,
   } = useAppStore();
-  const [, setLocation] = useLocation();
   const {
     pricingBySku,
     pricingStatus,
@@ -68,6 +66,12 @@ export function LeftPanel() {
     pricingBySku,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
+  const projectType = projectTypeFromProduct(productKind);
+  const fencingMode = fencingModeFromProjectType(projectType);
+  const availableCategories =
+    fencingMode === "rural"
+      ? plannerOptions.rural_fencing.fenceCategories
+      : plannerOptions.residential_fencing.fenceCategories;
   const formattedUpdatedAt =
     updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
       ? new Date(updatedAtIso).toLocaleString()
@@ -85,7 +89,7 @@ export function LeftPanel() {
 
         <div>
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-            Product Category
+            Project Type
           </Label>
           <div className="grid grid-cols-2 gap-2">
             {PRODUCTS.map((product) => (
@@ -93,14 +97,7 @@ export function LeftPanel() {
                 key={product}
                 variant={productKind === product ? "default" : "outline"}
                 size="sm"
-                disabled={product !== "Residential fencing" && product !== "Decking"}
-                onClick={() => {
-                  if (product === "Decking") {
-                    setLocation("/decking");
-                  } else {
-                    setProductKind(product);
-                  }
-                }}
+                disabled
                 className="text-xs"
                 data-testid={`button-product-${product.toLowerCase().replace(/\s+/g, '-')}`}
               >
@@ -114,7 +111,7 @@ export function LeftPanel() {
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Fence Style
           </Label>
-          <FenceStylePicker />
+          <FenceStylePicker availableCategories={availableCategories} />
         </div>
 
         <div>

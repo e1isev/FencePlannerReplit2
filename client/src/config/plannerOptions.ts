@@ -1,0 +1,47 @@
+import { FENCE_CATEGORIES } from "@/config/fenceStyles";
+import { FENCE_COLORS } from "@/config/fenceColors";
+import { FENCE_HEIGHTS_M } from "@/config/fenceHeights";
+import type { FenceCategoryId, ProductKind } from "@/types/models";
+import type { ProjectType } from "@shared/projectSnapshot";
+
+export type FencingMode = "residential" | "rural";
+
+export const projectTypeFromProduct = (kind: ProductKind): ProjectType => {
+  switch (kind) {
+    case "Decking":
+      return "decking";
+    case "Rural fencing":
+      return "rural_fencing";
+    case "Titan rail":
+      return "titan_rail";
+    case "Residential fencing":
+    default:
+      return "residential_fencing";
+  }
+};
+
+export const fencingModeFromProjectType = (type: ProjectType): FencingMode | null => {
+  switch (type) {
+    case "residential_fencing":
+      return "residential";
+    case "rural_fencing":
+      return "rural";
+    default:
+      return null;
+  }
+};
+
+export const plannerOptions = {
+  residential_fencing: {
+    fenceCategories: ["residential"] as FenceCategoryId[],
+    fenceStyles: FENCE_CATEGORIES.filter((category) => category.id === "residential"),
+    heights: FENCE_HEIGHTS_M,
+    colors: FENCE_COLORS,
+  },
+  rural_fencing: {
+    fenceCategories: ["rural"] as FenceCategoryId[],
+    fenceStyles: FENCE_CATEGORIES.filter((category) => category.id === "rural"),
+    heights: FENCE_HEIGHTS_M,
+    colors: FENCE_COLORS,
+  },
+};
