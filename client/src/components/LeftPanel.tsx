@@ -14,7 +14,8 @@ import { useLocation } from "wouter";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
-import { FENCE_COLORS } from "@/config/fenceColors";
+import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
+import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 
 const PRODUCTS: ProductKind[] = [
   "Decking",
@@ -49,9 +50,31 @@ export function LeftPanel() {
     setFenceColorId,
   } = useAppStore();
   const [, setLocation] = useLocation();
+  const {
+    pricingBySku,
+    pricingStatus,
+    updatedAtIso,
+    errorMessage: pricingError,
+  } = usePricingCatalog();
 
-  const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
+  const costs = calculateCosts({
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode: getFenceColourMode(fenceColorId),
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingBySku,
+  });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
+  const formattedUpdatedAt =
+    updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
+      ? new Date(updatedAtIso).toLocaleString()
+      : "Not available";
+  const hasMissingPrices = costs.missingItems.length > 0;
+  const formatMoney = (value: number | null) =>
+    value === null ? "—" : `$${value.toFixed(2)}`;
 
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
@@ -184,11 +207,14 @@ export function LeftPanel() {
                   <th className="px-3 py-2 text-left font-semibold text-slate-700">
                     Product
                   </th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700">
+                    SKU
+                  </th>
                   <th className="px-3 py-2 text-right font-semibold text-slate-700">
                     Qty
                   </th>
                   <th className="px-3 py-2 text-right font-semibold text-slate-700">
-                    Unit Price
+                    Unit
                   </th>
                   <th className="px-3 py-2 text-right font-semibold text-slate-700">
                     Total
@@ -196,103 +222,72 @@ export function LeftPanel() {
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {costs.panels.quantity > 0 && (
-                  <tr className="border-b border-slate-100" data-testid="row-panels">
-                    <td className="px-3 py-2">Panels</td>
-                    <td className="px-3 py-2 text-right">{costs.panels.quantity}</td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.panels.unitPrice.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.panels.total.toFixed(2)}
+                {costs.lineItems.length === 0 && (
+                  <tr className="border-b border-slate-100">
+                    <td className="px-3 py-2 text-slate-400" colSpan={5}>
+                      Add fence segments to see priced items.
                     </td>
                   </tr>
                 )}
-                {costs.posts.end.quantity > 0 && (
-                  <tr className="border-b border-slate-100" data-testid="row-posts-end">
-                    <td className="px-3 py-2">End Posts</td>
-                    <td className="px-3 py-2 text-right">{costs.posts.end.quantity}</td>
+                {costs.lineItems.map((item) => (
+                  <tr
+                    key={`${item.name}-${item.sku ?? "missing"}`}
+                    className="border-b border-slate-100"
+                  >
+                    <td className="px-3 py-2">{item.name}</td>
+                    <td className="px-3 py-2 text-left">
+                      {item.sku ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right">{item.quantity}</td>
                     <td className="px-3 py-2 text-right">
-                      ${costs.posts.end.unitPrice.toFixed(2)}
+                      {formatMoney(item.unitPrice)}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      ${costs.posts.end.total.toFixed(2)}
-                    </td>
-                  </tr>
-                )}
-                {costs.posts.corner.quantity > 0 && (
-                  <tr className="border-b border-slate-100" data-testid="row-posts-corner">
-                    <td className="px-3 py-2">Corner Posts</td>
-                    <td className="px-3 py-2 text-right">
-                      {costs.posts.corner.quantity}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.posts.corner.unitPrice.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.posts.corner.total.toFixed(2)}
+                      {formatMoney(item.lineTotal)}
                     </td>
                   </tr>
-                )}
-                {costs.posts.t.quantity > 0 && (
-                  <tr className="border-b border-slate-100" data-testid="row-posts-t">
-                    <td className="px-3 py-2">T Posts</td>
-                    <td className="px-3 py-2 text-right">{costs.posts.t.quantity}</td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.posts.t.unitPrice.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.posts.t.total.toFixed(2)}
-                    </td>
-                  </tr>
-                )}
-                {costs.posts.line.quantity > 0 && (
-                  <tr className="border-b border-slate-100" data-testid="row-posts-line">
-                    <td className="px-3 py-2">Line Posts</td>
-                    <td className="px-3 py-2 text-right">{costs.posts.line.quantity}</td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.posts.line.unitPrice.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      ${costs.posts.line.total.toFixed(2)}
-                    </td>
-                  </tr>
-                )}
-                {Object.entries(costs.gates).map(
-                  ([type, data]) =>
-                    data.quantity > 0 && (
-                      <tr
-                        key={type}
-                        className="border-b border-slate-100"
-                        data-testid={`row-gate-${type}`}
-                      >
-                        <td className="px-3 py-2">
-                          {type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                        </td>
-                        <td className="px-3 py-2 text-right">{data.quantity}</td>
-                        <td className="px-3 py-2 text-right">
-                          ${data.unitPrice.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          ${data.total.toFixed(2)}
-                        </td>
-                      </tr>
-                    )
-                )}
+                ))}
                 <tr className="bg-slate-100 border-t-2 border-slate-300">
-                  <td className="px-3 py-2 font-semibold" colSpan={3} data-testid="text-total-label">
+                  <td
+                    className="px-3 py-2 font-semibold"
+                    colSpan={4}
+                    data-testid="text-total-label"
+                  >
                     Total
                   </td>
                   <td className="px-3 py-2 text-right font-semibold" data-testid="text-total-price">
-                    ${costs.grandTotal.toFixed(2)}
+                    {formatMoney(costs.grandTotal)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <div className="mt-2 text-xs text-slate-500 font-mono">
-            Total Length: {(costs.totalLength_mm / 1000).toFixed(2)}m
+          <div className="mt-2 text-xs text-slate-500 font-mono space-y-1">
+            <div>Total Length: {(costs.totalLengthMm / 1000).toFixed(2)}m</div>
+            {pricingStatus === "ready" && (
+              <div>Pricing last updated: {formattedUpdatedAt}</div>
+            )}
+            {pricingStatus === "loading" && <div>Pricing catalog loading...</div>}
+            {pricingStatus === "error" && (
+              <div className="text-amber-600">
+                Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
+              </div>
+            )}
           </div>
+          {hasMissingPrices && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="font-semibold">Missing prices</div>
+              <ul className="mt-1 list-disc space-y-1 pl-4">
+                {costs.missingItems.map((item) => (
+                  <li key={`${item.name}-${item.sku ?? "missing"}`}>
+                    {item.name}
+                    {item.sku ? ` (${item.sku})` : ""} —{" "}
+                    {item.missingReason ?? "No SKU or price found"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>

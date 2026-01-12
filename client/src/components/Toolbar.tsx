@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { exportPDF, exportCuttingListCSV } from "@/lib/exports";
+import { usePricingCatalog } from "@/pricing/usePricingCatalog";
+import { getFenceColourMode } from "@/config/fenceColors";
 
 export function Toolbar() {
   const {
@@ -23,26 +25,47 @@ export function Toolbar() {
     gates,
     selectedGateType,
     fenceStyleId,
+    fenceHeightM,
+    fenceColorId,
     panels,
     posts,
     lines,
   } = useAppStore();
   const [location, setLocation] = useLocation();
+  const { pricingBySku } = usePricingCatalog();
 
   const selectedGate = gates.find((g) =>
     g.type.startsWith("sliding")
   );
 
-const canUndo = historyIndex > 0;
+  const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
   const hasData = lines.length > 0;
 
   const handleExportPDF = () => {
-    exportPDF(fenceStyleId, panels, posts, gates, lines);
+    exportPDF({
+      fenceStyleId,
+      fenceHeightM,
+      fenceColourMode: getFenceColourMode(fenceColorId),
+      panels,
+      posts,
+      gates,
+      lines,
+      pricingBySku,
+    });
   };
 
   const handleExportCSV = () => {
-    exportCuttingListCSV(fenceStyleId, panels, posts, gates, lines);
+    exportCuttingListCSV({
+      fenceStyleId,
+      fenceHeightM,
+      fenceColourMode: getFenceColourMode(fenceColorId),
+      panels,
+      posts,
+      gates,
+      lines,
+      pricingBySku,
+    });
   };
 
   return (
