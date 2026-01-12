@@ -1,8 +1,11 @@
 import { DeckingLeftPanel } from "@/components/DeckingLeftPanel";
 import { DeckingToolbar } from "@/components/DeckingToolbar";
 import { DeckingCanvasStage } from "@/components/DeckingCanvasStage";
+import { useProjectAutosave } from "@/hooks/useProjectAutosave";
 
 export default function DeckingPlannerPage() {
+  useProjectAutosave();
+
   return (
     <div className="h-screen flex flex-col" data-testid="page-decking-planner">
       <DeckingToolbar />

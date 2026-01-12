@@ -114,16 +114,21 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   };
 };
 
-export const handlePricingCatalog = async (_req: Request, res: Response) => {
+export const getPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   const now = Date.now();
   if (cachedCatalog && now - cachedAt < CACHE_TTL_MS) {
-    return res.status(200).json(cachedCatalog);
+    return cachedCatalog;
   }
 
+  const catalog = await fetchPricingCatalog();
+  cachedCatalog = catalog;
+  cachedAt = now;
+  return catalog;
+};
+
+export const handlePricingCatalog = async (_req: Request, res: Response) => {
   try {
-    const catalog = await fetchPricingCatalog();
-    cachedCatalog = catalog;
-    cachedAt = now;
+    const catalog = await getPricingCatalog();
     return res.status(200).json(catalog);
   } catch (error) {
     const message =
