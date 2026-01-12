@@ -35,6 +35,15 @@ npm run build
 npm start
 ```
 
+## Database and authentication
+Project accounts and saved projects are stored in a local SQLite database file.
+
+### Environment variables
+- `SQLITE_PATH`: Optional. File path for the SQLite database. Defaults to `data/app.db`.
+
+### Migration / setup
+The server initializes the SQLite tables on startup. Ensure the process has write access to the directory you set in `SQLITE_PATH`.
+
 ## Satellite imagery configuration
 - `VITE_SATELLITE_PROVIDER`: Optional. Set to `nearmap`, `maptiler`, or `esri` to force a provider. When unset, the app tries Nearmap first (if available), then MapTiler, then Esri.
 - `VITE_MAPTILER_API_KEY`: Optional. Client-side key for MapTiler satellite imagery.

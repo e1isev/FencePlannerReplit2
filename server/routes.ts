@@ -4,9 +4,25 @@ import { handleNearmapTile } from "./nearmapTileProxy";
 import { log } from "./vite";
 import { handlePricingCatalog } from "./pricingCatalog";
 import { handlePricingResolve } from "./pricingResolve";
-import { projectStore } from "./projectStore";
 import { getCatalogVersion, getRuleSetVersion, getSkuMappings } from "./versioning";
-import type { ProjectSnapshot } from "@shared/project";
+import { z } from "zod";
+import { randomUUID } from "crypto";
+import { and, eq } from "drizzle-orm";
+import { initDb, db } from "./db";
+import { projects, users } from "./db/schema";
+import {
+  createSession,
+  clearSession,
+  getSessionCookieName,
+  getSessionUser,
+  hashPassword,
+  pruneExpiredSessions,
+  verifyPassword,
+} from "./auth";
+import {
+  projectSnapshotV1Schema,
+  projectTypeSchema,
+} from "@shared/projectSnapshot";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // put application routes here
@@ -14,6 +30,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // use storage to perform CRUD operations on the storage interface
   // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  initDb();
+  void pruneExpiredSessions();
 
   app.get("/api/nearmap/health", (_req: Request, res: Response) => {
     if (!process.env.NEARMAP_API_KEY) {
@@ -39,83 +57,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).json(getSkuMappings());
   });
 
-  app.post("/api/projects", (req: Request, res: Response) => {
-    const name = (req.body?.name as string | undefined) ?? "Untitled deck";
-    const project = projectStore.createProject(name);
-    res.status(201).json({ projectId: project.projectId });
+  const authSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
   });
 
-  app.get("/api/projects", (_req: Request, res: Response) => {
-    const projects = projectStore.listProjects().map((project) => ({
-      projectId: project.projectId,
+  app.post("/api/auth/register", async (req: Request, res: Response) => {
+    const parsed = authSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid registration details." });
+    }
+
+    const { email, password } = parsed.data;
+    const existing = await db.select().from(users).where(eq(users.email, email)).get();
+    if (existing) {
+      return res.status(409).json({ message: "Email already registered." });
+    }
+
+    const now = Date.now();
+    const userId = randomUUID();
+    await db.insert(users).values({
+      id: userId,
+      email,
+      passwordHash: hashPassword(password),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { token, expiresAt } = await createSession(userId);
+    res.cookie(getSessionCookieName(), token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: app.get("env") === "production",
+      maxAge: expiresAt - now,
+    });
+
+    return res.status(201).json({ id: userId, email });
+  });
+
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    const parsed = authSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid login details." });
+    }
+
+    const { email, password } = parsed.data;
+    const user = await db.select().from(users).where(eq(users.email, email)).get();
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ message: "Invalid email or password." });
+    }
+
+    const now = Date.now();
+    const { token, expiresAt } = await createSession(user.id);
+    res.cookie(getSessionCookieName(), token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: app.get("env") === "production",
+      maxAge: expiresAt - now,
+    });
+
+    return res.status(200).json({ id: user.id, email: user.email });
+  });
+
+  app.post("/api/auth/logout", async (req: Request, res: Response) => {
+    const session = await getSessionUser(req);
+    if (session?.token) {
+      await clearSession(session.token);
+    }
+    res.clearCookie(getSessionCookieName());
+    return res.status(200).json({ ok: true });
+  });
+
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
+    const session = await getSessionUser(req);
+    if (!session) {
+      return res.status(401).json({ message: "Not authenticated." });
+    }
+    return res.status(200).json({ id: session.user.id, email: session.user.email });
+  });
+
+  const requireAuth = async (req: Request, res: Response, next: () => void) => {
+    const session = await getSessionUser(req);
+    if (!session) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+    (req as Request & { userId?: string }).userId = session.user.id;
+    return next();
+  };
+
+  const createProjectSchema = z.object({
+    name: z.string().min(1),
+    type: projectTypeSchema,
+    snapshot: projectSnapshotV1Schema,
+  });
+
+  const updateProjectSchema = z.object({
+    name: z.string().min(1).optional(),
+    snapshot: projectSnapshotV1Schema.optional(),
+  });
+
+  app.get("/api/projects", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as Request & { userId?: string }).userId!;
+    const items = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .all();
+    const response = items.map((project) => ({
+      id: project.id,
       name: project.name,
-      updatedAt: project.updatedAt,
-      thumbnailUrl: null,
+      type: project.type,
+      updatedAt: new Date(project.updatedAt).toISOString(),
     }));
-    res.status(200).json(projects);
+    return res.status(200).json(response);
   });
 
-  app.get("/api/projects/:projectId", (req: Request, res: Response) => {
-    const project = projectStore.getProject(req.params.projectId);
+  app.post("/api/projects", requireAuth, async (req: Request, res: Response) => {
+    const parsed = createProjectSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid project payload." });
+    }
+    const userId = (req as Request & { userId?: string }).userId!;
+    const now = Date.now();
+    const projectId = randomUUID();
+    await db.insert(projects).values({
+      id: projectId,
+      userId,
+      name: parsed.data.name,
+      type: parsed.data.type,
+      dataJson: JSON.stringify(parsed.data.snapshot),
+      createdAt: now,
+      updatedAt: now,
+    });
+    return res.status(201).json({ id: projectId });
+  });
+
+  app.get("/api/projects/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as Request & { userId?: string }).userId!;
+    const project = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, req.params.projectId), eq(projects.userId, userId)))
+      .get();
     if (!project) {
       return res.status(404).json({ message: "Project not found." });
-    }
-    const latestRevision = project.revisions[project.revisions.length - 1];
-    if (!latestRevision) {
-      return res.status(404).json({ message: "No revisions found." });
     }
     return res.status(200).json({
-      ...latestRevision.snapshot,
-      projectId: project.projectId,
-      revisionId: latestRevision.revisionId,
+      id: project.id,
+      name: project.name,
+      type: project.type,
+      snapshot: JSON.parse(project.dataJson),
+      updatedAt: new Date(project.updatedAt).toISOString(),
     });
   });
 
-  app.get("/api/projects/:projectId/revisions/:revisionId", (req: Request, res: Response) => {
-    const project = projectStore.getProject(req.params.projectId);
+  app.put("/api/projects/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const parsed = updateProjectSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid project payload." });
+    }
+    const userId = (req as Request & { userId?: string }).userId!;
+    const project = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, req.params.projectId), eq(projects.userId, userId)))
+      .get();
     if (!project) {
       return res.status(404).json({ message: "Project not found." });
     }
-    const revision = project.revisions.find((rev) => rev.revisionId === req.params.revisionId);
-    if (!revision) {
-      return res.status(404).json({ message: "Revision not found." });
-    }
-    return res.status(200).json({
-      ...revision.snapshot,
-      projectId: project.projectId,
-      revisionId: revision.revisionId,
-    });
+    const now = Date.now();
+    await db
+      .update(projects)
+      .set({
+        name: parsed.data.name ?? project.name,
+        dataJson: parsed.data.snapshot ? JSON.stringify(parsed.data.snapshot) : project.dataJson,
+        updatedAt: now,
+      })
+      .where(eq(projects.id, project.id));
+    return res.status(200).json({ updatedAt: new Date(now).toISOString() });
   });
 
-  app.get("/api/projects/:projectId/revisions", (req: Request, res: Response) => {
-    const project = projectStore.getProject(req.params.projectId);
+  app.delete("/api/projects/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as Request & { userId?: string }).userId!;
+    const project = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, req.params.projectId), eq(projects.userId, userId)))
+      .get();
     if (!project) {
       return res.status(404).json({ message: "Project not found." });
     }
-    const revisions = project.revisions
-      .map((rev) => ({
-        revisionId: rev.revisionId,
-        savedAt: rev.savedAt,
-      }))
-      .reverse();
-    return res.status(200).json(revisions);
-  });
-
-  app.post("/api/projects/:projectId/revisions", (req: Request, res: Response) => {
-    const project = projectStore.getProject(req.params.projectId);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found." });
-    }
-    const snapshot = req.body as ProjectSnapshot;
-    const catalogVersion = getCatalogVersion();
-    const ruleSetVersion = getRuleSetVersion();
-    const revision = projectStore.saveRevision(project.projectId, snapshot, catalogVersion, ruleSetVersion);
-    return res.status(201).json({
-      revisionId: revision.revisionId,
-      savedAt: revision.savedAt,
-      catalogVersion,
-      ruleSetVersion,
-    });
+    await db.delete(projects).where(eq(projects.id, project.id));
+    return res.status(200).json({ ok: true });
   });
 
   const httpServer = createServer(app);

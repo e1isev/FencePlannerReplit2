@@ -103,7 +103,7 @@ export default function DrawingPage() {
         <div className="mb-6">
           <Button
             variant="outline"
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/planner")}
             data-testid="button-back"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
