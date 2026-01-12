@@ -11,13 +11,36 @@ import { PostShape } from "@/components/PostShape";
 import { getPostNeighbours } from "@/geometry/posts";
 import { FENCE_THICKNESS_MM } from "@/constants/geometry";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
+import { getFenceColourMode } from "@/config/fenceColors";
+import { usePricingCatalog } from "@/pricing/usePricingCatalog";
+import { countBoardsPurchased } from "@/geometry/panels";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
-  const { lines, posts, gates, warnings, panels, fenceStyleId, mmPerPixel } = useAppStore();
+  const {
+    lines,
+    posts,
+    gates,
+    warnings,
+    panels,
+    fenceStyleId,
+    fenceHeightM,
+    fenceColorId,
+    mmPerPixel,
+  } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
+  const { pricingBySku } = usePricingCatalog();
 
-  const costs = calculateCosts(fenceStyleId, panels, posts, gates, lines);
+  const costs = calculateCosts({
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode: getFenceColourMode(fenceColorId),
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingBySku,
+  });
 
   const padding = 80;
   const canvasWidth = 1200;
@@ -58,6 +81,10 @@ export default function DrawingPage() {
 
   const effectiveMmPerPixel = mmPerPixel ? mmPerPixel / drawingScale : 1;
   const mmToPx = (mm: number) => (effectiveMmPerPixel > 0 ? mm / effectiveMmPerPixel : mm);
+  const totalLengthMm = lines.reduce((sum, line) => sum + line.length_mm, 0);
+  const totalPosts = posts.length;
+  const totalPanels = countBoardsPurchased(panels);
+  const totalGates = gates.length;
 
   const transform = (point: { x: number; y: number }) => ({
     x: (point.x - minX) * drawingScale + offsetX,
@@ -224,7 +251,7 @@ export default function DrawingPage() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-slate-200 font-mono text-xs">
-              <div>Total: {(costs.totalLength_mm / 1000).toFixed(2)}m</div>
+              <div>Total: {(totalLengthMm / 1000).toFixed(2)}m</div>
               <div className="text-slate-500 text-[10px] mt-1">
                 (inc. {(63.5 * posts.filter((p) => p.category === "end").length / 1000).toFixed(2)}m end posts)
               </div>
@@ -262,34 +289,30 @@ export default function DrawingPage() {
             <div>
               <div className="text-slate-600">Total Fence Length</div>
               <div className="font-medium font-mono">
-                {(costs.totalLength_mm / 1000).toFixed(2)}m
+                {(totalLengthMm / 1000).toFixed(2)}m
               </div>
             </div>
             <div>
               <div className="text-slate-600">Number of Panels</div>
-              <div className="font-medium font-mono">{costs.panels.quantity}</div>
+              <div className="font-medium font-mono">{totalPanels}</div>
             </div>
             <div>
               <div className="text-slate-600">Total Posts</div>
               <div className="font-medium font-mono">
-                {costs.posts.end.quantity +
-                  costs.posts.corner.quantity +
-                  costs.posts.t.quantity +
-                  costs.posts.line.quantity}
+                {totalPosts}
               </div>
             </div>
             <div>
               <div className="text-slate-600">Number of Gates</div>
               <div className="font-medium font-mono">
-                {Object.values(costs.gates).reduce(
-                  (sum, g) => sum + g.quantity,
-                  0
-                )}
+                {totalGates}
               </div>
             </div>
 <div>
               <div className="text-slate-600">Estimated Total Cost</div>
-              <div className="font-medium font-mono">${costs.grandTotal.toFixed(2)}</div>
+              <div className="font-medium font-mono">
+                {costs.grandTotal === null ? "—" : `$${costs.grandTotal.toFixed(2)}`}
+              </div>
             </div>
           </div>
         </Card>

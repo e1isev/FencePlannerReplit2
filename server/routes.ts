@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { handleNearmapTile } from "./nearmapTileProxy";
 import { log } from "./vite";
+import { handlePricingCatalog } from "./pricingCatalog";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // put application routes here
@@ -19,6 +20,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/nearmap/tiles/:z/:x/:y.:format", handleNearmapTile);
+  app.get("/api/pricing/catalog", handlePricingCatalog);
 
   const httpServer = createServer(app);
 
