@@ -30,17 +30,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
     try {
       const response = await fetch("/api/pricing/catalog");
       if (!response.ok) {
-        let detail = "";
-        try {
-          const data = (await response.json()) as { message?: string };
-          if (data?.message) {
-            detail = data.message;
-          }
-        } catch {
-          detail = "";
-        }
-        const suffix = detail ? `: ${detail}` : "";
-        throw new Error(`Failed to load pricing catalog (${response.status})${suffix}`);
+        throw new Error(`Failed to load pricing catalog (${response.status})`);
       }
 
       const data: { updatedAtIso: string; items: PricingCatalogItem[] } =
