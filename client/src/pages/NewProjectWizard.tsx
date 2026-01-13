@@ -70,7 +70,7 @@ export default function NewProjectWizard() {
     }
     if (selectedType === "residential_fencing" || selectedType === "rural_fencing") {
       const category = selectedType === "rural_fencing" ? "rural" : "residential";
-      setLocation(`/styles/${category}?name=${encodedName}`);
+      setLocation(`/planner/new?type=${selectedType}&name=${encodedName}&category=${category}`);
       return;
     }
     setLocation(`/planner/new?type=${selectedType}&name=${encodedName}`);
