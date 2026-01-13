@@ -165,7 +165,7 @@ export function Toolbar() {
         <Button
           variant="default"
           size="sm"
-          onClick={() => setLocation("/drawing")}
+          onClick={() => setLocation("/planner/finished")}
           data-testid="button-finish"
         >
           <FileCheck className="w-4 h-4 mr-2" />
