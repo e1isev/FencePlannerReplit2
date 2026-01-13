@@ -1,9 +1,8 @@
 import { useMemo } from "react";
-import { useAppStore } from "@/store/appStore";
 import { useAuthStore } from "@/store/authStore";
-import { useProjectSessionStore } from "@/store/projectSessionStore";
-import { usePricingCatalog } from "@/pricing/usePricingCatalog";
+import { useAppStore } from "@/store/appStore";
 import { calculateCosts } from "@/lib/pricing";
+import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { getFenceColourMode } from "@/config/fenceColors";
 import type { QuoteLineItemViewModel, QuoteViewModel } from "@/hooks/useQuoteViewModel";
 
@@ -42,12 +41,9 @@ const addDays = (isoDate: string, days: number) => {
   return next.toISOString();
 };
 
-const resolveNote = (reason?: string) => {
-  if (!reason) return null;
-  return `Pricing pending (${reason.replace(/_/g, " ").toLowerCase()}).`;
-};
-
 export const useFenceQuoteViewModel = (): QuoteViewModel => {
+  const user = useAuthStore((state) => state.user);
+  const { pricingIndex } = usePricingCatalog();
   const {
     fenceCategoryId,
     fenceStyleId,
@@ -59,16 +55,8 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
     lines,
     warnings,
   } = useAppStore();
-  const projectName = useProjectSessionStore((state) => state.projectName);
-  const projectId = useProjectSessionStore((state) => state.projectId);
-  const localId = useProjectSessionStore((state) => state.localId);
-  const lastSavedAt = useProjectSessionStore((state) => state.lastSavedAt);
-  const user = useAuthStore((state) => state.user);
-  const { pricingIndex, catalogReady } = usePricingCatalog();
 
   return useMemo(() => {
-    const createdDate = lastSavedAt ?? new Date().toISOString();
-    const expiresDate = addDays(createdDate, 30);
     const costs = calculateCosts({
       fenceCategoryId,
       fenceStyleId,
@@ -79,65 +67,42 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       gates,
       lines,
       pricingIndex,
-      catalogReady,
     });
-    const subtotal = costs.pricedTotal;
-    const taxAmount = subtotal * 0.1;
+
+    const createdDate = new Date().toISOString();
+    const expiresDate = addDays(createdDate, 30);
+    const subtotal = costs.pricedTotal ?? 0;
+    const taxRate = 0.1;
+    const taxAmount = subtotal * taxRate;
     const total = subtotal + taxAmount;
 
-    const lineItems: QuoteLineItemViewModel[] = costs.lineItems.map((lineItem, index) => {
-      const totalAfterDiscount = lineItem.lineTotal ?? 0;
-      const unitPrice = lineItem.unitPrice ?? 0;
-      const quantity = Number.isFinite(lineItem.quantity) ? lineItem.quantity : 0;
-      const displayNotes = [];
-      const reasonNote = resolveNote(lineItem.missingReason);
-      if (reasonNote) {
-        displayNotes.push(reasonNote);
-      }
-      if (!lineItem.sku) {
-        displayNotes.push("SKU not available yet.");
-      }
-
+    const lineItems: QuoteLineItemViewModel[] = costs.lineItems.map((item, index) => {
+      const unitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice ?? 0 : 0;
+      const lineTotal = Number.isFinite(item.lineTotal) ? item.lineTotal ?? 0 : 0;
+      const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
       return {
-        id: `${lineItem.name}-${index}`,
-        title: lineItem.name,
+        id: `${item.sku ?? item.name}-${index}`,
+        title: item.name,
         longDescriptionBlocks: [
           {
             type: "text",
-            text: `SKU: ${lineItem.sku ?? "Pending"}`,
+            text: `SKU: ${item.sku ?? "-"}`,
           },
         ],
         quantity,
         unitPriceExDiscount: unitPrice,
         discountPercent: 0,
-        totalAfterDiscount,
-        gstAmount: totalAfterDiscount * 0.1,
-        displayNotes,
+        totalAfterDiscount: lineTotal,
+        gstAmount: lineTotal * taxRate,
+        displayNotes: item.missingReason ? [item.missingReason] : [],
       };
     });
 
-    const subtotalBeforeDiscount = subtotal;
-    const subtotalAfterDiscount = subtotal;
-    const discountAmount = subtotalBeforeDiscount - subtotalAfterDiscount;
-
-    const defaultPaymentSchedule = total
-      ? [
-          {
-            name: "Payment 1",
-            due: "Upon acceptance",
-            amount: total,
-            isDueNow: true,
-          },
-        ]
-      : [];
-
-    const warningText = warnings.map((warning) => warning.text).join("\n");
-
     return {
       quoteMeta: {
-        customerName: projectName,
+        customerName: "",
         customerEmail: "",
-        referenceId: projectId ?? localId ?? "",
+        referenceId: "",
         createdDate,
         expiresDate,
         createdByName: buildDisplayName(user?.email),
@@ -145,22 +110,31 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
         createdByPhone: "",
       },
       comments: {
-        salesTeamComments: warningText,
+        salesTeamComments: warnings.length ? warnings.map((warning) => warning.text).join("\n") : "",
       },
       lineItems,
       totals: {
-        subtotalAfterDiscount,
+        subtotalAfterDiscount: subtotal,
         taxAmount,
         total,
-        discountAmount,
-        subtotalBeforeDiscount,
+        discountAmount: 0,
+        subtotalBeforeDiscount: subtotal,
       },
       delivery: {
         deliveryAddress: "",
         freightMethod: "",
         deliveryTerms: DEFAULT_DELIVERY_TERMS,
       },
-      paymentSchedule: defaultPaymentSchedule,
+      paymentSchedule: total
+        ? [
+            {
+              name: "Payment 1",
+              due: "Upon acceptance",
+              amount: total,
+              isDueNow: true,
+            },
+          ]
+        : [],
       companyFooter: DEFAULT_COMPANY_FOOTER,
     };
   }, [
@@ -172,13 +146,8 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
     posts,
     gates,
     lines,
-    warnings,
-    projectName,
-    projectId,
-    localId,
-    lastSavedAt,
-    user?.email,
     pricingIndex,
-    catalogReady,
+    warnings,
+    user?.email,
   ]);
 };

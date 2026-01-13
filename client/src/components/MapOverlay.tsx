@@ -25,6 +25,7 @@ export interface MapOverlayProps {
   onCenterChange?: (center: { lng: number; lat: number }) => void;
   mapZoom: number;
   panByDelta?: { x: number; y: number } | null;
+  readOnly?: boolean;
 }
 
 export const DEFAULT_CENTER: [number, number] = [144.9834, -37.8199];
@@ -513,6 +514,7 @@ export function MapOverlay({
   onCenterChange,
   mapZoom,
   panByDelta,
+  readOnly = false,
 }: MapOverlayProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -1281,6 +1283,8 @@ export function MapOverlay({
     setMapMode((mode) => (mode === "street" ? "satellite" : "street"));
   };
 
+  const showControls = !readOnly;
+
   return (
     <div className="absolute inset-0">
       {/* Map tiles, visible but non interactive */}
@@ -1291,7 +1295,7 @@ export function MapOverlay({
         )}
       />
 
-      {isDevEnvironment() && (
+      {showControls && isDevEnvironment() && (
         <div className="absolute top-4 right-4 z-50 text-xs bg-white/85 backdrop-blur rounded-md shadow px-3 py-2 pointer-events-none space-y-1">
           <p className="font-semibold">Tile failures</p>
           {(Object.keys(tileFailures) as SatelliteProvider[]).map((provider) => (
@@ -1304,7 +1308,8 @@ export function MapOverlay({
       )}
 
       {/* Search and controls, on top and clickable */}
-      <div className="absolute top-4 left-4 max-w-md space-y-3 z-50 pointer-events-auto">
+      {showControls && (
+        <div className="absolute top-4 left-4 max-w-md space-y-3 z-50 pointer-events-auto">
         <Card className="p-3 shadow-lg relative overflow-visible">
           <div className="flex items-center justify-between gap-3 mb-2">
             <div className="space-y-1">
@@ -1382,27 +1387,30 @@ export function MapOverlay({
           </p>
         </Card>
 
-        {mapMode === "satellite" && satelliteWarning && (
+          {mapMode === "satellite" && satelliteWarning && (
           <div className="p-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md shadow-sm">
             {satelliteWarning}
           </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      <div className="absolute top-4 right-4 z-30 flex flex-col gap-2 pointer-events-auto">
-        <div className="flex flex-col rounded-md border border-slate-200 bg-white shadow-md overflow-hidden">
-          <Button variant="ghost" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
-            +
-          </Button>
-          <div className="border-t border-slate-200" />
-          <Button variant="ghost" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
-            -
+      {showControls && (
+        <div className="absolute top-4 right-4 z-30 flex flex-col gap-2 pointer-events-auto">
+          <div className="flex flex-col rounded-md border border-slate-200 bg-white shadow-md overflow-hidden">
+            <Button variant="ghost" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
+              +
+            </Button>
+            <div className="border-t border-slate-200" />
+            <Button variant="ghost" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
+              -
+            </Button>
+          </div>
+          <Button variant="secondary" size="sm" className="shadow-md" onClick={toggleMapMode}>
+            {mapMode === "street" ? "Satellite view" : "Street view"}
           </Button>
         </div>
-        <Button variant="secondary" size="sm" className="shadow-md" onClick={toggleMapMode}>
-          {mapMode === "street" ? "Satellite view" : "Street view"}
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

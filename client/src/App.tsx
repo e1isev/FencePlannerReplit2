@@ -14,6 +14,7 @@ import NewProjectWizard from "@/pages/NewProjectWizard";
 import TitanRailComingSoonPage from "@/pages/TitanRailComingSoonPage";
 import PlannerEntryPage from "@/pages/PlannerEntryPage";
 import DeckingEntryPage from "@/pages/DeckingEntryPage";
+import FenceFinishedPage from "@/pages/FenceFinishedPage";
 import { AuthInitializer } from "@/components/AuthInitializer";
 
 function Router() {
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/new" component={NewProjectWizard} />
       <Route path="/coming-soon/titan-rail" component={TitanRailComingSoonPage} />
       <Route path="/planner/new" component={PlannerEntryPage} />
+      <Route path="/planner/finished" component={FenceFinishedPage} />
       <Route path="/planner/:projectId" component={PlannerEntryPage} />
       <Route path="/decking/new" component={DeckingEntryPage} />
       <Route path="/decking/:projectId" component={DeckingEntryPage} />
