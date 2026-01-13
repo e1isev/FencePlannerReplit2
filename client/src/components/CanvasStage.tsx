@@ -10,16 +10,19 @@ import {
   findSnapPoint,
   findSnapPointOnSegment,
 } from "@/geometry/snapping";
-import { FENCE_THICKNESS_MM } from "@/constants/geometry";
+import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
-import MapOverlay, { type MapStyleMode } from "./MapOverlay";
+import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
+import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { PostShape } from "./PostShape";
 import { getJunctionAngleDegForPost, getPostNeighbours } from "@/geometry/posts";
-import { DEFAULT_CALIBRATED_SCALE_LABEL, DEFAULT_CALIBRATED_SCALE_MM_PER_PX } from "@/constants/scale";
 
 const BASE_MAP_ZOOM = 15;
+const TEN_YARDS_METERS = 9.144;
+const FIXED_SCALE_METERS_PER_PIXEL = 1.82;
 const LABEL_OFFSET_PX = 14;
 const MIN_LINE_HIT_PX = 10;
 const DRAG_THRESHOLD_PX = 4;
@@ -60,7 +63,12 @@ export function CanvasStage() {
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
+  const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
+  const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
+  const [calibrationFactor, setCalibrationFactor] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
@@ -79,6 +87,8 @@ export function CanvasStage() {
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
   const [panByDelta, setPanByDelta] = useState<{ x: number; y: number } | null>(null);
   const baseMetersPerPixelRef = useRef<number | null>(null);
+  const mapMetersPerPixelRef = useRef<number | null>(null);
+  const calibrationFactorRef = useRef(1);
   const pointerDownWorldRef = useRef<Point | null>(null);
   const didDragRef = useRef(false);
   const isDev = import.meta.env.DEV;
@@ -139,18 +149,31 @@ export function CanvasStage() {
     setMapZoom(zoom);
   }, []);
 
-  const handleScaleChange = useCallback((metersPerPixel: number, _zoom?: number) => {
-    if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
+  const handleScaleChange = useCallback(
+    (metersPerPixel: number, _zoom?: number) => {
+      if (!isFinite(metersPerPixel) || metersPerPixel <= 0) return;
 
-    if (baseMetersPerPixelRef.current === null) {
-      baseMetersPerPixelRef.current = metersPerPixel;
-    }
+      mapMetersPerPixelRef.current = metersPerPixel;
 
-    const referenceMetersPerPixel = baseMetersPerPixelRef.current ?? metersPerPixel;
-    const scaleFromMap = referenceMetersPerPixel / metersPerPixel;
+      setCurrentMetersPerPixel(metersPerPixel);
 
-    setMapScale(scaleFromMap);
-  }, []);
+      if (baseMetersPerPixelRef.current === null) {
+        baseMetersPerPixelRef.current = metersPerPixel;
+        setBaseMetersPerPixel(metersPerPixel);
+      }
+
+      const referenceMetersPerPixel = baseMetersPerPixelRef.current ?? metersPerPixel;
+      const scaleFromMap = referenceMetersPerPixel / metersPerPixel;
+
+      setMapScale(scaleFromMap);
+
+      const nextMmPerPixel = referenceMetersPerPixel * calibrationFactorRef.current * 1000;
+      if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
+
+      setMmPerPixel(nextMmPerPixel);
+    },
+    [mmPerPixel, setMmPerPixel]
+  );
 
   const handleMapModeChange = useCallback((mode: MapStyleMode) => {
     setMapMode(mode);
@@ -180,8 +203,37 @@ export function CanvasStage() {
   }, []);
 
   useEffect(() => {
-    setMmPerPixel(DEFAULT_CALIBRATED_SCALE_MM_PER_PX);
-  }, [setMmPerPixel]);
+    if (baseMetersPerPixelRef.current !== null) return;
+
+    const baseMetersPerPixel = calculateMetersPerPixel(BASE_MAP_ZOOM, DEFAULT_CENTER[1]);
+    const currentMetersPerPixel = calculateMetersPerPixel(mapZoom, DEFAULT_CENTER[1]);
+
+    if (!isFinite(baseMetersPerPixel) || !isFinite(currentMetersPerPixel)) return;
+
+    baseMetersPerPixelRef.current = baseMetersPerPixel;
+    setBaseMetersPerPixel(baseMetersPerPixel);
+    setCurrentMetersPerPixel(currentMetersPerPixel);
+    setMapScale(baseMetersPerPixel / currentMetersPerPixel);
+  }, [mapZoom]);
+  useEffect(() => {
+    calibrationFactorRef.current = calibrationFactor;
+  }, [calibrationFactor]);
+
+  useEffect(() => {
+    const metersPerPixel = baseMetersPerPixel ?? currentMetersPerPixel ?? null;
+    if (!metersPerPixel) return;
+
+    const nextMmPerPixel = metersPerPixel * calibrationFactor * 1000;
+    if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
+
+    setMmPerPixel(nextMmPerPixel);
+  }, [
+    baseMetersPerPixel,
+    calibrationFactor,
+    currentMetersPerPixel,
+    mmPerPixel,
+    setMmPerPixel,
+  ]);
 
   useEffect(() => {
     const handleKeyToggle = (event: KeyboardEvent) => {
@@ -242,6 +294,45 @@ export function CanvasStage() {
       return { type: "free", point };
     },
     [lines, posts, segmentSnapTolPx, snapTolerance]
+  );
+
+  const handleCalibrationComplete = useCallback(
+    (a: Point, b: Point) => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distancePx = Math.hypot(dx, dy);
+
+      const referenceMetersPerPixel =
+        baseMetersPerPixelRef.current ?? mapMetersPerPixelRef.current ?? currentMetersPerPixel;
+      if (!referenceMetersPerPixel || distancePx === 0) {
+        setCalibrationPoints([]);
+        setIsCalibrating(false);
+        return;
+      }
+
+      const calibratedMetersPerPixel = TEN_YARDS_METERS / distancePx;
+      const nextFactor = calibratedMetersPerPixel / referenceMetersPerPixel;
+
+      setCalibrationFactor(nextFactor);
+      setCalibrationPoints([]);
+      setIsCalibrating(false);
+      setMmPerPixel(calibratedMetersPerPixel * 1000);
+    },
+    [currentMetersPerPixel, setMmPerPixel]
+  );
+
+  const registerCalibrationPoint = useCallback(
+    (point: Point) => {
+      setCalibrationPoints((prev) => {
+        const next = [...prev, point];
+        if (next.length === 2) {
+          handleCalibrationComplete(next[0], next[1]);
+          return [];
+        }
+        return next;
+      });
+    },
+    [handleCalibrationComplete]
   );
 
   const resetDrawingState = useCallback(() => {
@@ -370,6 +461,12 @@ export function CanvasStage() {
   };
 
   const handleInteractionStart = (worldPoint: Point) => {
+    if (isCalibrating) {
+      registerCalibrationPoint(worldPoint);
+      resetDrawingState();
+      return;
+    }
+
     const snap = resolveSnapTarget(worldPoint);
     setHoverSnap(snap);
 
@@ -960,7 +1057,20 @@ export function CanvasStage() {
 
       <div className="absolute top-2 right-2 z-30">
         <div className="text-xs bg-white/80 backdrop-blur rounded-md shadow px-3 py-2">
-          <span>{DEFAULT_CALIBRATED_SCALE_LABEL}</span>
+          {mmPerPixel ? (
+            <>
+              <span>
+                Scale: {(mmPerPixel / 1000).toFixed(3)} m/px
+              </span>
+              {calibrationFactor !== 1 && (
+                <span className="ml-1 text-[0.7rem] text-emerald-700">
+                  (calibrated)
+                </span>
+              )}
+            </>
+          ) : (
+            <span>Scale: —</span>
+          )}
         </div>
       </div>
 
@@ -996,6 +1106,41 @@ export function CanvasStage() {
           )}
         </div>
       )}
+
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+        <Card className="px-4 py-3 shadow-lg flex items-center gap-3">
+          <div className="text-sm">
+            <p className="font-semibold">Calibration</p>
+            <p className="text-xs text-slate-500">
+              {isCalibrating
+                ? (() => {
+                    const remaining = 2 - calibrationPoints.length;
+                    return `Select ${remaining} point${remaining === 1 ? "" : "s"} 10 yards apart`;
+                  })()
+                : `Scale: ${FIXED_SCALE_METERS_PER_PIXEL.toFixed(3)} m/px${
+                    calibrationFactor !== 1 ? " (calibrated)" : ""
+                  }`}
+            </p>
+          </div>
+          <Button
+            variant={isCalibrating ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              if (isCalibrating) {
+                setIsCalibrating(false);
+                setCalibrationPoints([]);
+              } else {
+                setIsCalibrating(true);
+                setCalibrationPoints([]);
+                setIsDrawing(false);
+              }
+            }}
+            data-testid="button-calibrate-scale"
+          >
+            {isCalibrating ? "Cancel" : "Calibrate"}
+          </Button>
+        </Card>
+      </div>
 
       {selectedLineId && (
         <LineControls

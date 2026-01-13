@@ -27,7 +27,6 @@ import { generatePosts } from "@/geometry/posts";
 import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
-import { DEFAULT_CALIBRATED_SCALE_MM_PER_PX } from "@/constants/scale";
 
 const ENDPOINT_WELD_EPS_MM = 60; // physical tolerance for welding endpoints
 const SEGMENT_INTERIOR_TOL_MM = 20;
@@ -552,7 +551,7 @@ export const useAppStore = create<AppState>()(
       drawingMode: false,
       previewLine: null,
       panelPositionsMap: new Map(),
-      mmPerPixel: DEFAULT_CALIBRATED_SCALE_MM_PER_PX,
+      mmPerPixel: 10,
       selectedLineId: null,
       
       history: [],
@@ -633,12 +632,12 @@ export const useAppStore = create<AppState>()(
 
       setPreviewLine: (line) => set({ previewLine: line }),
 
-      setMmPerPixel: (_mmPerPixel) => {
+      setMmPerPixel: (mmPerPixel) => {
         const previousMmPerPixel = get().mmPerPixel;
-        if (Math.abs(previousMmPerPixel - DEFAULT_CALIBRATED_SCALE_MM_PER_PX) < 0.0001) return;
+        if (Math.abs(previousMmPerPixel - mmPerPixel) < 0.0001) return;
 
         set((state) => ({
-          mmPerPixel: DEFAULT_CALIBRATED_SCALE_MM_PER_PX,
+          mmPerPixel,
           lines: state.lines.map((line) => {
             const dx = line.b.x - line.a.x;
             const dy = line.b.y - line.a.y;
@@ -646,7 +645,7 @@ export const useAppStore = create<AppState>()(
 
             return {
               ...line,
-              length_mm: length_px * DEFAULT_CALIBRATED_SCALE_MM_PER_PX,
+              length_mm: length_px * mmPerPixel,
             };
           }),
         }));
@@ -1089,8 +1088,8 @@ export const useAppStore = create<AppState>()(
 
         let effectiveMmPerPixel = mmPerPixel;
         if (!Number.isFinite(effectiveMmPerPixel) || effectiveMmPerPixel <= 0) {
-          console.warn("Invalid mmPerPixel detected, resetting to calibrated default");
-          effectiveMmPerPixel = DEFAULT_CALIBRATED_SCALE_MM_PER_PX;
+          console.warn("Invalid mmPerPixel detected, resetting to 1");
+          effectiveMmPerPixel = 1;
           set({ mmPerPixel: effectiveMmPerPixel });
         }
         
@@ -1262,7 +1261,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "fence-planner-storage",
-      version: 6,
+      version: 5,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
@@ -1350,39 +1349,6 @@ export const useAppStore = create<AppState>()(
             state: {
               ...persistedState.state,
               gates,
-            },
-          };
-        }
-
-        if (version < 6) {
-          const previousMmPerPixel = persistedState?.state?.mmPerPixel;
-          const hasPreviousScale =
-            Number.isFinite(previousMmPerPixel) && previousMmPerPixel > 0;
-
-          const scaleFactor = hasPreviousScale
-            ? previousMmPerPixel / DEFAULT_CALIBRATED_SCALE_MM_PER_PX
-            : 1;
-
-          const scaledLines = (persistedState?.state?.lines ?? []).map((line: FenceLine) => {
-            const scaledA = { x: line.a.x * scaleFactor, y: line.a.y * scaleFactor };
-            const scaledB = { x: line.b.x * scaleFactor, y: line.b.y * scaleFactor };
-            const dx = scaledB.x - scaledA.x;
-            const dy = scaledB.y - scaledA.y;
-
-            return {
-              ...line,
-              a: scaledA,
-              b: scaledB,
-              length_mm: Math.hypot(dx, dy) * DEFAULT_CALIBRATED_SCALE_MM_PER_PX,
-            };
-          });
-
-          return {
-            ...persistedState,
-            state: {
-              ...persistedState.state,
-              lines: scaledLines,
-              mmPerPixel: DEFAULT_CALIBRATED_SCALE_MM_PER_PX,
             },
           };
         }
