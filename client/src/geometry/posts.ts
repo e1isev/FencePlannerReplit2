@@ -53,7 +53,7 @@ const projectPointToSegment = (p: Point, a: Point, b: Point) => {
 export function getPostNeighbours(pos: Point, lines: FenceLine[]): Point[] {
   const neighbours: Point[] = [];
   const seen = new Set<string>();
-  const keyForPoint: PointKeyFn = (p: Point) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+  const keyForPoint: PointKeyFn = (p: Point) => `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
   const neighbourToleranceM = 0.05;
 
   lines.forEach((line) => {
@@ -270,7 +270,7 @@ export function generatePosts(
     quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
   const makePointKey: PointKeyFn = (p: Point) => {
     const quantized = quantize(p);
-    return `${quantized.x.toFixed(2)},${quantized.y.toFixed(2)}`;
+    return `${quantized.x.toFixed(6)},${quantized.y.toFixed(6)}`;
   };
   const angleCache = new Map<string, number>();
   const adjacency = new Map<string, Adjacency>();
