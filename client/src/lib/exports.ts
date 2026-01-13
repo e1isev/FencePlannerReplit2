@@ -1,11 +1,20 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FenceLine, Post, Gate, PanelSegment, FenceColourMode } from "@/types/models";
-import { FenceStyleId } from "@/types/models";
-import { calculateCosts, type PricingBySku } from "./pricing";
+import {
+  FenceLine,
+  Post,
+  Gate,
+  PanelSegment,
+  FenceColourMode,
+  FenceCategoryId,
+  FenceStyleId,
+} from "@/types/models";
+import { calculateCosts } from "./pricing";
+import type { PricingIndex } from "@/pricing/pricingLookup";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 
 export function exportCuttingListCSV(args: {
+  fenceCategoryId: FenceCategoryId;
   fenceStyleId: FenceStyleId;
   fenceHeightM: number;
   fenceColourMode: FenceColourMode;
@@ -13,11 +22,10 @@ export function exportCuttingListCSV(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingBySku: PricingBySku;
+  pricingIndex: PricingIndex;
 }): void {
-  const { fenceStyleId, fenceHeightM, fenceColourMode, panels, posts, gates, lines, pricingBySku } =
-    args;
-  const costs = calculateCosts({
+  const {
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
@@ -25,7 +33,19 @@ export function exportCuttingListCSV(args: {
     posts,
     gates,
     lines,
-    pricingBySku,
+    pricingIndex,
+  } =
+    args;
+  const costs = calculateCosts({
+    fenceCategoryId,
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode,
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingIndex,
   });
 
   const rows: string[][] = [
@@ -66,6 +86,7 @@ export function exportCuttingListCSV(args: {
 }
 
 export function exportPDF(args: {
+  fenceCategoryId: FenceCategoryId;
   fenceStyleId: FenceStyleId;
   fenceHeightM: number;
   fenceColourMode: FenceColourMode;
@@ -73,12 +94,10 @@ export function exportPDF(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingBySku: PricingBySku;
+  pricingIndex: PricingIndex;
 }): void {
-  const { fenceStyleId, fenceHeightM, fenceColourMode, panels, posts, gates, lines, pricingBySku } =
-    args;
-  const doc = new jsPDF();
-  const costs = calculateCosts({
+  const {
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
@@ -86,7 +105,20 @@ export function exportPDF(args: {
     posts,
     gates,
     lines,
-    pricingBySku,
+    pricingIndex,
+  } =
+    args;
+  const doc = new jsPDF();
+  const costs = calculateCosts({
+    fenceCategoryId,
+    fenceStyleId,
+    fenceHeightM,
+    fenceColourMode,
+    panels,
+    posts,
+    gates,
+    lines,
+    pricingIndex,
   });
 
   doc.setFontSize(20);

@@ -4,17 +4,21 @@ type PricingCatalogItem = {
   name: string;
   sku: string;
   unitPrice: number;
+  category?: "residential" | "rural" | null;
 };
 
 type PricingCatalogResponse = {
   updatedAtIso: string;
   items: PricingCatalogItem[];
+  source?: "live" | "cache" | "stale";
 };
 
-const CACHE_TTL_MS = 20 * 60 * 1000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 10_000;
 
 let cachedCatalog: PricingCatalogResponse | null = null;
 let cachedAt = 0;
+let lastGoodCatalog: PricingCatalogResponse | null = null;
 
 const parseCsvRows = (csvText: string): string[][] => {
   const rows: string[][] = [];
@@ -74,6 +78,7 @@ const parsePricingItems = (csvText: string): PricingCatalogItem[] => {
       const name = (row[0] ?? "").trim();
       const sku = (row[1] ?? "").trim();
       const rawPrice = (row[2] ?? "").trim();
+      const category = (row[3] ?? "").trim().toLowerCase();
       const normalizedPrice = rawPrice.replace(/[$,\s]/g, "");
       const unitPrice = Number.parseFloat(normalizedPrice);
 
@@ -85,6 +90,10 @@ const parsePricingItems = (csvText: string): PricingCatalogItem[] => {
         name,
         sku,
         unitPrice,
+        category:
+          category === "residential" || category === "rural"
+            ? (category as "residential" | "rural")
+            : null,
       };
     })
     .filter((item): item is PricingCatalogItem => item !== null);
@@ -99,9 +108,34 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   }
 
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${sheetGid}`;
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let response: Response;
+
+  try {
+    response = await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Pricing catalog request timed out.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
+    let bodySnippet = "";
+    try {
+      const body = await response.text();
+      bodySnippet = body.slice(0, 200);
+    } catch {
+      bodySnippet = "";
+    }
+    console.error("Pricing catalog fetch failed", {
+      url,
+      status: response.status,
+      bodySnippet,
+    });
     throw new Error(`Failed to fetch pricing catalog (${response.status}).`);
   }
 
@@ -111,19 +145,31 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   return {
     updatedAtIso: new Date().toISOString(),
     items,
+    source: "live",
   };
 };
 
 export const getPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   const now = Date.now();
   if (cachedCatalog && now - cachedAt < CACHE_TTL_MS) {
-    return cachedCatalog;
+    return { ...cachedCatalog, source: "cache" };
   }
 
-  const catalog = await fetchPricingCatalog();
-  cachedCatalog = catalog;
-  cachedAt = now;
-  return catalog;
+  try {
+    const catalog = await fetchPricingCatalog();
+    cachedCatalog = catalog;
+    cachedAt = now;
+    lastGoodCatalog = catalog;
+    return catalog;
+  } catch (error) {
+    if (cachedCatalog) {
+      return { ...cachedCatalog, source: "cache" };
+    }
+    if (lastGoodCatalog) {
+      return { ...lastGoodCatalog, source: "stale" };
+    }
+    throw error;
+  }
 };
 
 export const handlePricingCatalog = async (_req: Request, res: Response) => {

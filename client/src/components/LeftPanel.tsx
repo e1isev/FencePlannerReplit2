@@ -39,6 +39,7 @@ export function LeftPanel() {
     fenceStyleId,
     fenceHeightM,
     fenceColorId,
+    fenceCategoryId,
     selectedGateType,
     lines,
     panels,
@@ -49,13 +50,17 @@ export function LeftPanel() {
     setFenceColorId,
   } = useAppStore();
   const {
-    pricingBySku,
+    pricingIndex,
     pricingStatus,
     updatedAtIso,
     errorMessage: pricingError,
+    warningMessage: pricingWarning,
+    pricingSource,
+    loadPricingCatalog,
   } = usePricingCatalog();
 
   const costs = calculateCosts({
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode: getFenceColourMode(fenceColorId),
@@ -63,7 +68,7 @@ export function LeftPanel() {
     posts,
     gates,
     lines,
-    pricingBySku,
+    pricingIndex,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
   const projectType = projectTypeFromProduct(productKind);
@@ -79,6 +84,14 @@ export function LeftPanel() {
   const hasMissingPrices = costs.missingItems.length > 0;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
+  const pricingSourceLabel =
+    pricingSource === "local"
+      ? "cached locally"
+      : pricingSource === "cache"
+        ? "cached on server"
+        : pricingSource === "stale"
+          ? "stale cache"
+          : null;
 
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
@@ -262,7 +275,10 @@ export function LeftPanel() {
           <div className="mt-2 text-xs text-slate-500 font-mono space-y-1">
             <div>Total Length: {(costs.totalLengthMm / 1000).toFixed(2)}m</div>
             {pricingStatus === "ready" && (
-              <div>Pricing last updated: {formattedUpdatedAt}</div>
+              <div>
+                Pricing last updated: {formattedUpdatedAt}
+                {pricingSourceLabel ? ` (${pricingSourceLabel})` : ""}
+              </div>
             )}
             {pricingStatus === "loading" && <div>Pricing catalog loading...</div>}
             {pricingStatus === "error" && (
@@ -270,7 +286,21 @@ export function LeftPanel() {
                 Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
               </div>
             )}
+            {pricingWarning && pricingStatus === "ready" && (
+              <div className="text-amber-600">{pricingWarning}</div>
+            )}
           </div>
+          {(pricingStatus === "error" || pricingWarning) && (
+            <div className="mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadPricingCatalog({ force: true })}
+              >
+                Retry pricing
+              </Button>
+            </div>
+          )}
           {hasMissingPrices && (
             <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <div className="font-semibold">Missing prices</div>
@@ -280,6 +310,39 @@ export function LeftPanel() {
                     {item.name}
                     {item.sku ? ` (${item.sku})` : ""} —{" "}
                     {item.missingReason ?? "No SKU or price found"}
+                    {item.missingDetails?.normalizedSku && (
+                      <div className="mt-1 text-[11px] text-amber-800">
+                        Normalized SKU: {item.missingDetails.normalizedSku}
+                      </div>
+                    )}
+                    {item.missingDetails?.normalizedName && (
+                      <div className="text-[11px] text-amber-800">
+                        Normalized name: {item.missingDetails.normalizedName}
+                      </div>
+                    )}
+                    {item.missingDetails?.exactSkuMatch !== undefined && (
+                      <div className="text-[11px] text-amber-800">
+                        Exact SKU match: {item.missingDetails.exactSkuMatch ? "yes" : "no"}
+                      </div>
+                    )}
+                    {item.missingDetails?.exactNameMatch !== undefined && (
+                      <div className="text-[11px] text-amber-800">
+                        Exact name match: {item.missingDetails.exactNameMatch ? "yes" : "no"}
+                      </div>
+                    )}
+                    {item.missingDetails?.candidates &&
+                      item.missingDetails.candidates.length > 0 && (
+                        <div className="mt-1 text-[11px] text-amber-800">
+                          Candidates:
+                          <ul className="list-disc pl-4">
+                            {item.missingDetails.candidates.map((candidate) => (
+                              <li key={`${candidate.sku}-${candidate.score}`}>
+                                {candidate.sku} ({candidate.score.toFixed(2)})
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                   </li>
                 ))}
               </ul>
