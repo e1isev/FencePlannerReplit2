@@ -1,4 +1,4 @@
-import type { FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
+import type { FenceCategoryId, FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
 import type { FenceLine } from "@/types/models";
 import { countBoardsPurchased } from "@/geometry/panels";
 import {
@@ -7,12 +7,12 @@ import {
   formatHeightM,
   type LineItemType,
   type GateSkuType,
-} from "@/pricing/skuResolver";
+  type SkuResolveReason,
+} from "@/pricing/skuRules";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
+import { lookupPricingEntry, type PricingIndex, type PricingLookupDiagnostics } from "@/pricing/catalogIndex";
 
-export type PricingCatalogEntry = { name: string; unitPrice: number };
-
-export type PricingBySku = Record<string, PricingCatalogEntry>;
+export type PricingCatalogEntry = { name: string; unitPrice: number; sku: string };
 
 export type QuoteLineItem = {
   name: string;
@@ -20,7 +20,8 @@ export type QuoteLineItem = {
   sku: string | null;
   unitPrice: number | null;
   lineTotal: number | null;
-  missingReason?: string;
+  missingReason?: MissingReason;
+  missingDiagnostics?: PricingLookupDiagnostics;
   itemType: LineItemType;
 };
 
@@ -31,6 +32,12 @@ export type QuoteSummary = {
   grandTotal: number | null;
   totalLengthMm: number;
 };
+
+export type MissingReason =
+  | SkuResolveReason
+  | "CATALOGUE_NOT_LOADED"
+  | "SKU_NOT_FOUND"
+  | "AMBIGUOUS_MATCH";
 
 const toCurrency = (value: number) => Math.round(value * 100) / 100;
 
@@ -51,23 +58,34 @@ const formatGateLabel = (gate: Gate, widthM: number) => {
 
 const resolveLineItemPricing = (
   item: QuoteLineItem,
-  pricingBySku: PricingBySku
+  pricingIndex: PricingIndex | null,
+  catalogReady: boolean
 ): QuoteLineItem => {
-  if (!item.sku) {
-    return item;
-  }
-
-  const pricing = pricingBySku[item.sku];
-  if (!pricing) {
+  if (!catalogReady || !pricingIndex) {
     return {
       ...item,
       unitPrice: null,
       lineTotal: null,
-      missingReason: item.missingReason ?? "No price found for SKU",
+      missingReason: item.missingReason ?? "CATALOGUE_NOT_LOADED",
     };
   }
 
-  const unitPrice = pricing.unitPrice;
+  if (!item.sku) {
+    return item;
+  }
+
+  const lookup = lookupPricingEntry(pricingIndex, item.sku);
+  if (!lookup.entry) {
+    return {
+      ...item,
+      unitPrice: null,
+      lineTotal: null,
+      missingReason: item.missingReason ?? lookup.reason,
+      missingDiagnostics: lookup.diagnostics,
+    };
+  }
+
+  const unitPrice = lookup.entry.unitPrice;
   return {
     ...item,
     unitPrice,
@@ -76,6 +94,7 @@ const resolveLineItemPricing = (
 };
 
 export function calculateCosts(args: {
+  fenceCategoryId: FenceCategoryId;
   fenceStyleId: FenceStyleId;
   fenceHeightM: number;
   fenceColourMode: FenceColourMode;
@@ -83,9 +102,11 @@ export function calculateCosts(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingBySku: PricingBySku;
+  pricingIndex: PricingIndex | null;
+  catalogReady: boolean;
 }): QuoteSummary {
   const {
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
@@ -93,7 +114,8 @@ export function calculateCosts(args: {
     posts,
     gates,
     lines,
-    pricingBySku,
+    pricingIndex,
+    catalogReady,
   } = args;
 
   const lineItems: QuoteLineItem[] = [];
@@ -103,6 +125,7 @@ export function calculateCosts(args: {
   const panelQuantity = countBoardsPurchased(panels);
   if (panelQuantity > 0) {
     const skuResult = resolveSkuForLineItem({
+      fenceCategoryId,
       fenceStyleId,
       fenceHeightM,
       fenceColourMode,
@@ -137,6 +160,7 @@ export function calculateCosts(args: {
   postItems.forEach((postItem) => {
     if (postItem.quantity <= 0) return;
     const skuResult = resolveSkuForLineItem({
+      fenceCategoryId,
       fenceStyleId,
       fenceHeightM,
       fenceColourMode,
@@ -162,6 +186,7 @@ export function calculateCosts(args: {
     const gateWidthM = gate.opening_mm / 1000;
     const gateType = getGateSkuType(gate);
     const skuResult = resolveSkuForLineItem({
+      fenceCategoryId,
       fenceStyleId,
       fenceHeightM,
       fenceColourMode,
@@ -192,7 +217,7 @@ export function calculateCosts(args: {
   });
 
   const pricedLineItems = lineItems.map((item) =>
-    resolveLineItemPricing(item, pricingBySku)
+    resolveLineItemPricing(item, pricingIndex, catalogReady)
   );
 
   const missingItems = pricedLineItems.filter(
@@ -206,6 +231,7 @@ export function calculateCosts(args: {
         name: item.name,
         sku: item.sku,
         reason: item.missingReason,
+        diagnostics: item.missingDiagnostics,
       });
     });
   }

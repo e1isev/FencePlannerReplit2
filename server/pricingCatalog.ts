@@ -11,10 +11,11 @@ type PricingCatalogResponse = {
   items: PricingCatalogItem[];
 };
 
-const CACHE_TTL_MS = 20 * 60 * 1000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 let cachedCatalog: PricingCatalogResponse | null = null;
 let cachedAt = 0;
+let lastGoodCatalog: PricingCatalogResponse | null = null;
 
 const parseCsvRows = (csvText: string): string[][] => {
   const rows: string[][] = [];
@@ -120,10 +121,23 @@ export const getPricingCatalog = async (): Promise<PricingCatalogResponse> => {
     return cachedCatalog;
   }
 
-  const catalog = await fetchPricingCatalog();
-  cachedCatalog = catalog;
-  cachedAt = now;
-  return catalog;
+  try {
+    const catalog = await fetchPricingCatalog();
+    cachedCatalog = catalog;
+    cachedAt = now;
+    lastGoodCatalog = catalog;
+    return catalog;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error while fetching catalog.";
+    console.warn("Pricing catalog fetch failed; falling back to cached value.", {
+      message,
+    });
+    if (lastGoodCatalog) {
+      return lastGoodCatalog;
+    }
+    throw error;
+  }
 };
 
 export const handlePricingCatalog = async (_req: Request, res: Response) => {

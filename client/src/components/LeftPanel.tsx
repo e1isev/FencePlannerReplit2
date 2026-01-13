@@ -16,6 +16,8 @@ import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { fencingModeFromProjectType, plannerOptions, projectTypeFromProduct } from "@/config/plannerOptions";
+import { getSupportedPanelHeights } from "@/pricing/skuRules";
+import { useEffect, useMemo } from "react";
 
 const PRODUCTS: ProductKind[] = [
   "Decking",
@@ -36,6 +38,7 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
 export function LeftPanel() {
   const {
     productKind,
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColorId,
@@ -49,21 +52,29 @@ export function LeftPanel() {
     setFenceColorId,
   } = useAppStore();
   const {
-    pricingBySku,
+    pricingIndex,
     pricingStatus,
+    noticeMessage: pricingNotice,
     updatedAtIso,
     errorMessage: pricingError,
   } = usePricingCatalog();
 
+  const fenceColourMode = getFenceColourMode(fenceColorId);
+  const supportedHeights = useMemo(
+    () => getSupportedPanelHeights(fenceStyleId, fenceColourMode),
+    [fenceStyleId, fenceColourMode]
+  );
   const costs = calculateCosts({
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
-    fenceColourMode: getFenceColourMode(fenceColorId),
+    fenceColourMode,
     panels,
     posts,
     gates,
     lines,
-    pricingBySku,
+    pricingIndex,
+    catalogReady: pricingStatus === "ready",
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
   const projectType = projectTypeFromProduct(productKind);
@@ -79,6 +90,12 @@ export function LeftPanel() {
   const hasMissingPrices = costs.missingItems.length > 0;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
+
+  useEffect(() => {
+    if (!supportedHeights.length) return;
+    if (supportedHeights.includes(fenceHeightM)) return;
+    setFenceHeightM(supportedHeights[0] as FenceHeightM);
+  }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
@@ -122,7 +139,7 @@ export function LeftPanel() {
             value={String(fenceHeightM)}
             onValueChange={(value) => {
               const parsed = Number(value) as FenceHeightM;
-              if (!FENCE_HEIGHTS_M.includes(parsed)) return;
+              if (!supportedHeights.includes(parsed)) return;
               setFenceHeightM(parsed);
             }}
           >
@@ -130,11 +147,13 @@ export function LeftPanel() {
               <SelectValue placeholder="Select height" />
             </SelectTrigger>
             <SelectContent>
-              {FENCE_HEIGHTS_M.map((height) => (
-                <SelectItem key={height} value={String(height)}>
-                  {height} m
-                </SelectItem>
-              ))}
+              {(supportedHeights.length > 0 ? supportedHeights : FENCE_HEIGHTS_M).map(
+                (height) => (
+                  <SelectItem key={height} value={String(height)}>
+                    {height} m
+                  </SelectItem>
+                )
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -264,6 +283,9 @@ export function LeftPanel() {
             {pricingStatus === "ready" && (
               <div>Pricing last updated: {formattedUpdatedAt}</div>
             )}
+            {pricingStatus === "ready" && pricingNotice && (
+              <div className="text-amber-600">{pricingNotice}</div>
+            )}
             {pricingStatus === "loading" && <div>Pricing catalog loading...</div>}
             {pricingStatus === "error" && (
               <div className="text-amber-600">
@@ -279,7 +301,7 @@ export function LeftPanel() {
                   <li key={`${item.name}-${item.sku ?? "missing"}`}>
                     {item.name}
                     {item.sku ? ` (${item.sku})` : ""} —{" "}
-                    {item.missingReason ?? "No SKU or price found"}
+                    {item.missingReason ?? "SKU_NOT_FOUND"}
                   </li>
                 ))}
               </ul>
