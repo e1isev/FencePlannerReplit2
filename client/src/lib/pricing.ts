@@ -23,6 +23,7 @@ export type QuoteLineItem = {
   missingReason?: MissingReason;
   missingDiagnostics?: PricingLookupDiagnostics;
   itemType: LineItemType;
+  gateWidthM?: number;
 };
 
 export type QuoteSummary = {
@@ -179,7 +180,12 @@ export function calculateCosts(args: {
 
   const gateGroups = new Map<
     string,
-    { quantity: number; skuResult: { sku: string | null; reason?: string }; name: string }
+    {
+      quantity: number;
+      skuResult: { sku: string | null; reason?: string };
+      name: string;
+      gateWidthM: number;
+    }
   >();
 
   gates.forEach((gate) => {
@@ -200,7 +206,7 @@ export function calculateCosts(args: {
     if (existing) {
       existing.quantity += 1;
     } else {
-      gateGroups.set(key, { quantity: 1, skuResult, name });
+      gateGroups.set(key, { quantity: 1, skuResult, name, gateWidthM });
     }
   });
 
@@ -213,6 +219,7 @@ export function calculateCosts(args: {
       lineTotal: null,
       missingReason: group.skuResult.reason,
       itemType: "gate",
+      gateWidthM: group.gateWidthM,
     });
   });
 

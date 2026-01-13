@@ -91,7 +91,7 @@ const formatGateWidth = (widthM: number) => {
 };
 
 const PICKET_GATE_WIDTHS: Record<GateSkuType, number[]> = {
-  Single: [0.9, 1.2, 1.4, 1.6, 1.8],
+  Single: [0.9, 1.2, 1.4, 1.6, 1.8, 2.35],
   Double: [1.8, 2.35, 2.4, 3.0, 4.0, 4.7],
 };
 
