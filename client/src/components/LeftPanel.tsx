@@ -51,6 +51,7 @@ export function LeftPanel() {
     updatedAtIso,
     errorMessage: pricingError,
     catalogStatus,
+    catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
 
@@ -69,7 +70,7 @@ export function LeftPanel() {
     gates,
     lines,
     pricingIndex,
-    catalogReady: pricingStatus === "ready",
+    catalogReady,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
   const projectType = projectTypeFromProduct(productKind);
@@ -86,6 +87,9 @@ export function LeftPanel() {
     catalogStatus?.lastErrorAt && !Number.isNaN(Date.parse(catalogStatus.lastErrorAt))
       ? new Date(catalogStatus.lastErrorAt).toLocaleString()
       : null;
+  const catalogHasRows = Boolean(catalogStatus?.ok && catalogStatus.catalogueRowCount > 0);
+  const statusErrorMessage = catalogStatus?.lastErrorMessage;
+  const statusErrorStatus = catalogStatus?.lastErrorStatus;
   const hasMissingPrices = costs.missingItems.length > 0;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
@@ -278,8 +282,18 @@ export function LeftPanel() {
             )}
             {catalogStatus && (
               <div className="space-y-1 text-slate-500">
-                <div>Pricing source: {catalogStatus.source}</div>
-                <div>Catalogue rows: {catalogStatus.catalogueRowCount}</div>
+                {catalogHasRows ? (
+                  <>
+                    <div>Pricing source: {catalogStatus.source}</div>
+                    <div>Catalogue rows: {catalogStatus.catalogueRowCount}</div>
+                  </>
+                ) : (
+                  <div className="text-amber-600">
+                    Pricing catalog not loaded
+                    {statusErrorMessage ? `: ${statusErrorMessage}` : ""}
+                    {statusErrorStatus ? ` (${statusErrorStatus})` : ""}
+                  </div>
+                )}
                 {formattedStatusLastErrorAt && (
                   <div className="text-amber-600">
                     Last error at {formattedStatusLastErrorAt}

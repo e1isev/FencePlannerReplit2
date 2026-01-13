@@ -1,0 +1,25 @@
+{
+  "updatedAtIso": "2024-01-01T00:00:00.000Z",
+  "items": [
+    {
+      "name": "Rosella Panel 1.4m White",
+      "sku": "Picket-Rosella-White-1.4m",
+      "unitPrice": 120.0
+    },
+    {
+      "name": "Residential End Post 1.4m White",
+      "sku": "ResPost-End-Wht-1.4m",
+      "unitPrice": 32.0
+    },
+    {
+      "name": "Residential Corner Post 1.4m White",
+      "sku": "ResPost-Corner-Wht-1.4m",
+      "unitPrice": 35.0
+    },
+    {
+      "name": "Residential Line Post 1.4m White",
+      "sku": "ResPost-Line-Wht-1.4m",
+      "unitPrice": 30.0
+    }
+  ]
+}

@@ -11,6 +11,10 @@ export const usePricingCatalog = () => {
   const catalogStatus = usePricingStore((state) => state.catalogStatus);
   const loadPricingCatalog = usePricingStore((state) => state.loadPricingCatalog);
 
+  const catalogReady =
+    pricingStatus === "ready" &&
+    (!catalogStatus || (catalogStatus.ok && catalogStatus.catalogueRowCount > 0));
+
   useEffect(() => {
     if (pricingStatus === "idle") {
       void loadPricingCatalog();
@@ -25,6 +29,7 @@ export const usePricingCatalog = () => {
     errorMessage,
     noticeMessage,
     catalogStatus,
+    catalogReady,
     loadPricingCatalog,
   };
 };

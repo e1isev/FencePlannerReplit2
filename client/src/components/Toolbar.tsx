@@ -33,7 +33,7 @@ export function Toolbar() {
     updateGateReturnSide,
   } = useAppStore();
   const [, setLocation] = useLocation();
-  const { pricingIndex, pricingStatus } = usePricingCatalog();
+  const { pricingIndex, catalogReady } = usePricingCatalog();
 
   const selectedGate = gates.find((g) =>
     g.type.startsWith("sliding")
@@ -55,7 +55,7 @@ export function Toolbar() {
       gates,
       lines,
       pricingIndex,
-      catalogReady: pricingStatus === "ready",
+      catalogReady,
     });
   };
 
@@ -70,7 +70,7 @@ export function Toolbar() {
       gates,
       lines,
       pricingIndex,
-      catalogReady: pricingStatus === "ready",
+      catalogReady,
     });
   };
 
