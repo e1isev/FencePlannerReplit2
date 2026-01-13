@@ -20,9 +20,9 @@ type SearchResult = AddressSuggestion;
 export interface MapOverlayProps {
   onZoomChange?: (zoom: number) => void;
   onScaleChange?: (metersPerPixel: number, zoom?: number) => void;
-  onPanOffsetChange?: (offset: { x: number; y: number }) => void;
-  onPanReferenceReset?: () => void;
   onMapModeChange?: (mode: MapStyleMode) => void;
+  onMapReady?: (map: maplibregl.Map) => void;
+  onCenterChange?: (center: { lng: number; lat: number }) => void;
   mapZoom: number;
   panByDelta?: { x: number; y: number } | null;
 }
@@ -508,9 +508,9 @@ function buildMapStyle(
 export function MapOverlay({
   onZoomChange,
   onScaleChange,
-  onPanOffsetChange,
-  onPanReferenceReset,
   onMapModeChange,
+  onMapReady,
+  onCenterChange,
   mapZoom,
   panByDelta,
 }: MapOverlayProps) {
@@ -542,7 +542,6 @@ export function MapOverlay({
   );
   const { suggestions, isLoading: isSearchLoading, error: searchError } =
     useAddressAutocomplete(query, mapCenterValue);
-  const initialCenterRef = useRef<maplibregl.LngLat | null>(null);
   const moveEndHandlerRef = useRef<((this: maplibregl.Map, ev: any) => void) | null>(null);
 
   const providerOrderRef = useRef<SatelliteProvider[]>(PROVIDER_ORDER);
@@ -785,6 +784,7 @@ export function MapOverlay({
 
     mapRef.current = map;
     setIsMapReady(true);
+    onMapReady?.(map);
 
     if (storedView) {
       map.once("idle", () => {
@@ -895,18 +895,7 @@ export function MapOverlay({
       onZoomChange?.(zoom);
       const metersPerPixel = calculateMetersPerPixel(zoom, center.lat);
       onScaleChange?.(metersPerPixel, zoom);
-
-      if (!initialCenterRef.current) {
-        initialCenterRef.current = center;
-      }
-
-      const referenceCenter = initialCenterRef.current;
-      const referencePoint = map.project(referenceCenter);
-      const currentPoint = map.project(center);
-      onPanOffsetChange?.({
-        x: currentPoint.x - referencePoint.x,
-        y: currentPoint.y - referencePoint.y,
-      });
+      onCenterChange?.({ lng: center.lng, lat: center.lat });
     };
 
     handleViewChange();
@@ -917,7 +906,7 @@ export function MapOverlay({
       map.off("zoom", handleViewChange);
       map.off("move", handleViewChange);
     };
-  }, [onPanOffsetChange, onScaleChange, onZoomChange, setMapCenter]);
+  }, [onCenterChange, onScaleChange, onZoomChange, setMapCenter]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1002,11 +991,6 @@ export function MapOverlay({
     const map = mapRef.current;
     if (!map) return;
 
-    const center = map.getCenter();
-    initialCenterRef.current = center;
-    onPanOffsetChange?.({ x: 0, y: 0 });
-    onPanReferenceReset?.();
-
     map.scrollZoom.disable();
     map.boxZoom.disable();
     map.dragPan.disable();
@@ -1019,7 +1003,7 @@ export function MapOverlay({
       map.setPitch(0);
       map.setBearing(0);
     }
-  }, [onPanOffsetChange, onPanReferenceReset]);
+  }, []);
 
   const flyToSearchResult = useCallback(
     (lon: number, lat: number, desiredZoom = 18) => {
@@ -1049,10 +1033,6 @@ export function MapOverlay({
       }
 
       const unlock = () => {
-        const settledCenter = map.getCenter();
-        initialCenterRef.current = settledCenter;
-        onPanReferenceReset?.();
-        onPanOffsetChange?.({ x: 0, y: 0 });
         flyLockRef.current = false;
         map.off("moveend", unlock);
         moveEndHandlerRef.current = null;
@@ -1082,7 +1062,7 @@ export function MapOverlay({
         map.once("load", performMove);
       }
     },
-    [onPanOffsetChange, onPanReferenceReset]
+    []
   );
 
   const recenterToResult = useCallback((result: SearchResult, inputValue?: string) => {
