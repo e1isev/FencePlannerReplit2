@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppStore } from "@/store/appStore";
-import { ProductKind, GateType } from "@/types/models";
+import { GateType } from "@/types/models";
 import { calculateCosts } from "@/lib/pricing";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
@@ -18,13 +18,6 @@ import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { fencingModeFromProjectType, plannerOptions, projectTypeFromProduct } from "@/config/plannerOptions";
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
 import { useEffect, useMemo } from "react";
-
-const PRODUCTS: ProductKind[] = [
-  "Decking",
-  "Titan rail",
-  "Residential fencing",
-  "Rural fencing",
-];
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "single_900", label: "Single 900mm" },
@@ -102,26 +95,6 @@ export function LeftPanel() {
       <div className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold mb-4">Fence Planner</h2>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-            Project Type
-          </Label>
-          <div className="grid grid-cols-2 gap-2">
-            {PRODUCTS.map((product) => (
-              <Button
-                key={product}
-                variant={productKind === product ? "default" : "outline"}
-                size="sm"
-                disabled
-                className="text-xs"
-                data-testid={`button-product-${product.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                {product}
-              </Button>
-            ))}
-          </div>
         </div>
 
         <div>

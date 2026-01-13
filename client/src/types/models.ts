@@ -34,6 +34,8 @@ export type GateType =
   | "sliding_4800"
   | "opening_custom";
 
+export type SlidingReturnSide = "a" | "b";
+
 export interface FenceStylePricing {
   id: FenceStyleId;
   name: string;
@@ -103,6 +105,7 @@ export interface Gate {
   opening_mm: number;
   runId: string;
   slidingReturnDirection: "left" | "right";
+  slidingReturnSide?: SlidingReturnSide;
   leaf_count?: number;
   leaf_width_mm?: number;
   panel_width_mm?: number;
