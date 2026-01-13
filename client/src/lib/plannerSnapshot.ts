@@ -26,6 +26,12 @@ import { normalizeGateWidthMm } from "@/lib/gates/gateWidth";
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
+type LegacyPlannerSnapshot = Partial<ProjectSnapshotV1> & {
+  projectType?: unknown;
+  type?: unknown;
+  category?: unknown;
+};
+
 type FencingPlannerState = {
   productKind: ProductKind;
   fenceStyleId: FenceStyleId;
@@ -44,6 +50,40 @@ type FencingPlannerState = {
   leftovers: Leftover[];
   warnings: WarningMsg[];
   panelPositionsMap: Record<string, number[]>;
+};
+
+const coerceProjectType = (value: unknown): ProjectType | null => {
+  switch (value) {
+    case "decking":
+    case "residential":
+    case "rural":
+    case "titan_rail":
+      return value;
+    case "residential_fencing":
+      return "residential";
+    case "rural_fencing":
+      return "rural";
+    default:
+      return null;
+  }
+};
+
+export const normalizePlannerSnapshot = (
+  snapshot: ProjectSnapshotV1 | LegacyPlannerSnapshot,
+  fallbackProjectType?: ProjectType
+): ProjectSnapshotV1 => {
+  const legacy = snapshot as LegacyPlannerSnapshot;
+  const resolvedProjectType =
+    coerceProjectType(legacy.projectType) ??
+    coerceProjectType(legacy.type) ??
+    coerceProjectType(legacy.category) ??
+    fallbackProjectType ??
+    "residential";
+
+  return {
+    ...snapshot,
+    projectType: resolvedProjectType,
+  } as ProjectSnapshotV1;
 };
 
 const readMapState = (): MapState => {
@@ -190,15 +230,15 @@ const applyDeckingSnapshot = (snapshot: ProjectSnapshot) => {
 };
 
 export const serializePlannerSnapshot = (
-  type: ProjectType,
+  projectType: ProjectType,
   name: string,
   dependencies: ProjectDependencies
 ): ProjectSnapshotV1 => {
   const nowIso = new Date().toISOString();
-  if (type === "decking") {
+  if (projectType === "decking") {
     return {
       version: 1,
-      type,
+      projectType,
       name,
       plannerState: buildDeckingSnapshot(name, dependencies),
       uiState: {},
@@ -210,7 +250,7 @@ export const serializePlannerSnapshot = (
 
   return {
     version: 1,
-    type,
+    projectType,
     name,
     plannerState: buildFencingPlannerState(),
     uiState: {},
@@ -221,13 +261,14 @@ export const serializePlannerSnapshot = (
 };
 
 export const hydratePlannerSnapshot = (snapshot: ProjectSnapshotV1) => {
-  if (snapshot.type === "decking") {
-    applyDeckingSnapshot(snapshot.plannerState as ProjectSnapshot);
+  const normalized = normalizePlannerSnapshot(snapshot);
+  if (normalized.projectType === "decking") {
+    applyDeckingSnapshot(normalized.plannerState as ProjectSnapshot);
     return;
   }
 
-  applyFencingPlannerState(snapshot.plannerState as FencingPlannerState);
-  writeMapState(snapshot.mapState);
+  applyFencingPlannerState(normalized.plannerState as FencingPlannerState);
+  writeMapState(normalized.mapState);
 };
 
 export const initializePlannerState = (type: ProjectType) => {

@@ -1,11 +1,11 @@
 import type { ProjectSnapshotV1, ProjectType } from "@shared/projectSnapshot";
-import type { FenceCategoryId, FenceStyleId } from "@/types/models";
+import type { FenceStyleId } from "@/types/models";
+import { normalizePlannerSnapshot } from "@/lib/plannerSnapshot";
 
 export type LocalProject = {
   id: string;
   name: string;
-  type: ProjectType;
-  category: FenceCategoryId | null;
+  projectType: ProjectType;
   styleId: FenceStyleId | null;
   updatedAt: string;
   snapshot: ProjectSnapshotV1;
@@ -17,48 +17,52 @@ type PersistedProjectsState = {
   activeProjectId: string | null;
 };
 
-const PROJECTS_KEY = "fencePlanner.projectsById";
-const ACTIVE_PROJECT_KEY = "fencePlanner.activeProjectId";
-const SCHEMA_VERSION_KEY = "fencePlanner.schemaVersion";
+const PROJECTS_KEY = "fencePlanner.persistedProjects";
+const LEGACY_PROJECTS_KEY = "fencePlanner.projectsById";
+const LEGACY_ACTIVE_PROJECT_KEY = "fencePlanner.activeProjectId";
+const LEGACY_SCHEMA_VERSION_KEY = "fencePlanner.schemaVersion";
 const LEGACY_GUEST_PROJECTS_KEY = "guest-projects";
 const LEGACY_LAST_PROJECT_KEY = "lastProject";
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 const isProjectType = (value: unknown): value is ProjectType =>
   value === "decking" ||
-  value === "residential_fencing" ||
-  value === "rural_fencing" ||
+  value === "residential" ||
+  value === "rural" ||
   value === "titan_rail";
 
-const ensureProjectType = (value: unknown): ProjectType =>
-  isProjectType(value) ? value : "residential_fencing";
-
-const inferCategory = (type: ProjectType): FenceCategoryId | null => {
-  if (type === "rural_fencing") return "rural";
-  if (type === "residential_fencing") return "residential";
-  return null;
+const ensureProjectType = (value: unknown): ProjectType => {
+  if (isProjectType(value)) return value;
+  if (value === "residential_fencing") return "residential";
+  if (value === "rural_fencing") return "rural";
+  return "residential";
 };
 
 const normalizeProject = (project: Partial<LocalProject>): LocalProject | null => {
   if (!project.id || !project.snapshot) return null;
-  const snapshot = project.snapshot as ProjectSnapshotV1;
-  const type = ensureProjectType(project.type ?? snapshot.type);
-  const plannerState = snapshot.plannerState as {
-    fenceCategoryId?: FenceCategoryId;
+  const legacyProject = project as Partial<LocalProject> & { type?: unknown; category?: unknown };
+  const normalizedSnapshot = normalizePlannerSnapshot(
+    project.snapshot as ProjectSnapshotV1,
+    ensureProjectType(project.projectType ?? legacyProject.type ?? legacyProject.category)
+  );
+  const projectType = ensureProjectType(project.projectType ?? normalizedSnapshot.projectType);
+  const plannerState = normalizedSnapshot.plannerState as {
     fenceStyleId?: FenceStyleId;
   };
+  const resolvedSnapshot =
+    normalizedSnapshot.projectType === projectType
+      ? normalizedSnapshot
+      : { ...normalizedSnapshot, projectType };
 
   return {
     id: project.id,
-    name: project.name ?? snapshot.name ?? "Untitled project",
-    type,
-    category: project.category ?? plannerState?.fenceCategoryId ?? inferCategory(type),
+    name: project.name ?? normalizedSnapshot.name ?? "Untitled project",
+    projectType,
     styleId: project.styleId ?? plannerState?.fenceStyleId ?? null,
-    updatedAt: project.updatedAt ?? snapshot.updatedAt ?? new Date().toISOString(),
+    updatedAt: project.updatedAt ?? normalizedSnapshot.updatedAt ?? new Date().toISOString(),
     snapshot: {
-      ...snapshot,
-      type,
-      name: project.name ?? snapshot.name ?? "Untitled project",
+      ...resolvedSnapshot,
+      name: project.name ?? normalizedSnapshot.name ?? "Untitled project",
     },
   };
 };
@@ -114,7 +118,7 @@ const hydrateFromLegacy = (): PersistedProjectsState | null => {
       const legacyProjects = JSON.parse(legacyRaw) as Array<{
         localId?: string;
         name?: string;
-        type?: ProjectType;
+        type?: unknown;
         updatedAt?: string;
         snapshot?: ProjectSnapshotV1;
       }>;
@@ -124,7 +128,7 @@ const hydrateFromLegacy = (): PersistedProjectsState | null => {
           const normalized = normalizeProject({
             id,
             name: item.name ?? "Untitled project",
-            type: item.type,
+            projectType: ensureProjectType(item.type),
             updatedAt: item.updatedAt,
             snapshot: item.snapshot,
           });
@@ -149,7 +153,11 @@ const hydrateFromLegacy = (): PersistedProjectsState | null => {
   const legacyLast = localStorage.getItem(LEGACY_LAST_PROJECT_KEY);
   if (legacyLast) {
     try {
-      const legacyProject = JSON.parse(legacyLast) as Partial<LocalProject> & { snapshot?: ProjectSnapshotV1 };
+      const legacyProject = JSON.parse(legacyLast) as Partial<LocalProject> & {
+        type?: unknown;
+        category?: unknown;
+        snapshot?: ProjectSnapshotV1;
+      };
       const id = legacyProject.id ?? `local-${crypto.randomUUID()}`;
       const normalized = normalizeProject({
         ...legacyProject,
@@ -180,14 +188,40 @@ export const readPersistedProjects = (): PersistedProjectsState => {
   const hydratedLegacy = hydrateFromLegacy();
   if (hydratedLegacy) return hydratedLegacy;
 
-  const rawProjects = localStorage.getItem(PROJECTS_KEY);
-  const rawActiveId = localStorage.getItem(ACTIVE_PROJECT_KEY);
-  const rawVersion = localStorage.getItem(SCHEMA_VERSION_KEY);
+  const rawState = localStorage.getItem(PROJECTS_KEY);
+  const rawProjects = localStorage.getItem(LEGACY_PROJECTS_KEY);
+  const rawActiveId = localStorage.getItem(LEGACY_ACTIVE_PROJECT_KEY);
+  const rawVersion = localStorage.getItem(LEGACY_SCHEMA_VERSION_KEY);
 
-  const schemaVersion = rawVersion ? Number(rawVersion) || CURRENT_SCHEMA_VERSION : CURRENT_SCHEMA_VERSION;
+  let schemaVersion = rawVersion ? Number(rawVersion) || CURRENT_SCHEMA_VERSION : CURRENT_SCHEMA_VERSION;
   let projectsById: Record<string, LocalProject> = {};
+  let activeProjectId: string | null = null;
 
-  if (rawProjects) {
+  if (rawState) {
+    try {
+      const parsed = JSON.parse(rawState) as Partial<PersistedProjectsState> & {
+        projectsById?: Record<string, Partial<LocalProject>>;
+      };
+      if (parsed.projectsById && typeof parsed.projectsById === "object") {
+        schemaVersion = typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : schemaVersion;
+        activeProjectId = typeof parsed.activeProjectId === "string" ? parsed.activeProjectId : null;
+        projectsById = Object.entries(parsed.projectsById ?? {}).reduce<Record<string, LocalProject>>(
+          (acc, [id, project]) => {
+            const normalized = normalizeProject({ ...project, id });
+            if (normalized) {
+              acc[id] = normalized;
+            }
+            return acc;
+          },
+          {}
+        );
+      }
+    } catch {
+      projectsById = {};
+    }
+  }
+
+  if (!rawState && rawProjects) {
     try {
       const parsed = JSON.parse(rawProjects) as Record<string, Partial<LocalProject>>;
       projectsById = Object.entries(parsed ?? {}).reduce<Record<string, LocalProject>>((acc, [id, project]) => {
@@ -202,7 +236,12 @@ export const readPersistedProjects = (): PersistedProjectsState => {
     }
   }
 
-  const activeProjectId = rawActiveId && projectsById[rawActiveId] ? rawActiveId : null;
+  if (!activeProjectId) {
+    activeProjectId = rawActiveId && projectsById[rawActiveId] ? rawActiveId : null;
+  }
+  if (activeProjectId && !projectsById[activeProjectId]) {
+    activeProjectId = null;
+  }
 
   return {
     schemaVersion,
@@ -221,11 +260,8 @@ export const writePersistedProjects = (input: {
     projectsById: input.projectsById,
     activeProjectId: input.activeProjectId,
   }) as PersistedProjectsState;
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(safeState.projectsById ?? {}));
-  if (safeState.activeProjectId) {
-    localStorage.setItem(ACTIVE_PROJECT_KEY, safeState.activeProjectId);
-  } else {
-    localStorage.removeItem(ACTIVE_PROJECT_KEY);
-  }
-  localStorage.setItem(SCHEMA_VERSION_KEY, String(safeState.schemaVersion ?? CURRENT_SCHEMA_VERSION));
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(safeState));
+  localStorage.removeItem(LEGACY_PROJECTS_KEY);
+  localStorage.removeItem(LEGACY_ACTIVE_PROJECT_KEY);
+  localStorage.removeItem(LEGACY_SCHEMA_VERSION_KEY);
 };

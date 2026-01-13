@@ -22,6 +22,7 @@ import {
 import {
   projectSnapshotV1Schema,
   projectTypeSchema,
+  type ProjectType,
 } from "@shared/projectSnapshot";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -146,9 +147,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return next();
   };
 
+  const normalizeProjectType = (value: string): ProjectType => {
+    switch (value) {
+      case "residential_fencing":
+        return "residential";
+      case "rural_fencing":
+        return "rural";
+      case "decking":
+      case "residential":
+      case "rural":
+      case "titan_rail":
+        return value;
+      default:
+        return "residential";
+    }
+  };
+
   const createProjectSchema = z.object({
     name: z.string().min(1),
-    type: projectTypeSchema,
+    projectType: projectTypeSchema,
     snapshot: projectSnapshotV1Schema,
   });
 
@@ -167,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const response = items.map((project) => ({
       id: project.id,
       name: project.name,
-      type: project.type,
+      projectType: normalizeProjectType(project.type),
       updatedAt: new Date(project.updatedAt).toISOString(),
     }));
     return res.status(200).json(response);
@@ -185,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       id: projectId,
       userId,
       name: parsed.data.name,
-      type: parsed.data.type,
+      type: parsed.data.projectType,
       dataJson: JSON.stringify(parsed.data.snapshot),
       createdAt: now,
       updatedAt: now,
@@ -206,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(200).json({
       id: project.id,
       name: project.name,
-      type: project.type,
+      projectType: normalizeProjectType(project.type),
       snapshot: JSON.parse(project.dataJson),
       updatedAt: new Date(project.updatedAt).toISOString(),
     });

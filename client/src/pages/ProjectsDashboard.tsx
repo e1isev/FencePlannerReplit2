@@ -9,17 +9,17 @@ import type { ProjectType } from "@shared/projectSnapshot";
 type ProjectSummary = {
   id: string;
   name: string;
-  type: ProjectType;
+  projectType: ProjectType;
   updatedAt: string;
 };
 
-const formatType = (type: ProjectType) =>
+const formatType = (projectType: ProjectType) =>
   ({
     decking: "Decking",
-    residential_fencing: "Residential fencing",
-    rural_fencing: "Rural fencing",
+    residential: "Residential fencing",
+    rural: "Rural fencing",
     titan_rail: "Titan Rail",
-  })[type];
+  })[projectType];
 
 export default function ProjectsDashboard() {
   const [, setLocation] = useLocation();
@@ -58,11 +58,11 @@ export default function ProjectsDashboard() {
   }, [user]);
 
   const openProject = (project: ProjectSummary) => {
-    if (project.type === "decking") {
+    if (project.projectType === "decking") {
       setLocation(`/decking/${project.id}`);
       return;
     }
-    if (project.type === "titan_rail") {
+    if (project.projectType === "titan_rail") {
       setLocation("/coming-soon/titan-rail");
       return;
     }
@@ -90,8 +90,8 @@ export default function ProjectsDashboard() {
     }
   };
 
-  const handleGuestOpen = (projectId: string, type: ProjectType) => {
-    if (type === "decking") {
+  const handleGuestOpen = (projectId: string, projectType: ProjectType) => {
+    if (projectType === "decking") {
       setLocation(`/decking/new?localId=${projectId}`);
       return;
     }
@@ -165,7 +165,7 @@ export default function ProjectsDashboard() {
                     <div>
                       <p className="font-semibold text-slate-800">{project.name}</p>
                       <p className="text-xs text-slate-500">
-                        {formatType(project.type)} • Updated{" "}
+                        {formatType(project.projectType)} • Updated{" "}
                         {new Date(project.updatedAt).toLocaleString()}
                       </p>
                     </div>
@@ -222,12 +222,15 @@ export default function ProjectsDashboard() {
                   <div>
                     <p className="font-semibold text-slate-800">{project.name}</p>
                     <p className="text-xs text-slate-500">
-                      {formatType(project.type)} • Updated{" "}
+                      {formatType(project.projectType)} • Updated{" "}
                       {new Date(project.updatedAt).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Button size="sm" onClick={() => handleGuestOpen(project.id, project.type)}>
+                    <Button
+                      size="sm"
+                      onClick={() => handleGuestOpen(project.id, project.projectType)}
+                    >
                       Open
                     </Button>
                     {user && (
