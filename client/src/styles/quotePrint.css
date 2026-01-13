@@ -1,0 +1,33 @@
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  nav,
+  aside,
+  .sidebar,
+  .no-print {
+    display: none !important;
+  }
+
+  .quote-page {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+  }
+
+  .quote-document {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .quote-section,
+  .quote-document table,
+  .quote-document tr,
+  .quote-document td,
+  .quote-document th {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
