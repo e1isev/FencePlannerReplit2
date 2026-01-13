@@ -26,12 +26,13 @@ export function Toolbar() {
     fenceStyleId,
     fenceHeightM,
     fenceColorId,
+    fenceCategoryId,
     panels,
     posts,
     lines,
   } = useAppStore();
   const [, setLocation] = useLocation();
-  const { pricingBySku } = usePricingCatalog();
+  const { pricingIndex } = usePricingCatalog();
 
   const selectedGate = gates.find((g) =>
     g.type.startsWith("sliding")
@@ -43,6 +44,7 @@ export function Toolbar() {
 
   const handleExportPDF = () => {
     exportPDF({
+      fenceCategoryId,
       fenceStyleId,
       fenceHeightM,
       fenceColourMode: getFenceColourMode(fenceColorId),
@@ -50,12 +52,13 @@ export function Toolbar() {
       posts,
       gates,
       lines,
-      pricingBySku,
+      pricingIndex,
     });
   };
 
   const handleExportCSV = () => {
     exportCuttingListCSV({
+      fenceCategoryId,
       fenceStyleId,
       fenceHeightM,
       fenceColourMode: getFenceColourMode(fenceColorId),
@@ -63,7 +66,7 @@ export function Toolbar() {
       posts,
       gates,
       lines,
-      pricingBySku,
+      pricingIndex,
     });
   };
 
