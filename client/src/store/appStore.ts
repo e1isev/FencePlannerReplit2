@@ -19,7 +19,8 @@ import {
   getFenceStylesByCategory,
 } from "@/config/fenceStyles";
 import { DEFAULT_FENCE_HEIGHT_M, FenceHeightM } from "@/config/fenceHeights";
-import { DEFAULT_FENCE_COLOR, FenceColorId } from "@/config/fenceColors";
+import { DEFAULT_FENCE_COLOR, FenceColorId, getFenceColourMode } from "@/config/fenceColors";
+import { getSupportedPanelHeights } from "@/pricing/skuRules";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
@@ -558,7 +559,7 @@ export const useAppStore = create<AppState>()(
       setProductKind: (kind) => set({ productKind: kind }),
 
       setFenceCategory: (categoryId) => {
-        const { fenceCategoryId, fenceStyleId } = get();
+        const { fenceCategoryId, fenceStyleId, fenceColorId } = get();
         if (fenceCategoryId === categoryId) return;
 
         const stylesForCategory = getFenceStylesByCategory(categoryId);
@@ -568,24 +569,38 @@ export const useAppStore = create<AppState>()(
         const nextStyleId = hasStyleInCategory
           ? fenceStyleId
           : getDefaultFenceStyleId(categoryId);
+        const nextColorId = DEFAULT_FENCE_COLOR;
+        const nextColourMode = getFenceColourMode(nextColorId);
+        const supportedHeights = getSupportedPanelHeights(nextStyleId, nextColourMode);
+        const nextHeight = supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
 
         set({
           fenceCategoryId: categoryId,
           fenceStyleId: nextStyleId,
+          fenceColorId: nextColorId,
+          fenceHeightM: nextHeight,
+          selectedGateType: null,
         });
 
-        if (nextStyleId !== fenceStyleId) {
+        if (nextStyleId !== fenceStyleId || nextColorId !== fenceColorId) {
           get().recalculate();
         }
       },
       
       setFenceStyle: (styleId) => {
-        const { fenceStyleId } = get();
+        const { fenceStyleId, fenceColorId, fenceHeightM } = get();
         if (fenceStyleId === styleId) return;
+
+        const fenceColourMode = getFenceColourMode(fenceColorId);
+        const supportedHeights = getSupportedPanelHeights(styleId, fenceColourMode);
+        const nextHeight = supportedHeights.includes(fenceHeightM)
+          ? fenceHeightM
+          : supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
 
         set({
           fenceStyleId: styleId,
           fenceCategoryId: getFenceStyleCategory(styleId),
+          fenceHeightM: nextHeight,
         });
         get().recalculate();
       },
