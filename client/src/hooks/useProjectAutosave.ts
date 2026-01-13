@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/appStore";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { serializePlannerSnapshot } from "@/lib/plannerSnapshot";
 
-const AUTOSAVE_DEBOUNCE_MS = 2500;
+const AUTOSAVE_DEBOUNCE_MS = 500;
 
 export const useProjectAutosave = () => {
   const saveProject = useProjectSessionStore((state) => state.saveProject);
