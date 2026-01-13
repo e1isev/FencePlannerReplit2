@@ -45,7 +45,7 @@ export default function StylesPage({ params }: { params: { category?: string } }
     if (!category) return;
     const projectType = category === "rural" ? "rural_fencing" : "residential_fencing";
     setLocation(
-      `/planner/new?type=${projectType}&name=${encodedName}&category=${category}&style=${fenceStyleId}`
+      `/planner/new?type=${projectType}&name=${encodedName}&category=${category}`
     );
   };
 

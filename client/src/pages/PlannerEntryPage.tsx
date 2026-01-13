@@ -3,8 +3,7 @@ import { useLocation } from "wouter";
 import PlannerPage from "@/pages/PlannerPage";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { useAppStore } from "@/store/appStore";
-import { getFenceStyleById } from "@/config/fenceStyles";
-import type { FenceCategoryId, FenceStyleId } from "@/types/models";
+import type { FenceCategoryId } from "@/types/models";
 import type { ProjectType } from "@shared/projectSnapshot";
 
 const isSupportedFenceType = (value: string | null): value is ProjectType =>
@@ -22,19 +21,13 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
   const loadGuestProject = useProjectSessionStore((state) => state.loadGuestProject);
   const currentType = useProjectSessionStore((state) => state.projectType);
   const setFenceCategory = useAppStore((state) => state.setFenceCategory);
-  const setFenceStyle = useAppStore((state) => state.setFenceStyle);
 
   const query = useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
   const requestedType = query.get("type");
   const projectName = query.get("name");
   const localId = query.get("localId");
   const categoryParam = query.get("category");
-  const styleParam = query.get("style");
   const requestedCategory = isFenceCategory(categoryParam) ? categoryParam : null;
-  const requestedStyle =
-    styleParam && getFenceStyleById(styleParam as FenceStyleId)
-      ? (styleParam as FenceStyleId)
-      : null;
 
   useEffect(() => {
     if (projectId) {
@@ -55,22 +48,17 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
     if (requestedCategory) {
       setFenceCategory(requestedCategory);
     }
-    if (requestedStyle) {
-      setFenceStyle(requestedStyle);
-    }
   }, [
     projectId,
     requestedType,
     projectName,
     localId,
     requestedCategory,
-    requestedStyle,
     startNewProject,
     loadProject,
     loadGuestProject,
     currentType,
     setFenceCategory,
-    setFenceStyle,
   ]);
 
   if (loading) {
