@@ -1,5 +1,4 @@
 import type { FenceColourMode, FenceStyleId } from "@/types/models";
-import { getFenceStyleLabel } from "@/config/fenceStyles";
 
 export type LineItemType =
   | "panel"
@@ -33,35 +32,6 @@ const FENCE_STYLE_SKU_SPECS: Partial<Record<FenceStyleId, FenceStyleSkuSpec>> = 
 export const formatHeightM = (heightM: number) => `${heightM.toFixed(1)}m`;
 
 export const roundToTenth = (value: number) => Math.round(value * 10) / 10;
-
-const getSkuBaseLabel = (fenceStyleId: FenceStyleId) => {
-  const spec = FENCE_STYLE_SKU_SPECS[fenceStyleId];
-  if (!spec) {
-    return getFenceStyleLabel(fenceStyleId);
-  }
-  if (spec.kind === "mystique") {
-    return `Mystique-${spec.variant}`;
-  }
-  if (spec.kind === "picket") {
-    return `Picket-${spec.skuBase}`;
-  }
-  return spec.skuBase;
-};
-
-const getPostTypeLabel = (lineItemType: LineItemType) => {
-  switch (lineItemType) {
-    case "post_end":
-      return "End";
-    case "post_corner":
-      return "Corner";
-    case "post_line":
-      return "Line";
-    case "post_t":
-      return "T";
-    default:
-      return null;
-  }
-};
 
 type ResolveSkuArgs = {
   fenceStyleId: FenceStyleId;
@@ -124,15 +94,6 @@ export const resolveSkuForLineItem = (
 
     return {
       sku: `Gate-Picket-${gateType}-${heightLabel}-${widthLabel}`,
-    };
-  }
-
-  const postTypeLabel = getPostTypeLabel(lineItemType);
-  if (postTypeLabel) {
-    const heightLabel = formatHeightM(fenceHeightM);
-    const skuBase = getSkuBaseLabel(fenceStyleId);
-    return {
-      sku: `${skuBase}-Post-${postTypeLabel}-${fenceColourMode}-${heightLabel}`,
     };
   }
 

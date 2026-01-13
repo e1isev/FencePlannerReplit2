@@ -569,21 +569,12 @@ export const useAppStore = create<AppState>()(
           ? fenceStyleId
           : getDefaultFenceStyleId(categoryId);
 
-        const shouldResetSelections = nextStyleId !== fenceStyleId;
-
         set({
           fenceCategoryId: categoryId,
           fenceStyleId: nextStyleId,
-          ...(shouldResetSelections
-            ? {
-                fenceHeightM: DEFAULT_FENCE_HEIGHT_M,
-                fenceColorId: DEFAULT_FENCE_COLOR,
-                selectedGateType: null,
-              }
-            : {}),
         });
 
-        if (shouldResetSelections) {
+        if (nextStyleId !== fenceStyleId) {
           get().recalculate();
         }
       },
