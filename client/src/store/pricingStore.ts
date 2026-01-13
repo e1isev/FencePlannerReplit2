@@ -12,12 +12,19 @@ export type PricingCatalogItem = {
 
 export type PricingCatalogStatus = {
   ok: boolean;
-  source: "upstream" | "cache" | "local";
+  source: "upstream" | "cache" | "seed" | "none";
+  lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastErrorStatus: number | null;
   lastErrorMessage: string | null;
+  lastValidationError: {
+    ok: false;
+    reason: "EMPTY" | "BAD_SHAPE" | "MISSING_FIELDS";
+    details?: Record<string, unknown>;
+  } | null;
   catalogueRowCount: number;
+  upstreamHost: string | null;
 };
 
 type PricingState = {
@@ -82,6 +89,21 @@ export const usePricingStore = create<PricingState>((set, get) => ({
     } finally {
       const status = await fetchPricingCatalogStatus();
       if (status) {
+        const shouldBlock = !status.ok || status.catalogueRowCount === 0;
+        if (shouldBlock) {
+          set({
+            catalogStatus: status,
+            pricingIndex: null,
+            pricingStatus: "error",
+            pricingSource: null,
+            updatedAtIso: null,
+            noticeMessage: null,
+            errorMessage: status.lastErrorMessage
+              ? `${status.lastErrorMessage}${status.lastErrorStatus ? ` (${status.lastErrorStatus})` : ""}`
+              : "Pricing catalog not loaded",
+          });
+          return;
+        }
         set({ catalogStatus: status });
       }
     }

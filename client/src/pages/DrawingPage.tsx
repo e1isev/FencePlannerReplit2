@@ -30,7 +30,7 @@ export default function DrawingPage() {
     mmPerPixel,
   } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { pricingIndex, pricingStatus } = usePricingCatalog();
+  const { pricingIndex, catalogReady } = usePricingCatalog();
 
   const costs = calculateCosts({
     fenceCategoryId,
@@ -42,7 +42,7 @@ export default function DrawingPage() {
     gates,
     lines,
     pricingIndex,
-    catalogReady: pricingStatus === "ready",
+    catalogReady,
   });
 
   const padding = 80;

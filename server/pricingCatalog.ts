@@ -15,32 +15,50 @@ type PricingCatalogResponse = {
 
 type PricingCatalogStatus = {
   ok: boolean;
-  source: "upstream" | "cache" | "local";
+  source: "upstream" | "cache" | "seed" | "none";
+  lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastErrorStatus: number | null;
   lastErrorMessage: string | null;
+  lastValidationError: PricingCatalogValidationError | null;
   catalogueRowCount: number;
+  upstreamHost: string | null;
 };
 
 type PricingCatalogFetchResult = {
   catalog: PricingCatalogResponse;
-  source: "upstream" | "cache" | "local";
+  source: "upstream" | "cache" | "seed";
 };
 
 type PricingCatalogError = Error & { status?: number };
+type PricingCatalogValidationError = {
+  ok: false;
+  reason: "EMPTY" | "BAD_SHAPE" | "MISSING_FIELDS";
+  details?: Record<string, unknown>;
+};
+type PricingCatalogValidationResult =
+  | { ok: true; rows: number }
+  | PricingCatalogValidationError;
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const UPSTREAM_TIMEOUT_MS = 10 * 1000;
-const LOCAL_CATALOG_PATH = path.resolve(process.cwd(), "pricing-catalog.local.json");
+const SEED_CATALOG_PATH = path.resolve(
+  process.cwd(),
+  "server",
+  "data",
+  "pricingCatalogSeed.json"
+);
 
 const catalogCache = {
   data: null as PricingCatalogResponse | null,
   fetchedAt: 0,
+  lastAttemptAt: null as string | null,
   lastSuccessAt: null as string | null,
   lastErrorAt: null as string | null,
   lastErrorStatus: null as number | null,
   lastErrorMessage: null as string | null,
+  lastValidationError: null as PricingCatalogValidationError | null,
   lastSource: null as PricingCatalogStatus["source"] | null,
 };
 
@@ -118,27 +136,88 @@ const parsePricingItems = (csvText: string): PricingCatalogItem[] => {
     .filter((item): item is PricingCatalogItem => item !== null);
 };
 
-const normalizeCatalogItems = (items: PricingCatalogItem[]): PricingCatalogItem[] =>
-  items.filter(
-    (item) =>
-      item &&
-      typeof item.sku === "string" &&
-      item.sku.trim().length > 0 &&
-      typeof item.unitPrice === "number" &&
-      Number.isFinite(item.unitPrice)
-  );
+const validateCatalogue = (catalogue: unknown): PricingCatalogValidationResult => {
+  if (!Array.isArray(catalogue)) {
+    return { ok: false, reason: "BAD_SHAPE", details: { expected: "array" } };
+  }
 
-const loadLocalCatalog = async (): Promise<PricingCatalogResponse | null> => {
+  let validRows = 0;
+  let invalidRows = 0;
+  let blankRows = 0;
+
+  catalogue.forEach((row) => {
+    if (!row || typeof row !== "object") {
+      invalidRows += 1;
+      return;
+    }
+
+    const sku = typeof row.sku === "string" ? row.sku.trim() : "";
+    const rawUnitPrice = (row as { unitPrice?: unknown }).unitPrice;
+    const rawUnitPriceText =
+      typeof rawUnitPrice === "string" ? rawUnitPrice.trim() : rawUnitPrice;
+    const unitPrice = Number.parseFloat(String(rawUnitPrice ?? ""));
+    const hasUnitPrice = Number.isFinite(
+      typeof rawUnitPrice === "number" ? rawUnitPrice : unitPrice
+    );
+    const isBlank =
+      !sku &&
+      (rawUnitPriceText === undefined ||
+        rawUnitPriceText === null ||
+        rawUnitPriceText === "");
+
+    if (isBlank) {
+      blankRows += 1;
+      return;
+    }
+
+    if (!sku || !hasUnitPrice) {
+      invalidRows += 1;
+      return;
+    }
+
+    validRows += 1;
+  });
+
+  if (invalidRows > 0) {
+    return {
+      ok: false,
+      reason: "MISSING_FIELDS",
+      details: { invalidRows, blankRows, validRows },
+    };
+  }
+
+  if (validRows === 0) {
+    return { ok: false, reason: "EMPTY", details: { blankRows } };
+  }
+
+  return { ok: true, rows: validRows };
+};
+
+const loadSeedCatalog = async (): Promise<PricingCatalogResponse | null> => {
   try {
-    const raw = await readFile(LOCAL_CATALOG_PATH, "utf-8");
+    const raw = await readFile(SEED_CATALOG_PATH, "utf-8");
     const parsed = JSON.parse(raw) as PricingCatalogResponse;
     if (!parsed?.items || !Array.isArray(parsed.items)) {
       return null;
     }
-    return {
+    const normalizedItems = parsed.items.map((item) => ({
+      name: typeof item.name === "string" ? item.name : "",
+      sku: typeof item.sku === "string" ? item.sku.trim() : "",
+      unitPrice: Number.parseFloat(String((item as { unitPrice?: unknown }).unitPrice ?? "")),
+    }));
+    const normalized = {
       updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),
-      items: normalizeCatalogItems(parsed.items),
+      items: normalizedItems,
     };
+    const validation = validateCatalogue(normalizedItems);
+    if (!validation.ok) {
+      console.warn("Seed pricing catalog failed validation.", {
+        reason: validation.reason,
+        details: validation.details,
+      });
+      return null;
+    }
+    return normalized;
   } catch (error) {
     if (typeof error === "object" && error && "code" in error) {
       const code = (error as { code?: string }).code;
@@ -146,9 +225,25 @@ const loadLocalCatalog = async (): Promise<PricingCatalogResponse | null> => {
         return null;
       }
     }
-    console.warn("Failed to read local pricing catalog.", {
+    console.warn("Failed to read seed pricing catalog.", {
       message: error instanceof Error ? error.message : "Unknown error",
     });
+    return null;
+  }
+};
+
+const getUpstreamHost = () => {
+  const sheetId = process.env.PRICING_SHEET_ID;
+  const sheetGid = process.env.PRICING_SHEET_GID;
+  if (!sheetId || !sheetGid) {
+    return null;
+  }
+  try {
+    const url = new URL(
+      `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${sheetGid}`
+    );
+    return url.host;
+  } catch {
     return null;
   }
 };
@@ -170,6 +265,7 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   }
 
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${sheetGid}`;
+  const upstreamHost = new URL(url).host;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   let response: globalThis.Response;
@@ -181,6 +277,7 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
       error instanceof Error ? error.message : "Unknown error while fetching catalog.";
     console.warn("Pricing catalog upstream request failed.", {
       url,
+      upstreamHost,
       message,
     });
     throw buildUpstreamError(message, 502);
@@ -191,6 +288,7 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
   if (!response.ok) {
     console.warn("Pricing catalog upstream returned error response.", {
       url,
+      upstreamHost,
       status: response.status,
       statusText: response.statusText,
     });
@@ -208,19 +306,37 @@ const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
 
 export const getPricingCatalog = async (): Promise<PricingCatalogFetchResult> => {
   const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  catalogCache.lastAttemptAt = nowIso;
+
+  if (catalogCache.data) {
+    const cachedValidation = validateCatalogue(catalogCache.data.items);
+    if (!cachedValidation.ok) {
+      catalogCache.lastValidationError = cachedValidation;
+      catalogCache.data = null;
+    }
+  }
+
   if (catalogCache.data && now - catalogCache.fetchedAt < CACHE_TTL_MS) {
-    catalogCache.lastSource = "cache";
-    return { catalog: catalogCache.data, source: "cache" };
+    const source = catalogCache.lastSource === "seed" ? "seed" : "cache";
+    catalogCache.lastSource = source;
+    return { catalog: catalogCache.data, source };
   }
 
   try {
     const catalog = await fetchPricingCatalog();
+    const validation = validateCatalogue(catalog.items);
+    if (!validation.ok) {
+      catalogCache.lastValidationError = validation;
+      throw buildUpstreamError("Upstream returned invalid pricing catalog.", 502);
+    }
     catalogCache.data = catalog;
     catalogCache.fetchedAt = now;
-    catalogCache.lastSuccessAt = new Date().toISOString();
+    catalogCache.lastSuccessAt = nowIso;
     catalogCache.lastErrorAt = null;
     catalogCache.lastErrorStatus = null;
     catalogCache.lastErrorMessage = null;
+    catalogCache.lastValidationError = null;
     catalogCache.lastSource = "upstream";
     return { catalog, source: "upstream" };
   } catch (error) {
@@ -238,17 +354,19 @@ export const getPricingCatalog = async (): Promise<PricingCatalogFetchResult> =>
       status: catalogCache.lastErrorStatus,
     });
     if (catalogCache.data) {
-      catalogCache.lastSource = "cache";
-      return { catalog: catalogCache.data, source: "cache" };
+      const source = catalogCache.lastSource === "seed" ? "seed" : "cache";
+      catalogCache.lastSource = source;
+      return { catalog: catalogCache.data, source };
     }
-    const localCatalog = await loadLocalCatalog();
-    if (localCatalog) {
-      catalogCache.data = localCatalog;
+    const seedCatalog = await loadSeedCatalog();
+    if (seedCatalog) {
+      catalogCache.data = seedCatalog;
       catalogCache.fetchedAt = now;
-      catalogCache.lastSuccessAt = new Date().toISOString();
-      catalogCache.lastSource = "local";
-      return { catalog: localCatalog, source: "local" };
+      catalogCache.lastSuccessAt = nowIso;
+      catalogCache.lastSource = "seed";
+      return { catalog: seedCatalog, source: "seed" };
     }
+    catalogCache.lastSource = "none";
     throw error;
   }
 };
@@ -269,15 +387,22 @@ export const handlePricingCatalog = async (_req: Request, res: Response) => {
   }
 };
 
-export const getPricingCatalogStatus = (): PricingCatalogStatus => ({
-  ok: Boolean(catalogCache.data),
-  source: catalogCache.lastSource ?? "cache",
-  lastSuccessAt: catalogCache.lastSuccessAt,
-  lastErrorAt: catalogCache.lastErrorAt,
-  lastErrorStatus: catalogCache.lastErrorStatus,
-  lastErrorMessage: catalogCache.lastErrorMessage,
-  catalogueRowCount: catalogCache.data?.items.length ?? 0,
-});
+export const getPricingCatalogStatus = (): PricingCatalogStatus => {
+  const validation = catalogCache.data ? validateCatalogue(catalogCache.data.items) : null;
+  const ok = validation?.ok ?? false;
+  return {
+    ok,
+    source: ok ? (catalogCache.lastSource ?? "none") : "none",
+    lastAttemptAt: catalogCache.lastAttemptAt,
+    lastSuccessAt: catalogCache.lastSuccessAt,
+    lastErrorAt: catalogCache.lastErrorAt,
+    lastErrorStatus: catalogCache.lastErrorStatus,
+    lastErrorMessage: catalogCache.lastErrorMessage,
+    lastValidationError: catalogCache.lastValidationError,
+    catalogueRowCount: ok ? validation.rows : 0,
+    upstreamHost: getUpstreamHost(),
+  };
+};
 
 export const handlePricingCatalogStatus = (_req: Request, res: Response) => {
   res.status(200).json(getPricingCatalogStatus());
