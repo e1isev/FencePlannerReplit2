@@ -13,6 +13,7 @@ import NewProjectWizard from "@/pages/NewProjectWizard";
 import TitanRailComingSoonPage from "@/pages/TitanRailComingSoonPage";
 import PlannerEntryPage from "@/pages/PlannerEntryPage";
 import DeckingEntryPage from "@/pages/DeckingEntryPage";
+import StylesPage from "@/pages/StylesPage";
 import { AuthInitializer } from "@/components/AuthInitializer";
 
 function Router() {
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/projects" component={ProjectsDashboard} />
       <Route path="/new" component={NewProjectWizard} />
       <Route path="/coming-soon/titan-rail" component={TitanRailComingSoonPage} />
+      <Route path="/styles/:category" component={StylesPage} />
       <Route path="/planner/new" component={PlannerEntryPage} />
       <Route path="/planner/:projectId" component={PlannerEntryPage} />
       <Route path="/decking/new" component={DeckingEntryPage} />
