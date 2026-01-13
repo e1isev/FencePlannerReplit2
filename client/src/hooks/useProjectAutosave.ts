@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useDeckingStore } from "@/store/deckingStore";
 import { useAppStore } from "@/store/appStore";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
@@ -13,34 +14,38 @@ export const useProjectAutosave = () => {
   const projectType = useProjectSessionStore((state) => state.projectType);
   const projectName = useProjectSessionStore((state) => state.projectName);
 
-  const fencingState = useAppStore((state) => ({
-    productKind: state.productKind,
-    fenceStyleId: state.fenceStyleId,
-    fenceCategoryId: state.fenceCategoryId,
-    fenceHeightM: state.fenceHeightM,
-    fenceColorId: state.fenceColorId,
-    selectedGateType: state.selectedGateType,
-    drawingMode: state.drawingMode,
-    mmPerPixel: state.mmPerPixel,
-    selectedLineId: state.selectedLineId,
-    lines: state.lines,
-    gates: state.gates,
-    panels: state.panels,
-    posts: state.posts,
-    leftovers: state.leftovers,
-    warnings: state.warnings,
-    panelPositionsMap: state.panelPositionsMap,
-  }));
+  const fencingState = useAppStore(
+    useShallow((state) => ({
+      productKind: state.productKind,
+      fenceStyleId: state.fenceStyleId,
+      fenceCategoryId: state.fenceCategoryId,
+      fenceHeightM: state.fenceHeightM,
+      fenceColorId: state.fenceColorId,
+      selectedGateType: state.selectedGateType,
+      drawingMode: state.drawingMode,
+      mmPerPixel: state.mmPerPixel,
+      selectedLineId: state.selectedLineId,
+      lines: state.lines,
+      gates: state.gates,
+      panels: state.panels,
+      posts: state.posts,
+      leftovers: state.leftovers,
+      warnings: state.warnings,
+      panelPositionsMap: state.panelPositionsMap,
+    }))
+  );
 
-  const deckingState = useDeckingStore((state) => ({
-    decks: state.decks,
-    activeDeckId: state.activeDeckId,
-    joistSpacingMode: state.joistSpacingMode,
-    showClips: state.showClips,
-    selectedDeckId: state.selectedDeckId,
-    selectedBreakerId: state.selectedBreakerId,
-    editingBreakerId: state.editingBreakerId,
-  }));
+  const deckingState = useDeckingStore(
+    useShallow((state) => ({
+      decks: state.decks,
+      activeDeckId: state.activeDeckId,
+      joistSpacingMode: state.joistSpacingMode,
+      showClips: state.showClips,
+      selectedDeckId: state.selectedDeckId,
+      selectedBreakerId: state.selectedBreakerId,
+      editingBreakerId: state.editingBreakerId,
+    }))
+  );
 
   const timerRef = useRef<number | null>(null);
   const lastSnapshotRef = useRef<string | null>(null);
