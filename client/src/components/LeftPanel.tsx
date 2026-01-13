@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppStore } from "@/store/appStore";
-import { ProductKind, GateType } from "@/types/models";
+import { GateType } from "@/types/models";
 import { calculateCosts } from "@/lib/pricing";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
@@ -16,13 +16,8 @@ import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { fencingModeFromProjectType, plannerOptions, projectTypeFromProduct } from "@/config/plannerOptions";
-
-const PRODUCTS: ProductKind[] = [
-  "Decking",
-  "Titan rail",
-  "Residential fencing",
-  "Rural fencing",
-];
+import { getSupportedPanelHeights } from "@/pricing/skuRules";
+import { useEffect, useMemo } from "react";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "single_900", label: "Single 900mm" },
@@ -36,10 +31,10 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
 export function LeftPanel() {
   const {
     productKind,
+    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColorId,
-    fenceCategoryId,
     selectedGateType,
     lines,
     panels,
@@ -52,23 +47,30 @@ export function LeftPanel() {
   const {
     pricingIndex,
     pricingStatus,
+    noticeMessage: pricingNotice,
     updatedAtIso,
     errorMessage: pricingError,
-    warningMessage: pricingWarning,
-    pricingSource,
+    catalogStatus,
+    catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
 
+  const fenceColourMode = getFenceColourMode(fenceColorId);
+  const supportedHeights = useMemo(
+    () => getSupportedPanelHeights(fenceStyleId, fenceColourMode),
+    [fenceStyleId, fenceColourMode]
+  );
   const costs = calculateCosts({
     fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
-    fenceColourMode: getFenceColourMode(fenceColorId),
+    fenceColourMode,
     panels,
     posts,
     gates,
     lines,
     pricingIndex,
+    catalogReady,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
   const projectType = projectTypeFromProduct(productKind);
@@ -81,43 +83,28 @@ export function LeftPanel() {
     updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
       ? new Date(updatedAtIso).toLocaleString()
       : "Not available";
+  const formattedStatusLastErrorAt =
+    catalogStatus?.lastErrorAt && !Number.isNaN(Date.parse(catalogStatus.lastErrorAt))
+      ? new Date(catalogStatus.lastErrorAt).toLocaleString()
+      : null;
+  const catalogHasRows = Boolean(catalogStatus?.ok && catalogStatus.catalogueRowCount > 0);
+  const statusErrorMessage = catalogStatus?.lastErrorMessage;
+  const statusErrorStatus = catalogStatus?.lastErrorStatus;
   const hasMissingPrices = costs.missingItems.length > 0;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
-  const pricingSourceLabel =
-    pricingSource === "local"
-      ? "cached locally"
-      : pricingSource === "cache"
-        ? "cached on server"
-        : pricingSource === "stale"
-          ? "stale cache"
-          : null;
+
+  useEffect(() => {
+    if (!supportedHeights.length) return;
+    if (supportedHeights.includes(fenceHeightM)) return;
+    setFenceHeightM(supportedHeights[0] as FenceHeightM);
+  }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
       <div className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold mb-4">Fence Planner</h2>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
-            Project Type
-          </Label>
-          <div className="grid grid-cols-2 gap-2">
-            {PRODUCTS.map((product) => (
-              <Button
-                key={product}
-                variant={productKind === product ? "default" : "outline"}
-                size="sm"
-                disabled
-                className="text-xs"
-                data-testid={`button-product-${product.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                {product}
-              </Button>
-            ))}
-          </div>
         </div>
 
         <div>
@@ -135,7 +122,7 @@ export function LeftPanel() {
             value={String(fenceHeightM)}
             onValueChange={(value) => {
               const parsed = Number(value) as FenceHeightM;
-              if (!FENCE_HEIGHTS_M.includes(parsed)) return;
+              if (!supportedHeights.includes(parsed)) return;
               setFenceHeightM(parsed);
             }}
           >
@@ -143,11 +130,13 @@ export function LeftPanel() {
               <SelectValue placeholder="Select height" />
             </SelectTrigger>
             <SelectContent>
-              {FENCE_HEIGHTS_M.map((height) => (
-                <SelectItem key={height} value={String(height)}>
-                  {height} m
-                </SelectItem>
-              ))}
+              {(supportedHeights.length > 0 ? supportedHeights : FENCE_HEIGHTS_M).map(
+                (height) => (
+                  <SelectItem key={height} value={String(height)}>
+                    {height} m
+                  </SelectItem>
+                )
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -275,32 +264,47 @@ export function LeftPanel() {
           <div className="mt-2 text-xs text-slate-500 font-mono space-y-1">
             <div>Total Length: {(costs.totalLengthMm / 1000).toFixed(2)}m</div>
             {pricingStatus === "ready" && (
-              <div>
-                Pricing last updated: {formattedUpdatedAt}
-                {pricingSourceLabel ? ` (${pricingSourceLabel})` : ""}
-              </div>
+              <div>Pricing last updated: {formattedUpdatedAt}</div>
+            )}
+            {pricingStatus === "ready" && pricingNotice && (
+              <div className="text-amber-600">{pricingNotice}</div>
             )}
             {pricingStatus === "loading" && <div>Pricing catalog loading...</div>}
             {pricingStatus === "error" && (
-              <div className="text-amber-600">
-                Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
+              <div className="space-y-2 text-amber-600">
+                <div>
+                  Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => void loadPricingCatalog()}>
+                  Retry pricing load
+                </Button>
               </div>
             )}
-            {pricingWarning && pricingStatus === "ready" && (
-              <div className="text-amber-600">{pricingWarning}</div>
+            {catalogStatus && (
+              <div className="space-y-1 text-slate-500">
+                {catalogHasRows ? (
+                  <>
+                    <div>Pricing source: {catalogStatus.source}</div>
+                    <div>Catalogue rows: {catalogStatus.catalogueRowCount}</div>
+                  </>
+                ) : (
+                  <div className="text-amber-600">
+                    Pricing catalog not loaded
+                    {statusErrorMessage ? `: ${statusErrorMessage}` : ""}
+                    {statusErrorStatus ? ` (${statusErrorStatus})` : ""}
+                  </div>
+                )}
+                {formattedStatusLastErrorAt && (
+                  <div className="text-amber-600">
+                    Last error at {formattedStatusLastErrorAt}
+                    {catalogStatus.lastErrorStatus
+                      ? ` (${catalogStatus.lastErrorStatus})`
+                      : ""}
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          {(pricingStatus === "error" || pricingWarning) && (
-            <div className="mt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void loadPricingCatalog({ force: true })}
-              >
-                Retry pricing
-              </Button>
-            </div>
-          )}
           {hasMissingPrices && (
             <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <div className="font-semibold">Missing prices</div>
@@ -309,40 +313,7 @@ export function LeftPanel() {
                   <li key={`${item.name}-${item.sku ?? "missing"}`}>
                     {item.name}
                     {item.sku ? ` (${item.sku})` : ""} —{" "}
-                    {item.missingReason ?? "No SKU or price found"}
-                    {item.missingDetails?.normalizedSku && (
-                      <div className="mt-1 text-[11px] text-amber-800">
-                        Normalized SKU: {item.missingDetails.normalizedSku}
-                      </div>
-                    )}
-                    {item.missingDetails?.normalizedName && (
-                      <div className="text-[11px] text-amber-800">
-                        Normalized name: {item.missingDetails.normalizedName}
-                      </div>
-                    )}
-                    {item.missingDetails?.exactSkuMatch !== undefined && (
-                      <div className="text-[11px] text-amber-800">
-                        Exact SKU match: {item.missingDetails.exactSkuMatch ? "yes" : "no"}
-                      </div>
-                    )}
-                    {item.missingDetails?.exactNameMatch !== undefined && (
-                      <div className="text-[11px] text-amber-800">
-                        Exact name match: {item.missingDetails.exactNameMatch ? "yes" : "no"}
-                      </div>
-                    )}
-                    {item.missingDetails?.candidates &&
-                      item.missingDetails.candidates.length > 0 && (
-                        <div className="mt-1 text-[11px] text-amber-800">
-                          Candidates:
-                          <ul className="list-disc pl-4">
-                            {item.missingDetails.candidates.map((candidate) => (
-                              <li key={`${candidate.sku}-${candidate.score}`}>
-                                {candidate.sku} ({candidate.score.toFixed(2)})
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                    {item.missingReason ?? "SKU_NOT_FOUND"}
                   </li>
                 ))}
               </ul>

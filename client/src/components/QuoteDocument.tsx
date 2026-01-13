@@ -46,10 +46,9 @@ const renderValue = (value: string) => value || "—";
 
 type QuoteDocumentProps = {
   viewModel: QuoteViewModel;
-  headerAddon?: React.ReactNode;
 };
 
-export function QuoteDocument({ viewModel, headerAddon }: QuoteDocumentProps) {
+export function QuoteDocument({ viewModel }: QuoteDocumentProps) {
   const { quoteMeta, comments, lineItems, totals, delivery, paymentSchedule, companyFooter } = viewModel;
 
   return (
@@ -86,8 +85,6 @@ export function QuoteDocument({ viewModel, headerAddon }: QuoteDocumentProps) {
           </div>
         </div>
       </header>
-
-      {headerAddon && <div className="quote-section">{headerAddon}</div>}
 
       <section className="quote-section space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Comments from Sales Team</h2>

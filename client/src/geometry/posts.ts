@@ -1,6 +1,12 @@
 import { FenceLine, Point, Post, PostCategory, Gate } from "@/types/models";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
+import {
+  distanceMetersProjected,
+  interpolateLngLat,
+  lngLatToMercatorMeters,
+  mercatorMetersToLngLat,
+} from "@/lib/geo";
 
 type PointKeyFn = (point: Point) => string;
 
@@ -20,20 +26,26 @@ function normaliseAngleDeg(angle: number) {
 
 const POINT_EPS_MM = 1; // 1 mm tolerance, prevents float mismatch issues
 
+const mmToMeters = (mm: number) => mm / 1000;
+
 function samePoint(a: Point, b: Point, eps = POINT_EPS_MM) {
-  return Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps;
+  return distanceMetersProjected(a, b) <= mmToMeters(eps);
 }
 
 const projectPointToSegment = (p: Point, a: Point, b: Point) => {
-  const ab = { x: b.x - a.x, y: b.y - a.y };
+  const aMeters = lngLatToMercatorMeters(a);
+  const bMeters = lngLatToMercatorMeters(b);
+  const pMeters = lngLatToMercatorMeters(p);
+  const ab = { x: bMeters.x - aMeters.x, y: bMeters.y - aMeters.y };
   const abLenSq = ab.x * ab.x + ab.y * ab.y;
   if (abLenSq === 0) return { t: 0, proj: a, distanceSq: pointToSegmentDistanceSq(p, a, b) };
 
-  const ap = { x: p.x - a.x, y: p.y - a.y };
+  const ap = { x: pMeters.x - aMeters.x, y: pMeters.y - aMeters.y };
   let t = (ap.x * ab.x + ap.y * ab.y) / abLenSq;
   t = Math.max(0, Math.min(1, t));
-  const proj = { x: a.x + ab.x * t, y: a.y + ab.y * t };
-  const distanceSq = (p.x - proj.x) ** 2 + (p.y - proj.y) ** 2;
+  const projMeters = { x: aMeters.x + ab.x * t, y: aMeters.y + ab.y * t };
+  const proj = mercatorMetersToLngLat(projMeters);
+  const distanceSq = distanceMetersProjected(p, proj) ** 2;
 
   return { t, proj, distanceSq };
 };
@@ -41,11 +53,12 @@ const projectPointToSegment = (p: Point, a: Point, b: Point) => {
 export function getPostNeighbours(pos: Point, lines: FenceLine[]): Point[] {
   const neighbours: Point[] = [];
   const seen = new Set<string>();
-  const keyForPoint: PointKeyFn = (p: Point) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+  const keyForPoint: PointKeyFn = (p: Point) => `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+  const neighbourToleranceM = 0.05;
 
   lines.forEach((line) => {
     const { t, distanceSq } = projectPointToSegment(pos, line.a, line.b);
-    if (distanceSq > 0.25) return;
+    if (distanceSq > neighbourToleranceM * neighbourToleranceM) return;
 
     if (t <= 0.02) {
       const other = line.b;
@@ -74,15 +87,18 @@ export function getPostNeighbours(pos: Point, lines: FenceLine[]): Point[] {
 }
 
 function pointToSegmentDistanceSq(p: Point, a: Point, b: Point) {
-  const ab = { x: b.x - a.x, y: b.y - a.y };
-  const ap = { x: p.x - a.x, y: p.y - a.y };
+  const aMeters = lngLatToMercatorMeters(a);
+  const bMeters = lngLatToMercatorMeters(b);
+  const pMeters = lngLatToMercatorMeters(p);
+  const ab = { x: bMeters.x - aMeters.x, y: bMeters.y - aMeters.y };
+  const ap = { x: pMeters.x - aMeters.x, y: pMeters.y - aMeters.y };
   const abLenSq = ab.x * ab.x + ab.y * ab.y;
   if (abLenSq === 0) return ap.x * ap.x + ap.y * ap.y;
 
   const t = Math.max(0, Math.min(1, (ap.x * ab.x + ap.y * ab.y) / abLenSq));
-  const proj = { x: a.x + ab.x * t, y: a.y + ab.y * t };
-  const dx = p.x - proj.x;
-  const dy = p.y - proj.y;
+  const projMeters = { x: aMeters.x + ab.x * t, y: aMeters.y + ab.y * t };
+  const dx = pMeters.x - projMeters.x;
+  const dy = pMeters.y - projMeters.y;
 
   return dx * dx + dy * dy;
 }
@@ -107,8 +123,11 @@ const angleBetweenVectorsDeg = (u: { x: number; y: number }, v: { x: number; y: 
   radToDeg(Math.acos(clamp(u.x * v.x + u.y * v.y, -1, 1)));
 
 export function getJunctionAngleDeg(node: Point, a: Point, b: Point): number | null {
-  const vA = normalise(a.x - node.x, a.y - node.y);
-  const vB = normalise(b.x - node.x, b.y - node.y);
+  const nodeMeters = lngLatToMercatorMeters(node);
+  const aMeters = lngLatToMercatorMeters(a);
+  const bMeters = lngLatToMercatorMeters(b);
+  const vA = normalise(aMeters.x - nodeMeters.x, aMeters.y - nodeMeters.y);
+  const vB = normalise(bMeters.x - nodeMeters.x, bMeters.y - nodeMeters.y);
 
   if (Math.hypot(vA.x, vA.y) < 1e-9 || Math.hypot(vB.x, vB.y) < 1e-9) return null;
 
@@ -150,14 +169,18 @@ export function getPostAngleDeg(
       }
     }
 
-    const dx = closestLine.b.x - closestLine.a.x;
-    const dy = closestLine.b.y - closestLine.a.y;
+    const aMeters = lngLatToMercatorMeters(closestLine.a);
+    const bMeters = lngLatToMercatorMeters(closestLine.b);
+    const dx = bMeters.x - aMeters.x;
+    const dy = bMeters.y - aMeters.y;
     return normaliseAngleDeg(radToDeg(Math.atan2(dy, dx)));
   }
 
   if (neighbours.length === 1) {
-    const dx = neighbours[0].x - post.x;
-    const dy = neighbours[0].y - post.y;
+    const postMeters = lngLatToMercatorMeters(post);
+    const neighbourMeters = lngLatToMercatorMeters(neighbours[0]);
+    const dx = neighbourMeters.x - postMeters.x;
+    const dy = neighbourMeters.y - postMeters.y;
     return normaliseAngleDeg(radToDeg(Math.atan2(dy, dx)));
   }
 
@@ -166,15 +189,18 @@ export function getPostAngleDeg(
     const a = neighbours[0];
     const b = neighbours[1];
 
-    const v1 = { x: a.x - post.x, y: a.y - post.y };
-    const v2 = { x: b.x - post.x, y: b.y - post.y };
+    const postMeters = lngLatToMercatorMeters(post);
+    const v1Meters = lngLatToMercatorMeters(a);
+    const v2Meters = lngLatToMercatorMeters(b);
+    const v1 = { x: v1Meters.x - postMeters.x, y: v1Meters.y - postMeters.y };
+    const v2 = { x: v2Meters.x - postMeters.x, y: v2Meters.y - postMeters.y };
 
     const len1 = Math.hypot(v1.x, v1.y);
     const len2 = Math.hypot(v2.x, v2.y);
 
     let primary = v1;
 
-    if (Math.abs(len1 - len2) > LENGTH_TIE_MM) {
+    if (Math.abs(len1 - len2) > mmToMeters(LENGTH_TIE_MM)) {
       primary = len1 >= len2 ? v1 : v2;
     } else {
       primary = Math.abs(v1.y) <= Math.abs(v2.y) ? v1 : v2;
@@ -186,8 +212,11 @@ export function getPostAngleDeg(
   const a = neighbours[0];
   const b = neighbours[1];
 
-  const v1 = normalise(a.x - post.x, a.y - post.y);
-  const v2 = normalise(b.x - post.x, b.y - post.y);
+  const postMeters = lngLatToMercatorMeters(post);
+  const aMeters = lngLatToMercatorMeters(a);
+  const bMeters = lngLatToMercatorMeters(b);
+  const v1 = normalise(aMeters.x - postMeters.x, aMeters.y - postMeters.y);
+  const v2 = normalise(bMeters.x - postMeters.x, bMeters.y - postMeters.y);
 
   const sx = v1.x + v2.x;
   const sy = v1.y + v2.y;
@@ -241,7 +270,7 @@ export function generatePosts(
     quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
   const makePointKey: PointKeyFn = (p: Point) => {
     const quantized = quantize(p);
-    return `${quantized.x.toFixed(2)},${quantized.y.toFixed(2)}`;
+    return `${quantized.x.toFixed(6)},${quantized.y.toFixed(6)}`;
   };
   const angleCache = new Map<string, number>();
   const adjacency = new Map<string, Adjacency>();
@@ -257,7 +286,9 @@ export function generatePosts(
     const angle =
       angleCache.get(line.id) ??
       (() => {
-        const a = Math.atan2(line.b.y - line.a.y, line.b.x - line.a.x);
+        const aMeters = lngLatToMercatorMeters(line.a);
+        const bMeters = lngLatToMercatorMeters(line.b);
+        const a = Math.atan2(bMeters.y - aMeters.y, bMeters.x - aMeters.x);
         angleCache.set(line.id, a);
         return a;
       })();
@@ -344,8 +375,6 @@ export function getLinePosts(
   panelPositions: number[]
 ): Point[] {
   const posts: Point[] = [];
-  const dx = line.b.x - line.a.x;
-  const dy = line.b.y - line.a.y;
   const totalLength_mm = line.length_mm;
 
   if (!totalLength_mm || totalLength_mm <= 0) return posts;
@@ -353,10 +382,7 @@ export function getLinePosts(
   panelPositions.forEach((pos_mm) => {
     const t = pos_mm / totalLength_mm;
     if (t > 0 && t < 1) {
-      posts.push({
-        x: line.a.x + dx * t,
-        y: line.a.y + dy * t,
-      });
+      posts.push(interpolateLngLat(line.a, line.b, t));
     }
   });
   

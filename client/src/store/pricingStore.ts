@@ -1,160 +1,190 @@
 import { create } from "zustand";
-import {
-  buildPricingIndex,
-  createEmptyPricingIndex,
-  findPriceMatch,
-  countPricingIndexKeys,
-  type PricingIndex,
-  type PricingCatalogItem,
-} from "@/pricing/pricingLookup";
+import { buildPricingIndex, type PricingIndex } from "@/pricing/catalogIndex";
 
 export type PricingStatus = "idle" | "loading" | "ready" | "error";
+export type PricingSource = "network" | "cache" | null;
+
+export type PricingCatalogItem = {
+  name: string;
+  sku: string;
+  unitPrice: number;
+};
+
+export type PricingCatalogStatus = {
+  ok: boolean;
+  source: "upstream" | "cache" | "seed" | "none";
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorStatus: number | null;
+  lastErrorMessage: string | null;
+  lastValidationError: {
+    ok: false;
+    reason: "EMPTY" | "BAD_SHAPE" | "MISSING_FIELDS";
+    details?: Record<string, unknown>;
+  } | null;
+  catalogueRowCount: number;
+  upstreamHost: string | null;
+};
 
 type PricingState = {
-  pricingIndex: PricingIndex;
+  pricingIndex: PricingIndex | null;
   pricingStatus: PricingStatus;
+  pricingSource: PricingSource;
   updatedAtIso: string | null;
   errorMessage: string | null;
-  warningMessage: string | null;
-  pricingSource: "live" | "cache" | "stale" | "local" | null;
-  loadPricingCatalog: (options?: { force?: boolean }) => Promise<void>;
+  noticeMessage: string | null;
+  catalogStatus: PricingCatalogStatus | null;
+  loadPricingCatalog: () => Promise<void>;
 };
 
-type PricingCatalogResponse = {
-  updatedAtIso: string;
-  items: PricingCatalogItem[];
-  source?: "live" | "cache" | "stale";
+export const usePricingStore = create<PricingState>((set, get) => ({
+  pricingIndex: null,
+  pricingStatus: "idle",
+  pricingSource: null,
+  updatedAtIso: null,
+  errorMessage: null,
+  noticeMessage: null,
+  catalogStatus: null,
+  loadPricingCatalog: async () => {
+    const { pricingStatus } = get();
+    if (pricingStatus === "loading") return;
+
+    set({ pricingStatus: "loading", errorMessage: null, noticeMessage: null });
+
+    try {
+      const data = await fetchPricingCatalogWithRetry();
+      const pricingIndex = buildPricingIndex(data.items);
+
+      localStorage.setItem("pricingCatalogSnapshot", JSON.stringify(data));
+
+      set({
+        pricingIndex,
+        pricingStatus: "ready",
+        pricingSource: "network",
+        updatedAtIso: data.updatedAtIso,
+        noticeMessage: null,
+      });
+    } catch (error) {
+      const cached = loadCachedCatalog();
+      if (cached) {
+        const pricingIndex = buildPricingIndex(cached.items);
+        const formattedUpdatedAt = formatUpdatedAt(cached.updatedAtIso);
+        set({
+          pricingIndex,
+          pricingStatus: "ready",
+          pricingSource: "cache",
+          updatedAtIso: cached.updatedAtIso,
+          noticeMessage: `Pricing using cached catalogue, last updated ${formattedUpdatedAt}.`,
+          errorMessage: null,
+        });
+      } else {
+        set({
+          pricingStatus: "error",
+          pricingSource: null,
+          errorMessage:
+            error instanceof Error ? error.message : "Failed to load pricing catalog",
+        });
+      }
+    } finally {
+      const status = await fetchPricingCatalogStatus();
+      if (status) {
+        const shouldBlock = !status.ok || status.catalogueRowCount === 0;
+        if (shouldBlock) {
+          set({
+            catalogStatus: status,
+            pricingIndex: null,
+            pricingStatus: "error",
+            pricingSource: null,
+            updatedAtIso: null,
+            noticeMessage: null,
+            errorMessage: status.lastErrorMessage
+              ? `${status.lastErrorMessage}${status.lastErrorStatus ? ` (${status.lastErrorStatus})` : ""}`
+              : "Pricing catalog not loaded",
+          });
+          return;
+        }
+        set({ catalogStatus: status });
+      }
+    }
+  },
+}));
+
+const fetchPricingCatalogWithRetry = async () => {
+  const maxAttempts = 3;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch("/api/pricing/catalog");
+      if (!response.ok) {
+        const error = new Error(`Failed to load pricing catalog (${response.status})`) as Error & {
+          status?: number;
+          retryable?: boolean;
+        };
+        error.status = response.status;
+        error.retryable = response.status >= 500;
+        throw error;
+      }
+      return (await response.json()) as {
+        updatedAtIso: string;
+        items: PricingCatalogItem[];
+      };
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryableError(error);
+      if (attempt < maxAttempts && retryable) {
+        const delay = 300 * 3 ** (attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        break;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Failed to load pricing catalog");
 };
 
-const PRICING_CACHE_KEY = "pricingCatalogCache";
-const RETRY_DELAYS_MS = [300, 900, 2700];
-
-const readCachedCatalog = (): PricingCatalogResponse | null => {
-  if (typeof window === "undefined") return null;
+const loadCachedCatalog = () => {
+  const raw = localStorage.getItem("pricingCatalogSnapshot");
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(PRICING_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PricingCatalogResponse;
-    if (!parsed?.items?.length) return null;
+    const parsed = JSON.parse(raw) as { updatedAtIso: string; items: PricingCatalogItem[] };
+    if (!parsed?.items) return null;
     return parsed;
   } catch {
     return null;
   }
 };
 
-const writeCachedCatalog = (catalog: PricingCatalogResponse) => {
-  if (typeof window === "undefined") return;
+const fetchPricingCatalogStatus = async () => {
   try {
-    localStorage.setItem(PRICING_CACHE_KEY, JSON.stringify(catalog));
+    const response = await fetch("/api/pricing-catalog/status");
+    if (!response.ok) return null;
+    return (await response.json()) as PricingCatalogStatus;
   } catch {
-    // Ignore storage errors (quota or privacy mode).
+    return null;
   }
 };
 
-const delay = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-const fetchPricingCatalog = async (): Promise<PricingCatalogResponse> => {
-  const response = await fetch("/api/pricing/catalog");
-  if (!response.ok) {
-    let bodyMessage = "";
-    try {
-      const errorPayload = (await response.json()) as { message?: string };
-      bodyMessage = errorPayload?.message ?? "";
-    } catch {
-      bodyMessage = "";
-    }
-    const suffix = bodyMessage ? `: ${bodyMessage}` : "";
-    throw new Error(`Failed to load pricing catalog (${response.status})${suffix}`);
-  }
-
-  return (await response.json()) as PricingCatalogResponse;
+const formatUpdatedAt = (updatedAtIso: string | null) => {
+  if (!updatedAtIso) return "unknown time";
+  const parsed = Date.parse(updatedAtIso);
+  if (Number.isNaN(parsed)) return "unknown time";
+  return new Date(parsed).toLocaleString();
 };
 
-const refreshPricingIndex = (
-  catalog: PricingCatalogResponse,
-  setState: (partial: Partial<PricingState>) => void,
-  sourceOverride?: PricingState["pricingSource"],
-  warningMessage?: string | null
-) => {
-  const pricingIndex = buildPricingIndex(catalog.items);
-  setState({
-    pricingIndex,
-    pricingStatus: "ready",
-    updatedAtIso: catalog.updatedAtIso,
-    errorMessage: null,
-    warningMessage: warningMessage ?? null,
-    pricingSource: sourceOverride ?? catalog.source ?? "live",
-  });
-
-  if (import.meta.env.DEV) {
-    const counts = countPricingIndexKeys(pricingIndex);
-    const sampleLookup = findPriceMatch({
-      index: pricingIndex,
-      sku: "Bellbrae-Colour-1.8m",
-    });
-    // eslint-disable-next-line no-console
-    console.info("Pricing catalog loaded", {
-      rows: catalog.items.length,
-      ...counts,
-      sampleLookup,
-    });
+const isRetryableError = (error: unknown) => {
+  if (error instanceof TypeError) {
+    return true;
   }
+  if (typeof error === "object" && error) {
+    const retryable = (error as { retryable?: boolean }).retryable;
+    if (typeof retryable === "boolean") return retryable;
+    const status = (error as { status?: number }).status;
+    if (typeof status === "number") {
+      return status >= 500;
+    }
+  }
+  return false;
 };
-
-export const usePricingStore = create<PricingState>((set, get) => ({
-  pricingIndex: createEmptyPricingIndex(),
-  pricingStatus: "idle",
-  updatedAtIso: null,
-  errorMessage: null,
-  warningMessage: null,
-  pricingSource: null,
-  loadPricingCatalog: async (options) => {
-    const { pricingStatus } = get();
-    if (pricingStatus === "loading") return;
-    if (!options?.force && pricingStatus === "ready") return;
-
-    set({
-      pricingStatus: "loading",
-      errorMessage: null,
-      warningMessage: null,
-      pricingSource: null,
-    });
-
-    const cachedLocal = readCachedCatalog();
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
-      try {
-        if (attempt > 0) {
-          await delay(RETRY_DELAYS_MS[attempt - 1]);
-        }
-        const catalog = await fetchPricingCatalog();
-        writeCachedCatalog(catalog);
-        refreshPricingIndex(catalog, set);
-        return;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error("Failed to load pricing catalog");
-      }
-    }
-
-    if (cachedLocal) {
-      refreshPricingIndex(
-        cachedLocal,
-        set,
-        "local",
-        lastError ? `Using cached prices: ${lastError.message}` : "Using cached prices."
-      );
-      return;
-    }
-
-    set({
-      pricingStatus: "error",
-      errorMessage: lastError?.message ?? "Failed to load pricing catalog",
-      pricingSource: null,
-      warningMessage: null,
-    });
-  },
-}));
