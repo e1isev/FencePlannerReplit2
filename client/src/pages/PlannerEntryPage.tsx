@@ -17,9 +17,13 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
   const [loading, setLoading] = useState(false);
   const projectId = params.projectId;
   const startNewProject = useProjectSessionStore((state) => state.startNewProject);
+  const restoreActiveProject = useProjectSessionStore((state) => state.restoreActiveProject);
   const loadProject = useProjectSessionStore((state) => state.loadProject);
   const loadGuestProject = useProjectSessionStore((state) => state.loadGuestProject);
   const currentType = useProjectSessionStore((state) => state.projectType);
+  const activeProjectId = useProjectSessionStore((state) => state.activeProjectId);
+  const sessionIntent = useProjectSessionStore((state) => state.sessionIntent);
+  const hasBootstrapped = useProjectSessionStore((state) => state.hasBootstrapped);
   const setFenceCategory = useAppStore((state) => state.setFenceCategory);
 
   const query = useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
@@ -39,6 +43,17 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
       loadGuestProject(localId);
       return;
     }
+    if (
+      !requestedType &&
+      !requestedCategory &&
+      !projectName &&
+      activeProjectId &&
+      sessionIntent === null &&
+      !hasBootstrapped
+    ) {
+      const restored = restoreActiveProject();
+      if (restored) return;
+    }
     if (!requestedType && currentType && currentType !== "decking") {
       return;
     }
@@ -55,9 +70,13 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
     localId,
     requestedCategory,
     startNewProject,
+    restoreActiveProject,
     loadProject,
     loadGuestProject,
     currentType,
+    activeProjectId,
+    sessionIntent,
+    hasBootstrapped,
     setFenceCategory,
   ]);
 

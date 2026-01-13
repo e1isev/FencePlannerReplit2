@@ -15,8 +15,9 @@ import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
-import { fencingModeFromProjectType, plannerOptions, projectTypeFromProduct } from "@/config/plannerOptions";
+import { fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
+import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { useEffect, useMemo } from "react";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
@@ -30,7 +31,6 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
 
 export function LeftPanel() {
   const {
-    productKind,
     fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
@@ -54,6 +54,7 @@ export function LeftPanel() {
     catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
+  const projectType = useProjectSessionStore((state) => state.projectType);
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
   const supportedHeights = useMemo(
@@ -73,8 +74,7 @@ export function LeftPanel() {
     catalogReady,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
-  const projectType = projectTypeFromProduct(productKind);
-  const fencingMode = fencingModeFromProjectType(projectType);
+  const fencingMode = projectType ? fencingModeFromProjectType(projectType) : null;
   const availableCategories =
     fencingMode === "rural"
       ? plannerOptions.rural_fencing.fenceCategories
@@ -99,6 +99,14 @@ export function LeftPanel() {
     if (supportedHeights.includes(fenceHeightM)) return;
     setFenceHeightM(supportedHeights[0] as FenceHeightM);
   }, [supportedHeights, fenceHeightM, setFenceHeightM]);
+
+  if (!projectType || !fencingMode) {
+    return (
+      <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
+        <div className="text-sm text-slate-500">Loading project…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">

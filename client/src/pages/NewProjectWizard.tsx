@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ProjectType } from "@shared/projectSnapshot";
+import { useProjectSessionStore } from "@/store/projectSessionStore";
 
 const PROJECT_TYPES: Array<{
   type: ProjectType;
@@ -43,6 +44,7 @@ export default function NewProjectWizard() {
   const [location, setLocation] = useLocation();
   const [selectedType, setSelectedType] = useState<ProjectType>("residential_fencing");
   const [projectName, setProjectName] = useState(defaultProjectName());
+  const setSessionIntent = useProjectSessionStore((state) => state.setSessionIntent);
 
   useEffect(() => {
     const query = new URLSearchParams(location.split("?")[1] ?? "");
@@ -65,14 +67,17 @@ export default function NewProjectWizard() {
 
     const encodedName = encodeURIComponent(projectName.trim() || "Untitled project");
     if (selectedType === "decking") {
+      setSessionIntent("new");
       setLocation(`/decking/new?name=${encodedName}`);
       return;
     }
     if (selectedType === "residential_fencing" || selectedType === "rural_fencing") {
       const category = selectedType === "rural_fencing" ? "rural" : "residential";
+      setSessionIntent("new");
       setLocation(`/planner/new?type=${selectedType}&name=${encodedName}&category=${category}`);
       return;
     }
+    setSessionIntent("new");
     setLocation(`/planner/new?type=${selectedType}&name=${encodedName}`);
   };
 

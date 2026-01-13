@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
+import { useProjectSessionStore } from "@/store/projectSessionStore";
 import type { FenceCategoryId } from "@/types/models";
 import { getStylesByCategory } from "@/data/fenceStyles";
 
@@ -17,6 +18,7 @@ export default function StylesPage({ params }: { params: { category?: string } }
   const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
   const setFenceCategory = useAppStore((state) => state.setFenceCategory);
   const setFenceStyle = useAppStore((state) => state.setFenceStyle);
+  const setSessionIntent = useProjectSessionStore((state) => state.setSessionIntent);
 
   const query = useMemo(
     () => new URLSearchParams(location.split("?")[1] ?? ""),
@@ -44,6 +46,7 @@ export default function StylesPage({ params }: { params: { category?: string } }
   const handleContinue = () => {
     if (!category) return;
     const projectType = category === "rural" ? "rural_fencing" : "residential_fencing";
+    setSessionIntent("new");
     setLocation(
       `/planner/new?type=${projectType}&name=${encodedName}&category=${category}`
     );

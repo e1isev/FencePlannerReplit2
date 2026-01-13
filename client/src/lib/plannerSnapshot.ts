@@ -19,6 +19,8 @@ import type { FenceHeightM } from "@/config/fenceHeights";
 import type { FenceColorId } from "@/config/fenceColors";
 import type { ProjectDependencies, ProjectMeta, ProjectUiState } from "@shared/project";
 import { getDefaultFenceStyleId } from "@/config/fenceStyles";
+import { DEFAULT_FENCE_HEIGHT_M } from "@/config/fenceHeights";
+import { DEFAULT_FENCE_COLOR } from "@/config/fenceColors";
 import { fencingModeFromProjectType } from "@/config/plannerOptions";
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
@@ -98,6 +100,11 @@ const buildFencingPlannerState = (): FencingPlannerState => {
 };
 
 const applyFencingPlannerState = (state: FencingPlannerState) => {
+  const resolvedCategory =
+    state.fenceCategoryId ?? (state.productKind === "Rural fencing" ? "rural" : "residential");
+  const resolvedStyle = state.fenceStyleId ?? getDefaultFenceStyleId(resolvedCategory);
+  const resolvedHeight = state.fenceHeightM ?? DEFAULT_FENCE_HEIGHT_M;
+  const resolvedColor = state.fenceColorId ?? DEFAULT_FENCE_COLOR;
   const map = new Map<string, number[]>(Object.entries(state.panelPositionsMap ?? {}));
   const gates = (state.gates ?? []).map((gate) => {
     if (!gate.type.startsWith("sliding")) return gate;
@@ -108,11 +115,11 @@ const applyFencingPlannerState = (state: FencingPlannerState) => {
     };
   });
   useAppStore.setState({
-    productKind: state.productKind,
-    fenceStyleId: state.fenceStyleId,
-    fenceCategoryId: state.fenceCategoryId,
-    fenceHeightM: state.fenceHeightM,
-    fenceColorId: state.fenceColorId,
+    productKind: state.productKind ?? "Residential fencing",
+    fenceStyleId: resolvedStyle,
+    fenceCategoryId: resolvedCategory,
+    fenceHeightM: resolvedHeight,
+    fenceColorId: resolvedColor,
     selectedGateType: state.selectedGateType,
     drawingMode: state.drawingMode,
     mmPerPixel: state.mmPerPixel,

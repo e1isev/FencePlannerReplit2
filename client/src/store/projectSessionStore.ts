@@ -1,7 +1,12 @@
 import { create } from "zustand";
+import { shallow } from "zustand/shallow";
 import type { ProjectSnapshotV1, ProjectType } from "@shared/projectSnapshot";
 import { serializePlannerSnapshot, hydratePlannerSnapshot, initializePlannerState } from "@/lib/plannerSnapshot";
-import { listGuestProjects, removeGuestProject, saveGuestProject, getGuestProject } from "@/lib/guestProjects";
+import {
+  readPersistedProjects,
+  writePersistedProjects,
+  type LocalProject,
+} from "@/lib/persistedProjects";
 import { useAuthStore } from "@/store/authStore";
 
 export type ProjectSummary = {
@@ -20,9 +25,15 @@ type ProjectSessionState = {
   saveStatus: "idle" | "saving" | "saved" | "local" | "error";
   errorMessage: string | null;
   lastSavedAt: string | null;
+  projectsById: Record<string, LocalProject>;
+  activeProjectId: string | null;
+  hasBootstrapped: boolean;
+  sessionIntent: "new" | "restore" | null;
+  setSessionIntent: (intent: "new" | "restore" | null) => void;
   setProjectName: (name: string) => void;
   refreshDependencies: () => Promise<void>;
   startNewProject: (type: ProjectType, name: string) => void;
+  restoreActiveProject: () => boolean;
   loadProject: (projectId: string) => Promise<void>;
   loadGuestProject: (localId: string) => void;
   saveProject: () => Promise<void>;
@@ -30,6 +41,38 @@ type ProjectSessionState = {
 };
 
 const DEFAULT_DEPENDENCIES = { catalogVersion: "unknown", ruleSetVersion: "unknown" };
+const persistedState = readPersistedProjects();
+
+const buildLocalProject = (
+  snapshot: ProjectSnapshotV1,
+  name: string,
+  id: string,
+  updatedAt: string
+): LocalProject => {
+  const plannerState = snapshot.plannerState as {
+    fenceCategoryId?: LocalProject["category"];
+    fenceStyleId?: LocalProject["styleId"];
+  };
+  return {
+    id,
+    name,
+    type: snapshot.type,
+    category: plannerState?.fenceCategoryId ?? null,
+    styleId: plannerState?.fenceStyleId ?? null,
+    updatedAt,
+    snapshot,
+  };
+};
+
+const debounce = (callback: () => void, delayMs: number) => {
+  let timer: number | null = null;
+  return () => {
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+    timer = window.setTimeout(callback, delayMs);
+  };
+};
 
 export const useProjectSessionStore = create<ProjectSessionState>((set, get) => ({
   projectId: null,
@@ -40,6 +83,11 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
   saveStatus: "idle",
   errorMessage: null,
   lastSavedAt: null,
+  projectsById: persistedState.projectsById,
+  activeProjectId: persistedState.activeProjectId,
+  hasBootstrapped: false,
+  sessionIntent: null,
+  setSessionIntent: (intent) => set({ sessionIntent: intent }),
   setProjectName: (name) => set({ projectName: name }),
   refreshDependencies: async () => {
     try {
@@ -58,15 +106,47 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     }
   },
   startNewProject: (type, name) => {
+    const dependencies = get().dependencies;
+    const nowIso = new Date().toISOString();
+    const localId = `local-${crypto.randomUUID()}`;
     initializePlannerState(type);
+    const snapshot = serializePlannerSnapshot(type, name, dependencies);
     set({
       projectId: null,
-      localId: null,
+      localId,
       projectType: type,
       projectName: name,
+      projectsById: {
+        ...get().projectsById,
+        [localId]: buildLocalProject(snapshot, name, localId, nowIso),
+      },
+      activeProjectId: localId,
       saveStatus: "idle",
       errorMessage: null,
+      lastSavedAt: null,
+      sessionIntent: "new",
+      hasBootstrapped: true,
     });
+  },
+  restoreActiveProject: () => {
+    const { activeProjectId, projectsById, sessionIntent, hasBootstrapped } = get();
+    if (sessionIntent === "new" || hasBootstrapped) return false;
+    if (!activeProjectId) return false;
+    const project = projectsById[activeProjectId];
+    if (!project) return false;
+    hydratePlannerSnapshot(project.snapshot);
+    set({
+      projectId: null,
+      localId: project.id,
+      projectType: project.type,
+      projectName: project.name,
+      lastSavedAt: project.updatedAt,
+      saveStatus: "local",
+      errorMessage: null,
+      sessionIntent: "restore",
+      hasBootstrapped: true,
+    });
+    return true;
   },
   loadProject: async (projectId) => {
     const response = await fetch(`/api/projects/${projectId}`);
@@ -90,10 +170,12 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       lastSavedAt: payload.updatedAt,
       saveStatus: "idle",
       errorMessage: null,
+      sessionIntent: "restore",
+      hasBootstrapped: true,
     });
   },
   loadGuestProject: (localId) => {
-    const project = getGuestProject(localId);
+    const project = get().projectsById[localId];
     if (!project) {
       set({ errorMessage: "Guest project not found." });
       return;
@@ -101,33 +183,44 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     hydratePlannerSnapshot(project.snapshot);
     set({
       projectId: null,
-      localId: project.localId,
+      localId: project.id,
       projectType: project.type,
       projectName: project.name,
       lastSavedAt: project.updatedAt,
       saveStatus: "local",
       errorMessage: null,
+      activeProjectId: project.id,
+      sessionIntent: "restore",
+      hasBootstrapped: true,
     });
   },
   saveProject: async () => {
-    const { projectType, projectName, projectId, localId, dependencies } = get();
+    const {
+      projectType,
+      projectName,
+      projectId,
+      localId,
+      dependencies,
+      projectsById,
+    } = get();
     if (!projectType) return;
     const snapshot = serializePlannerSnapshot(projectType, projectName, dependencies);
     const authUser = useAuthStore.getState().user;
 
     if (!authUser) {
       const resolvedLocalId = localId ?? `local-${crypto.randomUUID()}`;
-      saveGuestProject({
-        localId: resolvedLocalId,
-        name: projectName,
-        type: projectType,
-        updatedAt: new Date().toISOString(),
-        snapshot,
-      });
+      const updatedAt = new Date().toISOString();
       set({
         localId: resolvedLocalId,
+        activeProjectId: resolvedLocalId,
+        projectsById: {
+          ...projectsById,
+          [resolvedLocalId]: buildLocalProject(snapshot, projectName, resolvedLocalId, updatedAt),
+        },
         saveStatus: "local",
-        lastSavedAt: new Date().toISOString(),
+        lastSavedAt: updatedAt,
+        sessionIntent: "restore",
+        hasBootstrapped: true,
       });
       return;
     }
@@ -166,8 +259,9 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
         set({ saveStatus: "saved", lastSavedAt: updated.updatedAt });
       }
       if (localId) {
-        removeGuestProject(localId);
-        set({ localId: null });
+        const nextProjects = { ...get().projectsById };
+        delete nextProjects[localId];
+        set({ localId: null, projectsById: nextProjects, activeProjectId: null });
       }
     } catch (error) {
       set({
@@ -179,7 +273,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
   saveGuestToAccount: async (localId) => {
     const authUser = useAuthStore.getState().user;
     if (!authUser) return false;
-    const project = getGuestProject(localId);
+    const project = get().projectsById[localId];
     if (!project) return false;
     const response = await fetch("/api/projects", {
       method: "POST",
@@ -193,15 +287,41 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     if (!response.ok) {
       return false;
     }
-    removeGuestProject(localId);
+    const nextProjects = { ...get().projectsById };
+    delete nextProjects[localId];
+    set({
+      projectsById: nextProjects,
+      activeProjectId: get().activeProjectId === localId ? null : get().activeProjectId,
+    });
     return true;
   },
 }));
 
-export const loadGuestProjectSummaries = () =>
-  listGuestProjects().map((project) => ({
-    id: project.localId,
+const persistDebounced = debounce(() => {
+  const { projectsById, activeProjectId } = useProjectSessionStore.getState();
+  writePersistedProjects({ projectsById, activeProjectId });
+}, 400);
+
+useProjectSessionStore.subscribe(
+  (state) => ({
+    projectsById: state.projectsById,
+    activeProjectId: state.activeProjectId,
+  }),
+  () => {
+    if (typeof window === "undefined") return;
+    persistDebounced();
+  },
+  {
+    equalityFn: shallow,
+  }
+);
+
+export const loadGuestProjectSummaries = () => {
+  const { projectsById } = useProjectSessionStore.getState();
+  return Object.values(projectsById).map((project) => ({
+    id: project.id,
     name: project.name,
     type: project.type,
     updatedAt: project.updatedAt,
   }));
+};
