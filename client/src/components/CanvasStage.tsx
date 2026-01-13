@@ -54,7 +54,12 @@ function screenToWorld(point: ScreenPoint, camera: CameraState): Point {
   };
 }
 
-export function CanvasStage() {
+type CanvasStageProps = {
+  readOnly?: boolean;
+  initialMapMode?: MapStyleMode;
+};
+
+export function CanvasStage({ readOnly = false, initialMapMode = "street" }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<KonvaStage | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -62,7 +67,7 @@ export function CanvasStage() {
   const [scale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
-  const [mapMode, setMapMode] = useState<MapStyleMode>("street");
+  const [mapMode, setMapMode] = useState<MapStyleMode>(initialMapMode);
   const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
   const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -201,6 +206,40 @@ export function CanvasStage() {
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
+
+  useEffect(() => {
+    if (!readOnly) return;
+    const points = [
+      ...lines.flatMap((line) => [line.a, line.b]),
+      ...posts.map((post) => post.pos),
+    ];
+    if (points.length === 0) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    points.forEach((point) => {
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    });
+
+    const boundsWidth = Math.max(maxX - minX, 1);
+    const boundsHeight = Math.max(maxY - minY, 1);
+    const padding = 80;
+    const availableWidth = Math.max(dimensions.width - padding * 2, 1);
+    const availableHeight = Math.max(dimensions.height - padding * 2, 1);
+    const nextScale = Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight);
+    const safeScale = Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    setMapScale(safeScale);
+    setMapPanOffset({ x: centerX * safeScale, y: centerY * safeScale });
+  }, [dimensions.height, dimensions.width, lines, posts, readOnly]);
 
   useEffect(() => {
     if (baseMetersPerPixelRef.current !== null) return;
@@ -822,8 +861,13 @@ export function CanvasStage() {
 
   const gridLines: JSX.Element[] = [];
 
+  const isReadOnly = readOnly;
+
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50">
+    <div
+      ref={containerRef}
+      className={`flex-1 relative overflow-hidden bg-slate-50${isReadOnly ? " pointer-events-none" : ""}`}
+    >
       <MapOverlay
         onZoomChange={handleZoomChange}
         onScaleChange={handleScaleChange}
@@ -832,6 +876,7 @@ export function CanvasStage() {
         onMapModeChange={handleMapModeChange}
         mapZoom={mapZoom}
         panByDelta={panByDelta}
+        readOnly={isReadOnly}
       />
 
       <div className="absolute inset-0 z-10">
@@ -840,13 +885,13 @@ export function CanvasStage() {
           className="absolute inset-0"
           width={dimensions.width}
           height={dimensions.height}
-          onWheel={handleWheel}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onWheel={isReadOnly ? undefined : handleWheel}
+          onMouseDown={isReadOnly ? undefined : handleMouseDown}
+          onMouseMove={isReadOnly ? undefined : handleMouseMove}
+          onMouseUp={isReadOnly ? undefined : handleMouseUp}
+          onTouchStart={isReadOnly ? undefined : handleTouchStart}
+          onTouchMove={isReadOnly ? undefined : handleTouchMove}
+          onTouchEnd={isReadOnly ? undefined : handleTouchEnd}
           onContextMenu={(e) => e.evt.preventDefault()}
           data-testid="canvas-stage"
         >
@@ -861,7 +906,7 @@ export function CanvasStage() {
               const isGate = !!line.gateId;
               const isSelected = line.id === selectedLineId;
 
-              const isInteractive = !isGate;
+              const isInteractive = !isGate && !isReadOnly;
 
               const baseStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
               const outlineStrokeWidth = baseStrokeWidth + mmToPx(6);
@@ -957,8 +1002,8 @@ export function CanvasStage() {
                         offsetX={estimatedWidth / 2}
                         offsetY={estimatedHeight / 2}
                         rotation={readableAngle}
-                        listening={!isGate}
-                        onClick={(e) => handleLabelClick(line.id, line.length_mm, e)}
+                        listening={!isGate && !isReadOnly}
+                        onClick={isReadOnly ? undefined : (e) => handleLabelClick(line.id, line.length_mm, e)}
                       >
                         <Tag
                           fill={tagFill}
@@ -981,7 +1026,7 @@ export function CanvasStage() {
               );
             })}
 
-            {isDrawing && startPoint && currentPoint && (
+            {!isReadOnly && isDrawing && startPoint && currentPoint && (
               <Line
                 points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
                 stroke={mapMode === "satellite" ? "#ffffff" : "#94a3b8"}
@@ -1055,26 +1100,28 @@ export function CanvasStage() {
         </Stage>
       </div>
 
-      <div className="absolute top-2 right-2 z-30">
-        <div className="text-xs bg-white/80 backdrop-blur rounded-md shadow px-3 py-2">
-          {mmPerPixel ? (
-            <>
-              <span>
-                Scale: {(mmPerPixel / 1000).toFixed(3)} m/px
-              </span>
-              {calibrationFactor !== 1 && (
-                <span className="ml-1 text-[0.7rem] text-emerald-700">
-                  (calibrated)
+      {!isReadOnly && (
+        <div className="absolute top-2 right-2 z-30">
+          <div className="text-xs bg-white/80 backdrop-blur rounded-md shadow px-3 py-2">
+            {mmPerPixel ? (
+              <>
+                <span>
+                  Scale: {(mmPerPixel / 1000).toFixed(3)} m/px
                 </span>
-              )}
-            </>
-          ) : (
-            <span>Scale: —</span>
-          )}
+                {calibrationFactor !== 1 && (
+                  <span className="ml-1 text-[0.7rem] text-emerald-700">
+                    (calibrated)
+                  </span>
+                )}
+              </>
+            ) : (
+              <span>Scale: —</span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {isDev && (
+      {!isReadOnly && isDev && (
         <div className="absolute bottom-3 left-3 z-30 flex flex-col gap-2 items-start">
           <Button
             variant="outline"
@@ -1107,49 +1154,51 @@ export function CanvasStage() {
         </div>
       )}
 
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
-        <Card className="px-4 py-3 shadow-lg flex items-center gap-3">
-          <div className="text-sm">
-            <p className="font-semibold">Calibration</p>
-            <p className="text-xs text-slate-500">
-              {isCalibrating
-                ? (() => {
-                    const remaining = 2 - calibrationPoints.length;
-                    return `Select ${remaining} point${remaining === 1 ? "" : "s"} 10 yards apart`;
-                  })()
-                : `Scale: ${FIXED_SCALE_METERS_PER_PIXEL.toFixed(3)} m/px${
-                    calibrationFactor !== 1 ? " (calibrated)" : ""
-                  }`}
-            </p>
-          </div>
-          <Button
-            variant={isCalibrating ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              if (isCalibrating) {
-                setIsCalibrating(false);
-                setCalibrationPoints([]);
-              } else {
-                setIsCalibrating(true);
-                setCalibrationPoints([]);
-                setIsDrawing(false);
-              }
-            }}
-            data-testid="button-calibrate-scale"
-          >
-            {isCalibrating ? "Cancel" : "Calibrate"}
-          </Button>
-        </Card>
-      </div>
+      {!isReadOnly && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+          <Card className="px-4 py-3 shadow-lg flex items-center gap-3">
+            <div className="text-sm">
+              <p className="font-semibold">Calibration</p>
+              <p className="text-xs text-slate-500">
+                {isCalibrating
+                  ? (() => {
+                      const remaining = 2 - calibrationPoints.length;
+                      return `Select ${remaining} point${remaining === 1 ? "" : "s"} 10 yards apart`;
+                    })()
+                  : `Scale: ${FIXED_SCALE_METERS_PER_PIXEL.toFixed(3)} m/px${
+                      calibrationFactor !== 1 ? " (calibrated)" : ""
+                    }`}
+              </p>
+            </div>
+            <Button
+              variant={isCalibrating ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                if (isCalibrating) {
+                  setIsCalibrating(false);
+                  setCalibrationPoints([]);
+                } else {
+                  setIsCalibrating(true);
+                  setCalibrationPoints([]);
+                  setIsDrawing(false);
+                }
+              }}
+              data-testid="button-calibrate-scale"
+            >
+              {isCalibrating ? "Cancel" : "Calibrate"}
+            </Button>
+          </Card>
+        </div>
+      )}
 
-      {selectedLineId && (
+      {!isReadOnly && selectedLineId && (
         <LineControls
           lineId={selectedLineId}
           onClose={() => setSelectedLineId(null)}
         />
       )}
 
-      {editingLineId && (
+      {!isReadOnly && editingLineId && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white p-4 rounded-lg shadow-lg border border-slate-200">
           <div className="flex items-center gap-2">
             <input
