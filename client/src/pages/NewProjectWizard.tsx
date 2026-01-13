@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,9 +40,17 @@ const defaultProjectName = () =>
   `Untitled project ${new Date().toLocaleString()}`;
 
 export default function NewProjectWizard() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [selectedType, setSelectedType] = useState<ProjectType>("residential_fencing");
   const [projectName, setProjectName] = useState(defaultProjectName());
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.split("?")[1] ?? "");
+    const name = query.get("name");
+    if (name) {
+      setProjectName(decodeURIComponent(name));
+    }
+  }, [location]);
 
   const chosenType = useMemo(
     () => PROJECT_TYPES.find((item) => item.type === selectedType),
@@ -58,6 +66,11 @@ export default function NewProjectWizard() {
     const encodedName = encodeURIComponent(projectName.trim() || "Untitled project");
     if (selectedType === "decking") {
       setLocation(`/decking/new?name=${encodedName}`);
+      return;
+    }
+    if (selectedType === "residential_fencing" || selectedType === "rural_fencing") {
+      const category = selectedType === "rural_fencing" ? "rural" : "residential";
+      setLocation(`/styles/${category}?name=${encodedName}`);
       return;
     }
     setLocation(`/planner/new?type=${selectedType}&name=${encodedName}`);
