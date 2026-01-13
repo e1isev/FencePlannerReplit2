@@ -31,8 +31,30 @@ const DRAG_THRESHOLD_PX = 4;
 const SNAP_SCREEN_MIN_PX = 10;
 const SNAP_SCREEN_MAX_PX = 40;
 const SEGMENT_SNAP_SCREEN_MAX_PX = 20;
+const MAP_MODE_STORAGE_KEY = "fpr2.mapMode";
+const MAP_STYLE_MODES = ["street", "satellite"] as const;
+
+function isMapStyleMode(value: string): value is (typeof MAP_STYLE_MODES)[number] {
+  return (MAP_STYLE_MODES as readonly string[]).includes(value);
+}
+
+function getInitialMapMode(): MapStyleMode {
+  if (typeof window === "undefined") return MAP_STYLE_MODES[0] as MapStyleMode;
+  try {
+    const saved = window.localStorage.getItem(MAP_MODE_STORAGE_KEY);
+    if (saved && isMapStyleMode(saved)) return saved as MapStyleMode;
+  } catch {
+    // ignore storage errors
+  }
+  return MAP_STYLE_MODES[0] as MapStyleMode;
+}
 
 type ScreenPoint = { x: number; y: number };
+
+type CanvasStageProps = {
+  readOnly?: boolean;
+  initialMapMode?: MapStyleMode;
+};
 
 type SnapTarget =
   | { type: "endpoint"; point: Point; screenPoint: ScreenPoint }
@@ -41,13 +63,15 @@ type SnapTarget =
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-export function CanvasStage() {
+export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<KonvaStage | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [mapCenter, setMapCenter] = useState<Point | null>(null);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
-  const [mapMode, setMapMode] = useState<MapStyleMode>(initialMapMode);
+  const [mapMode, setMapMode] = useState<MapStyleMode>(
+    () => initialMapMode ?? getInitialMapMode()
+  );
   const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
   const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -189,6 +213,14 @@ export function CanvasStage() {
   const handleMapCenterChange = useCallback((center: { lng: number; lat: number }) => {
     setMapCenter({ x: center.lng, y: center.lat });
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MAP_MODE_STORAGE_KEY, String(mapMode));
+    } catch {
+      // ignore storage errors
+    }
+  }, [mapMode]);
 
   useEffect(() => {
     const updateDimensions = () => {
