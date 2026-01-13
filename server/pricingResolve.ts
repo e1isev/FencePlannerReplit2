@@ -24,7 +24,7 @@ export const handlePricingResolve = async (req: Request, res: Response) => {
 
   let catalog: Record<string, { name: string; unitPrice: number }> = {};
   try {
-    const data = await getPricingCatalog();
+    const { catalog: data } = await getPricingCatalog();
     catalog = data.items.reduce(
       (acc, item) => {
         acc[item.sku] = { name: item.name, unitPrice: item.unitPrice };

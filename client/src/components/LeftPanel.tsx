@@ -50,6 +50,8 @@ export function LeftPanel() {
     noticeMessage: pricingNotice,
     updatedAtIso,
     errorMessage: pricingError,
+    catalogStatus,
+    loadPricingCatalog,
   } = usePricingCatalog();
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
@@ -80,6 +82,10 @@ export function LeftPanel() {
     updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
       ? new Date(updatedAtIso).toLocaleString()
       : "Not available";
+  const formattedStatusLastErrorAt =
+    catalogStatus?.lastErrorAt && !Number.isNaN(Date.parse(catalogStatus.lastErrorAt))
+      ? new Date(catalogStatus.lastErrorAt).toLocaleString()
+      : null;
   const hasMissingPrices = costs.missingItems.length > 0;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
@@ -261,8 +267,27 @@ export function LeftPanel() {
             )}
             {pricingStatus === "loading" && <div>Pricing catalog loading...</div>}
             {pricingStatus === "error" && (
-              <div className="text-amber-600">
-                Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
+              <div className="space-y-2 text-amber-600">
+                <div>
+                  Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => void loadPricingCatalog()}>
+                  Retry pricing load
+                </Button>
+              </div>
+            )}
+            {catalogStatus && (
+              <div className="space-y-1 text-slate-500">
+                <div>Pricing source: {catalogStatus.source}</div>
+                <div>Catalogue rows: {catalogStatus.catalogueRowCount}</div>
+                {formattedStatusLastErrorAt && (
+                  <div className="text-amber-600">
+                    Last error at {formattedStatusLastErrorAt}
+                    {catalogStatus.lastErrorStatus
+                      ? ` (${catalogStatus.lastErrorStatus})`
+                      : ""}
+                  </div>
+                )}
               </div>
             )}
           </div>

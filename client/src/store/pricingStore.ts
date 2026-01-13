@@ -10,6 +10,16 @@ export type PricingCatalogItem = {
   unitPrice: number;
 };
 
+export type PricingCatalogStatus = {
+  ok: boolean;
+  source: "upstream" | "cache" | "local";
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorStatus: number | null;
+  lastErrorMessage: string | null;
+  catalogueRowCount: number;
+};
+
 type PricingState = {
   pricingIndex: PricingIndex | null;
   pricingStatus: PricingStatus;
@@ -17,6 +27,7 @@ type PricingState = {
   updatedAtIso: string | null;
   errorMessage: string | null;
   noticeMessage: string | null;
+  catalogStatus: PricingCatalogStatus | null;
   loadPricingCatalog: () => Promise<void>;
 };
 
@@ -27,6 +38,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
   updatedAtIso: null,
   errorMessage: null,
   noticeMessage: null,
+  catalogStatus: null,
   loadPricingCatalog: async () => {
     const { pricingStatus } = get();
     if (pricingStatus === "loading") return;
@@ -50,23 +62,28 @@ export const usePricingStore = create<PricingState>((set, get) => ({
       const cached = loadCachedCatalog();
       if (cached) {
         const pricingIndex = buildPricingIndex(cached.items);
+        const formattedUpdatedAt = formatUpdatedAt(cached.updatedAtIso);
         set({
           pricingIndex,
           pricingStatus: "ready",
           pricingSource: "cache",
           updatedAtIso: cached.updatedAtIso,
-          noticeMessage: "Using cached pricing.",
+          noticeMessage: `Pricing using cached catalogue, last updated ${formattedUpdatedAt}.`,
           errorMessage: null,
         });
-        return;
+      } else {
+        set({
+          pricingStatus: "error",
+          pricingSource: null,
+          errorMessage:
+            error instanceof Error ? error.message : "Failed to load pricing catalog",
+        });
       }
-
-      set({
-        pricingStatus: "error",
-        pricingSource: null,
-        errorMessage:
-          error instanceof Error ? error.message : "Failed to load pricing catalog",
-      });
+    } finally {
+      const status = await fetchPricingCatalogStatus();
+      if (status) {
+        set({ catalogStatus: status });
+      }
     }
   },
 }));
@@ -79,7 +96,13 @@ const fetchPricingCatalogWithRetry = async () => {
     try {
       const response = await fetch("/api/pricing/catalog");
       if (!response.ok) {
-        throw new Error(`Failed to load pricing catalog (${response.status})`);
+        const error = new Error(`Failed to load pricing catalog (${response.status})`) as Error & {
+          status?: number;
+          retryable?: boolean;
+        };
+        error.status = response.status;
+        error.retryable = response.status >= 500;
+        throw error;
       }
       return (await response.json()) as {
         updatedAtIso: string;
@@ -87,9 +110,12 @@ const fetchPricingCatalogWithRetry = async () => {
       };
     } catch (error) {
       lastError = error;
-      if (attempt < maxAttempts) {
-        const delay = 300 * 2 ** (attempt - 1);
+      const retryable = isRetryableError(error);
+      if (attempt < maxAttempts && retryable) {
+        const delay = 300 * 3 ** (attempt - 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        break;
       }
     }
   }
@@ -107,4 +133,36 @@ const loadCachedCatalog = () => {
   } catch {
     return null;
   }
+};
+
+const fetchPricingCatalogStatus = async () => {
+  try {
+    const response = await fetch("/api/pricing-catalog/status");
+    if (!response.ok) return null;
+    return (await response.json()) as PricingCatalogStatus;
+  } catch {
+    return null;
+  }
+};
+
+const formatUpdatedAt = (updatedAtIso: string | null) => {
+  if (!updatedAtIso) return "unknown time";
+  const parsed = Date.parse(updatedAtIso);
+  if (Number.isNaN(parsed)) return "unknown time";
+  return new Date(parsed).toLocaleString();
+};
+
+const isRetryableError = (error: unknown) => {
+  if (error instanceof TypeError) {
+    return true;
+  }
+  if (typeof error === "object" && error) {
+    const retryable = (error as { retryable?: boolean }).retryable;
+    if (typeof retryable === "boolean") return retryable;
+    const status = (error as { status?: number }).status;
+    if (typeof status === "number") {
+      return status >= 500;
+    }
+  }
+  return false;
 };

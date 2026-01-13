@@ -8,6 +8,7 @@ export const usePricingCatalog = () => {
   const updatedAtIso = usePricingStore((state) => state.updatedAtIso);
   const errorMessage = usePricingStore((state) => state.errorMessage);
   const noticeMessage = usePricingStore((state) => state.noticeMessage);
+  const catalogStatus = usePricingStore((state) => state.catalogStatus);
   const loadPricingCatalog = usePricingStore((state) => state.loadPricingCatalog);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export const usePricingCatalog = () => {
     updatedAtIso,
     errorMessage,
     noticeMessage,
+    catalogStatus,
     loadPricingCatalog,
   };
 };
