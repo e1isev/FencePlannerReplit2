@@ -26,14 +26,12 @@ export default function DrawingPage() {
     fenceStyleId,
     fenceHeightM,
     fenceColorId,
-    fenceCategoryId,
     mmPerPixel,
   } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { pricingIndex } = usePricingCatalog();
+  const { pricingBySku } = usePricingCatalog();
 
   const costs = calculateCosts({
-    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode: getFenceColourMode(fenceColorId),
@@ -41,7 +39,7 @@ export default function DrawingPage() {
     posts,
     gates,
     lines,
-    pricingIndex,
+    pricingBySku,
   });
 
   const padding = 80;

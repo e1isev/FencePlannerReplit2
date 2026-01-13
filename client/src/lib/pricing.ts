@@ -1,11 +1,4 @@
-import type {
-  FenceCategoryId,
-  FenceColourMode,
-  FenceStyleId,
-  Gate,
-  PanelSegment,
-  Post,
-} from "@/types/models";
+import type { FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
 import type { FenceLine } from "@/types/models";
 import { countBoardsPurchased } from "@/geometry/panels";
 import {
@@ -16,11 +9,10 @@ import {
   type GateSkuType,
 } from "@/pricing/skuResolver";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
-import {
-  findPriceMatch,
-  type PricingIndex,
-  type PriceLookupDiagnostics,
-} from "@/pricing/pricingLookup";
+
+export type PricingCatalogEntry = { name: string; unitPrice: number };
+
+export type PricingBySku = Record<string, PricingCatalogEntry>;
 
 export type QuoteLineItem = {
   name: string;
@@ -29,7 +21,6 @@ export type QuoteLineItem = {
   unitPrice: number | null;
   lineTotal: number | null;
   missingReason?: string;
-  missingDetails?: PriceLookupDiagnostics;
   itemType: LineItemType;
 };
 
@@ -60,35 +51,23 @@ const formatGateLabel = (gate: Gate, widthM: number) => {
 
 const resolveLineItemPricing = (
   item: QuoteLineItem,
-  pricingIndex: PricingIndex,
-  fenceCategoryId: FenceCategoryId
+  pricingBySku: PricingBySku
 ): QuoteLineItem => {
   if (!item.sku) {
     return item;
   }
 
-  const matchResult = findPriceMatch({
-    index: pricingIndex,
-    sku: item.sku,
-    name: item.name,
-    category: fenceCategoryId,
-  });
-
-  if (matchResult.status !== "matched") {
-    const reason =
-      matchResult.status === "ambiguous"
-        ? "Ambiguous price match"
-        : item.missingReason ?? "No price found for SKU";
+  const pricing = pricingBySku[item.sku];
+  if (!pricing) {
     return {
       ...item,
       unitPrice: null,
       lineTotal: null,
-      missingReason: reason,
-      missingDetails: matchResult.diagnostics,
+      missingReason: item.missingReason ?? "No price found for SKU",
     };
   }
 
-  const unitPrice = matchResult.match.unitPrice;
+  const unitPrice = pricing.unitPrice;
   return {
     ...item,
     unitPrice,
@@ -97,7 +76,6 @@ const resolveLineItemPricing = (
 };
 
 export function calculateCosts(args: {
-  fenceCategoryId: FenceCategoryId;
   fenceStyleId: FenceStyleId;
   fenceHeightM: number;
   fenceColourMode: FenceColourMode;
@@ -105,10 +83,9 @@ export function calculateCosts(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingIndex: PricingIndex;
+  pricingBySku: PricingBySku;
 }): QuoteSummary {
   const {
-    fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
@@ -116,7 +93,7 @@ export function calculateCosts(args: {
     posts,
     gates,
     lines,
-    pricingIndex,
+    pricingBySku,
   } = args;
 
   const lineItems: QuoteLineItem[] = [];
@@ -215,7 +192,7 @@ export function calculateCosts(args: {
   });
 
   const pricedLineItems = lineItems.map((item) =>
-    resolveLineItemPricing(item, pricingIndex, fenceCategoryId)
+    resolveLineItemPricing(item, pricingBySku)
   );
 
   const missingItems = pricedLineItems.filter(
