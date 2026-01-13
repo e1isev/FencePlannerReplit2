@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DrawingPage from "@/pages/DrawingPage";
 import DeckingFinishedPage from "@/pages/DeckingFinishedPage";
+import FenceFinishedPage from "@/pages/FenceFinishedPage";
 import NotFound from "@/pages/not-found";
 import StartPage from "@/pages/StartPage";
 import AuthPage from "@/pages/AuthPage";
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/decking/:projectId" component={DeckingEntryPage} />
       <Route path="/drawing" component={DrawingPage} />
       <Route path="/decking/finished" component={DeckingFinishedPage} />
+      <Route path="/planner/finished" component={FenceFinishedPage} />
       <Route path="/decking" component={DeckingEntryPage} />
       <Route path="/planner" component={PlannerEntryPage} />
       <Route component={NotFound} />
