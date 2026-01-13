@@ -13,6 +13,7 @@ import { useLocation } from "wouter";
 import { exportPDF, exportCuttingListCSV } from "@/lib/exports";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { getFenceColourMode } from "@/config/fenceColors";
+import { getSlidingReturnSide } from "@/geometry/gates";
 
 export function Toolbar() {
   const {
@@ -29,6 +30,7 @@ export function Toolbar() {
     panels,
     posts,
     lines,
+    updateGateReturnSide,
   } = useAppStore();
   const [, setLocation] = useLocation();
   const { pricingIndex, pricingStatus } = usePricingCatalog();
@@ -36,6 +38,7 @@ export function Toolbar() {
   const selectedGate = gates.find((g) =>
     g.type.startsWith("sliding")
   );
+  const selectedReturnSide = selectedGate ? getSlidingReturnSide(selectedGate) : null;
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -128,22 +131,36 @@ export function Toolbar() {
 
       <div className="flex items-center gap-2">
         {selectedGate && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const { updateGateReturnDirection } = useAppStore.getState();
-              const newDirection =
-                selectedGate.slidingReturnDirection === "left"
-                  ? "right"
-                  : "left";
-              updateGateReturnDirection(selectedGate.id, newDirection);
-            }}
-            data-testid="button-toggle-return"
-          >
-            <ArrowLeftRight className="w-4 h-4 mr-2" />
-            Change Return Direction
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const { updateGateReturnDirection } = useAppStore.getState();
+                const newDirection =
+                  selectedGate.slidingReturnDirection === "left"
+                    ? "right"
+                    : "left";
+                updateGateReturnDirection(selectedGate.id, newDirection);
+              }}
+              data-testid="button-toggle-direction"
+            >
+              <ArrowLeftRight className="w-4 h-4 mr-2" />
+              Change Sliding Direction
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!selectedReturnSide) return;
+                const nextSide = selectedReturnSide === "a" ? "b" : "a";
+                updateGateReturnSide(selectedGate.id, nextSide);
+              }}
+              data-testid="button-toggle-return-side"
+            >
+              Return Side: {selectedReturnSide === "a" ? "Side A" : "Side B"}
+            </Button>
+          </>
         )}
         <Button
           variant="default"

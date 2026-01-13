@@ -1,4 +1,4 @@
-import { GateType, Gate, FenceLine, Point } from "@/types/models";
+import { GateType, Gate, FenceLine, Point, SlidingReturnSide } from "@/types/models";
 
 function gateAngleDeg(x1: number, y1: number, x2: number, y2: number) {
   return (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
@@ -47,24 +47,24 @@ export function validateSlidingReturn(
   if (!gate.type.startsWith("sliding")) {
     return null;
   }
-  
+
   const requiredSpace = gate.returnLength_mm ?? 4800;
-  
+
   const connectedPoint =
-    gate.slidingReturnDirection === "left" ? line.a : line.b;
-  
+    getSlidingReturnSide(gate) === "a" ? line.a : line.b;
+
   const adjacentLines = allLines.filter(
     (l) =>
       l.id !== line.id &&
       (pointsEqual(l.a, connectedPoint) || pointsEqual(l.b, connectedPoint))
   );
-  
+
   for (const adjLine of adjacentLines) {
     if (adjLine.length_mm < requiredSpace) {
       return `Sliding gate requires ${(requiredSpace / 1000).toFixed(1)}m return space. Adjacent run is only ${(adjLine.length_mm / 1000).toFixed(2)}m.`;
     }
   }
-  
+
   return null;
 }
 
@@ -100,7 +100,7 @@ export function getSlidingReturnRect(
   const returnThickness_px = Math.max(8, RETURN_THICKNESS_MM / mmPerPixel);
   const returnOffset_px = RETURN_OFFSET_MM / mmPerPixel;
 
-  const { ux, uy, nx, ny } = gateBasis(
+  const { nx, ny } = gateBasis(
     gateLine.a.x,
     gateLine.a.y,
     gateLine.b.x,
@@ -108,18 +108,47 @@ export function getSlidingReturnRect(
   );
 
   const angle = gateAngleDeg(gateLine.a.x, gateLine.a.y, gateLine.b.x, gateLine.b.y);
-  const anchor = gate.slidingReturnDirection === "left" ? gateLine.a : gateLine.b;
-  const normalSign = gate.slidingReturnDirection === "left" ? -1 : 1;
+  const returnSide = getSlidingReturnSide(gate);
+  const { center } = computeSlidingGateReturn(gateLine, returnSide, returnLength_px);
+  const normalSign = returnSide === "a" ? -1 : 1;
 
-  const center: Point = {
-    x: anchor.x + ux * (returnLength_px / 2) + nx * (normalSign * returnOffset_px),
-    y: anchor.y + uy * (returnLength_px / 2) + ny * (normalSign * returnOffset_px),
+  const centerOffset: Point = {
+    x: center.x + nx * (normalSign * returnOffset_px),
+    y: center.y + ny * (normalSign * returnOffset_px),
   };
 
   return {
-    center,
+    center: centerOffset,
     width: returnLength_px,
     height: returnThickness_px,
     rotation: angle,
   };
+}
+
+export function getSlidingReturnSide(gate: Gate): SlidingReturnSide {
+  return gate.slidingReturnSide ?? (gate.slidingReturnDirection === "left" ? "a" : "b");
+}
+
+export function computeSlidingGateReturn(
+  gateLine: FenceLine,
+  returnSide: SlidingReturnSide,
+  returnLength: number
+): { start: Point; end: Point; center: Point; direction: Point } {
+  const dx = gateLine.b.x - gateLine.a.x;
+  const dy = gateLine.b.y - gateLine.a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const direction = returnSide === "a" ? { x: -ux, y: -uy } : { x: ux, y: uy };
+  const start = returnSide === "a" ? gateLine.a : gateLine.b;
+  const end = {
+    x: start.x + direction.x * returnLength,
+    y: start.y + direction.y * returnLength,
+  };
+  const center = {
+    x: start.x + direction.x * (returnLength / 2),
+    y: start.y + direction.y * (returnLength / 2),
+  };
+
+  return { start, end, center, direction };
 }

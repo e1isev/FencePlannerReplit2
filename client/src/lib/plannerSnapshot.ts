@@ -99,6 +99,14 @@ const buildFencingPlannerState = (): FencingPlannerState => {
 
 const applyFencingPlannerState = (state: FencingPlannerState) => {
   const map = new Map<string, number[]>(Object.entries(state.panelPositionsMap ?? {}));
+  const gates = (state.gates ?? []).map((gate) => {
+    if (!gate.type.startsWith("sliding")) return gate;
+    if (gate.slidingReturnSide) return gate;
+    return {
+      ...gate,
+      slidingReturnSide: gate.slidingReturnDirection === "left" ? "a" : "b",
+    };
+  });
   useAppStore.setState({
     productKind: state.productKind,
     fenceStyleId: state.fenceStyleId,
@@ -110,7 +118,7 @@ const applyFencingPlannerState = (state: FencingPlannerState) => {
     mmPerPixel: state.mmPerPixel,
     selectedLineId: state.selectedLineId,
     lines: state.lines,
-    gates: state.gates,
+    gates,
     panels: state.panels,
     posts: state.posts,
     leftovers: state.leftovers,

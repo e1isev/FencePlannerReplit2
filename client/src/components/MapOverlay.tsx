@@ -528,6 +528,7 @@ export function MapOverlay({
   const [satelliteWarning, setSatelliteWarning] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [isMapReady, setIsMapReady] = useState(false);
   const [tileFailures, setTileFailures] = useState<Record<SatelliteProvider, number>>({
     nearmap: 0,
     maptiler: 0,
@@ -559,6 +560,7 @@ export function MapOverlay({
   const defaultVenueAppliedRef = useRef(false);
   const viewportSaveTimeoutRef = useRef<number | null>(null);
   const defaultVenueAbortRef = useRef<AbortController | null>(null);
+  const pendingSearchRef = useRef<{ result: SearchResult; inputValue?: string } | null>(null);
 
   const getTileCoordForCurrentView = useCallback(
     (provider: SatelliteProvider): TileCoord => {
@@ -782,6 +784,7 @@ export function MapOverlay({
     map.touchZoomRotate.disableRotation();
 
     mapRef.current = map;
+    setIsMapReady(true);
 
     if (storedView) {
       map.once("idle", () => {
@@ -792,6 +795,7 @@ export function MapOverlay({
     return () => {
       map.remove();
       mapRef.current = null;
+      setIsMapReady(false);
     };
     // Don't include mapMode, so only freshly creates on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1083,10 +1087,6 @@ export function MapOverlay({
 
   const recenterToResult = useCallback((result: SearchResult, inputValue?: string) => {
     const map = mapRef.current;
-    if (!map) {
-      console.warn("[MapOverlay] recenterToResult: mapRef is null");
-      return;
-    }
 
     const lat = Number(result.lat);
     const lon = Number(result.lon);
@@ -1094,6 +1094,12 @@ export function MapOverlay({
     setQuery(inputValue ?? result.label);
     setIsDropdownOpen(false);
     setActiveIndex(-1);
+
+    if (!map) {
+      pendingSearchRef.current = { result, inputValue };
+      console.warn("[MapOverlay] recenterToResult: mapRef is null");
+      return;
+    }
 
     if (markerRef.current) {
       markerRef.current.remove();
@@ -1105,6 +1111,14 @@ export function MapOverlay({
 
     flyToSearchResult(lon, lat, 18);
   }, [flyToSearchResult]);
+
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current) return;
+    if (!pendingSearchRef.current) return;
+    const pending = pendingSearchRef.current;
+    pendingSearchRef.current = null;
+    recenterToResult(pending.result, pending.inputValue);
+  }, [isMapReady, recenterToResult]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1360,8 +1374,10 @@ export function MapOverlay({
                   <button
                     type="button"
                     key={result.id ?? `${index}-${result.lat}-${result.lon}`}
-                    onClick={() => handleResultSelect(result)}
-                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleResultSelect(result);
+                    }}
                     className={cn(
                       "w-full text-left px-3 py-2 text-sm",
                       activeIndex === index ? "bg-slate-100" : "hover:bg-slate-50"

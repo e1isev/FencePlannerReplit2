@@ -523,6 +523,7 @@ interface AppState {
   
   addGate: (runId: string, clickPoint?: Point) => void;
   updateGateReturnDirection: (gateId: string, direction: "left" | "right") => void;
+  updateGateReturnSide: (gateId: string, side: "a" | "b") => void;
   
   recalculate: () => void;
   clear: () => void;
@@ -910,6 +911,7 @@ export const useAppStore = create<AppState>()(
           opening_mm,
           runId,
           slidingReturnDirection: "left",
+          slidingReturnSide: "a",
           leaf_count: leafCount,
           leaf_width_mm: opening_mm / leafCount,
           panel_width_mm: opening_mm,
@@ -1062,6 +1064,15 @@ export const useAppStore = create<AppState>()(
         set({
           gates: get().gates.map((g) =>
             g.id === gateId ? { ...g, slidingReturnDirection: direction } : g
+          ),
+        });
+        get().recalculate();
+      },
+
+      updateGateReturnSide: (gateId, side) => {
+        set({
+          gates: get().gates.map((g) =>
+            g.id === gateId ? { ...g, slidingReturnSide: side } : g
           ),
         });
         get().recalculate();
@@ -1250,7 +1261,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "fence-planner-storage",
-      version: 4,
+      version: 5,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
@@ -1321,6 +1332,23 @@ export const useAppStore = create<AppState>()(
             state: {
               ...persistedState.state,
               fenceColorId: DEFAULT_FENCE_COLOR,
+            },
+          };
+        }
+
+        if (version < 5) {
+          const gates = (persistedState?.state?.gates ?? []).map((gate: Gate) => {
+            if (!gate.type?.startsWith("sliding")) return gate;
+            if (gate.slidingReturnSide) return gate;
+            const inferredSide = gate.slidingReturnDirection === "left" ? "a" : "b";
+            return { ...gate, slidingReturnSide: inferredSide };
+          });
+
+          return {
+            ...persistedState,
+            state: {
+              ...persistedState.state,
+              gates,
             },
           };
         }
