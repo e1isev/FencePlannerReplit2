@@ -1,4 +1,5 @@
 import { GateType, Gate, FenceLine, Point, SlidingReturnSide } from "@/types/models";
+import { distanceMetersProjected } from "@/lib/geo";
 
 function gateAngleDeg(x1: number, y1: number, x2: number, y2: number) {
   return (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
@@ -69,7 +70,7 @@ export function validateSlidingReturn(
 }
 
 function pointsEqual(a: Point, b: Point): boolean {
-  return Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+  return distanceMetersProjected(a, b) < 0.05;
 }
 
 export function getSlidingReturnRect(

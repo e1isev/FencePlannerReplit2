@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Label, Layer, Line, Tag, Text, Group, Rect, Stage } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Stage as KonvaStage } from "konva/lib/Stage";
+import type { Map as MaplibreMap } from "maplibre-gl";
 import { MAX_RUN_MM, MIN_RUN_MM, useAppStore } from "@/store/appStore";
 import { Point } from "@/types/models";
 import {
@@ -18,7 +19,8 @@ import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PostShape } from "./PostShape";
-import { getJunctionAngleDegForPost, getPostNeighbours } from "@/geometry/posts";
+import { getJunctionAngleDegForPost, getPostAngleDeg, getPostNeighbours } from "@/geometry/posts";
+import { distanceMetersProjected } from "@/lib/geo";
 
 const BASE_MAP_ZOOM = 15;
 const TEN_YARDS_METERS = 9.144;
@@ -31,43 +33,26 @@ const SNAP_SCREEN_MAX_PX = 40;
 const SEGMENT_SNAP_SCREEN_MAX_PX = 20;
 
 type ScreenPoint = { x: number; y: number };
-type CameraState = { scale: number; offsetX: number; offsetY: number };
 
 type SnapTarget =
-  | { type: "endpoint"; point: Point }
-  | { type: "segment"; point: Point; lineId: string; t: number }
-  | { type: "free"; point: Point };
+  | { type: "endpoint"; point: Point; screenPoint: ScreenPoint }
+  | { type: "segment"; point: Point; screenPoint: ScreenPoint; lineId: string; t: number }
+  | { type: "free"; point: Point; screenPoint: ScreenPoint };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-function worldToScreen(point: Point, camera: CameraState): ScreenPoint {
-  return {
-    x: (point.x - camera.offsetX) * camera.scale,
-    y: (point.y - camera.offsetY) * camera.scale,
-  };
-}
-
-function screenToWorld(point: ScreenPoint, camera: CameraState): Point {
-  return {
-    x: point.x / camera.scale + camera.offsetX,
-    y: point.y / camera.scale + camera.offsetY,
-  };
-}
 
 export function CanvasStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<KonvaStage | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [mapPanOffset, setMapPanOffset] = useState({ x: 0, y: 0 });
-  const [scale] = useState(1);
-  const [mapScale, setMapScale] = useState(1);
+  const [mapCenter, setMapCenter] = useState<Point | null>(null);
   const [mapZoom, setMapZoom] = useState(BASE_MAP_ZOOM);
   const [mapMode, setMapMode] = useState<MapStyleMode>("street");
   const [baseMetersPerPixel, setBaseMetersPerPixel] = useState<number | null>(null);
   const [currentMetersPerPixel, setCurrentMetersPerPixel] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isCalibrating, setIsCalibrating] = useState(false);
-  const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
+  const [calibrationPoints, setCalibrationPoints] = useState<ScreenPoint[]>([]);
   const [calibrationFactor, setCalibrationFactor] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPos, setLastPanPos] = useState<{ x: number; y: number } | null>(null);
@@ -89,8 +74,9 @@ export function CanvasStage() {
   const baseMetersPerPixelRef = useRef<number | null>(null);
   const mapMetersPerPixelRef = useRef<number | null>(null);
   const calibrationFactorRef = useRef(1);
-  const pointerDownWorldRef = useRef<Point | null>(null);
+  const pointerDownScreenRef = useRef<ScreenPoint | null>(null);
   const didDragRef = useRef(false);
+  const mapRef = useRef<MaplibreMap | null>(null);
   const isDev = import.meta.env.DEV;
 
   const {
@@ -106,43 +92,64 @@ export function CanvasStage() {
     setMmPerPixel,
   } = useAppStore();
 
-  const viewScale = Number.isFinite(scale * mapScale) && scale * mapScale > 0 ? scale * mapScale : 1;
-
   const mmToPx = useCallback(
     (mm: number) => (mmPerPixel > 0 ? mm / mmPerPixel : mm),
     [mmPerPixel]
   );
 
-  // Stage is always centred in the viewport.
-  // The only thing that moves the world relative to the screen
-  // is mapPanOffset coming from MapOverlay.
-  const viewOffset = {
-    x: dimensions.width / 2 - mapPanOffset.x,
-    y: dimensions.height / 2 - mapPanOffset.y,
-  };
+  const screenLines = useMemo(() => {
+    const map = mapRef.current;
+    if (!map) return [];
 
-  const cameraState: CameraState = {
-    scale: viewScale,
-    offsetX: -viewOffset.x / viewScale,
-    offsetY: -viewOffset.y / viewScale,
-  };
+    return lines.map((line) => {
+      const a = map.project({ lng: line.a.x, lat: line.a.y });
+      const b = map.project({ lng: line.b.x, lat: line.b.y });
+      return {
+        ...line,
+        a: { x: a.x, y: a.y },
+        b: { x: b.x, y: b.y },
+      };
+    });
+  }, [lines, mapCenter, mapZoom]);
+
+  const screenPosts = useMemo(() => {
+    const map = mapRef.current;
+    if (!map) return [];
+
+    return posts.map((post) => {
+      const projected = map.project({ lng: post.pos.x, lat: post.pos.y });
+      return {
+        ...post,
+        screenPos: { x: projected.x, y: projected.y },
+      };
+    });
+  }, [posts, mapCenter, mapZoom]);
+
+  const toLngLat = useCallback((point: ScreenPoint): Point | null => {
+    const map = mapRef.current;
+    if (!map) return null;
+    const lngLat = map.unproject([point.x, point.y]);
+    return { x: lngLat.lng, y: lngLat.lat };
+  }, []);
+
+  const toScreenPoint = useCallback((point: Point): ScreenPoint | null => {
+    const map = mapRef.current;
+    if (!map) return null;
+    const projected = map.project({ lng: point.x, lat: point.y });
+    return { x: projected.x, y: projected.y };
+  }, []);
 
   const getWorldPointFromEvent = useCallback(
     (e: KonvaEventObject<MouseEvent | TouchEvent>): Point | null => {
       const stage = stageRef.current;
       if (!stage) return null;
 
-      const isPost = e.target?.hasName?.("post");
-      if (isPost) {
-        return { x: e.target.x(), y: e.target.y() };
-      }
-
       const pointer = stage.getPointerPosition();
       if (!pointer) return null;
 
-      return screenToWorld(pointer, cameraState);
+      return toLngLat(pointer);
     },
-    [cameraState]
+    [toLngLat]
   );
 
   const handleZoomChange = useCallback((zoom: number) => {
@@ -163,10 +170,6 @@ export function CanvasStage() {
       }
 
       const referenceMetersPerPixel = baseMetersPerPixelRef.current ?? metersPerPixel;
-      const scaleFromMap = referenceMetersPerPixel / metersPerPixel;
-
-      setMapScale(scaleFromMap);
-
       const nextMmPerPixel = referenceMetersPerPixel * calibrationFactorRef.current * 1000;
       if (Math.abs(nextMmPerPixel - mmPerPixel) < 0.0001) return;
 
@@ -179,12 +182,12 @@ export function CanvasStage() {
     setMapMode(mode);
   }, []);
 
-  const handleMapPanOffsetChange = useCallback((offset: { x: number; y: number }) => {
-    setMapPanOffset(offset);
+  const handleMapReady = useCallback((map: MaplibreMap) => {
+    mapRef.current = map;
   }, []);
 
-  const handlePanReferenceReset = useCallback(() => {
-    setMapPanOffset({ x: 0, y: 0 });
+  const handleMapCenterChange = useCallback((center: { lng: number; lat: number }) => {
+    setMapCenter({ x: center.lng, y: center.lat });
   }, []);
 
   useEffect(() => {
@@ -213,7 +216,6 @@ export function CanvasStage() {
     baseMetersPerPixelRef.current = baseMetersPerPixel;
     setBaseMetersPerPixel(baseMetersPerPixel);
     setCurrentMetersPerPixel(currentMetersPerPixel);
-    setMapScale(baseMetersPerPixel / currentMetersPerPixel);
   }, [mapZoom]);
   useEffect(() => {
     calibrationFactorRef.current = calibrationFactor;
@@ -256,48 +258,60 @@ export function CanvasStage() {
   };
 
   const effectiveMmPerPixel = mmPerPixel || 1;
-  const snapWorldFromMm = ENDPOINT_SNAP_RADIUS_MM / effectiveMmPerPixel;
-  const snapWorldMin = SNAP_SCREEN_MIN_PX / cameraState.scale;
-  const snapWorldMax = SNAP_SCREEN_MAX_PX / cameraState.scale;
-  const snapTolerance = clamp(snapWorldFromMm, snapWorldMin, snapWorldMax);
-  const segmentSnapTolPx = Math.min(snapTolerance, SEGMENT_SNAP_SCREEN_MAX_PX / cameraState.scale);
-  const dragThresholdWorld = DRAG_THRESHOLD_PX / cameraState.scale;
-  const lineHitStrokeWidth = Math.max(MIN_LINE_HIT_PX / cameraState.scale, 1);
-  const snapToleranceScreenPx = snapTolerance * cameraState.scale;
+  const snapScreenFromMm = ENDPOINT_SNAP_RADIUS_MM / effectiveMmPerPixel;
+  const snapTolerance = clamp(snapScreenFromMm, SNAP_SCREEN_MIN_PX, SNAP_SCREEN_MAX_PX);
+  const segmentSnapTolPx = Math.min(snapTolerance, SEGMENT_SNAP_SCREEN_MAX_PX);
+  const dragThresholdPx = DRAG_THRESHOLD_PX;
+  const lineHitStrokeWidth = Math.max(MIN_LINE_HIT_PX, 1);
+  const snapToleranceScreenPx = snapTolerance;
   const previewStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
   const previewDashLength = mmToPx(FENCE_THICKNESS_MM);
 
   const resolveSnapTarget = useCallback(
-    (point: Point): SnapTarget => {
+    (screenPoint: ScreenPoint): SnapTarget => {
       const allPoints = [
-        ...lines.flatMap((l) => [l.a, l.b]),
-        ...posts.map((p) => p.pos),
+        ...screenLines.flatMap((l) => [l.a, l.b]),
+        ...screenPosts.map((p) => p.screenPos),
       ];
 
-      const snappedEndpoint = findSnapPoint(point, allPoints, snapTolerance);
+      const snappedEndpoint = findSnapPoint(screenPoint, allPoints, snapTolerance);
       if (snappedEndpoint) {
-        return { type: "endpoint", point: snappedEndpoint };
+        const snappedLngLat = toLngLat(snappedEndpoint) ?? null;
+        if (snappedLngLat) {
+          return { type: "endpoint", point: snappedLngLat, screenPoint: snappedEndpoint };
+        }
       }
 
-      const lineSnap = findSnapOnLines(point, lines, segmentSnapTolPx);
+      const lineSnap = findSnapOnLines(screenPoint, screenLines, segmentSnapTolPx);
       if (lineSnap) {
-        return lineSnap.kind === "endpoint"
-          ? { type: "endpoint", point: lineSnap.point }
-          : {
-              type: "segment",
-              point: lineSnap.point,
-              lineId: lineSnap.lineId,
-              t: lineSnap.t,
-            };
+        const snappedLngLat = toLngLat(lineSnap.point) ?? null;
+        if (snappedLngLat) {
+          return lineSnap.kind === "endpoint"
+            ? {
+                type: "endpoint",
+                point: snappedLngLat,
+                screenPoint: lineSnap.point,
+              }
+            : {
+                type: "segment",
+                point: snappedLngLat,
+                screenPoint: lineSnap.point,
+                lineId: lineSnap.lineId,
+                t: lineSnap.t,
+              };
+        }
       }
 
-      return { type: "free", point };
+      const fallbackLngLat = toLngLat(screenPoint);
+      return fallbackLngLat
+        ? { type: "free", point: fallbackLngLat, screenPoint }
+        : { type: "free", point: { x: 0, y: 0 }, screenPoint };
     },
-    [lines, posts, segmentSnapTolPx, snapTolerance]
+    [screenLines, screenPosts, segmentSnapTolPx, snapTolerance, toLngLat]
   );
 
   const handleCalibrationComplete = useCallback(
-    (a: Point, b: Point) => {
+    (a: ScreenPoint, b: ScreenPoint) => {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const distancePx = Math.hypot(dx, dy);
@@ -322,7 +336,7 @@ export function CanvasStage() {
   );
 
   const registerCalibrationPoint = useCallback(
-    (point: Point) => {
+    (point: ScreenPoint) => {
       setCalibrationPoints((prev) => {
         const next = [...prev, point];
         if (next.length === 2) {
@@ -341,7 +355,7 @@ export function CanvasStage() {
     setCurrentPoint(null);
     setStartSnap(null);
     setCurrentSnap(null);
-    pointerDownWorldRef.current = null;
+    pointerDownScreenRef.current = null;
     didDragRef.current = false;
   }, []);
 
@@ -385,8 +399,8 @@ export function CanvasStage() {
 
         const line = latestLines.find((l) => l.id === snap.lineId);
         if (line) {
-          const distA = Math.hypot(snap.point.x - line.a.x, snap.point.y - line.a.y);
-          const distB = Math.hypot(snap.point.x - line.b.x, snap.point.y - line.b.y);
+          const distA = distanceMetersProjected(snap.point, line.a);
+          const distB = distanceMetersProjected(snap.point, line.b);
           return distA <= distB ? line.a : line.b;
         }
 
@@ -401,16 +415,35 @@ export function CanvasStage() {
         } as SnapTarget;
 
         if (resolvedEndSnap?.type === "segment" && resolvedEndSnap.lineId === startLineId) {
-          const refreshed = findSnapPointOnSegment(resolvedEndSnap.point, latestLines, segmentSnapTolPx);
+          const refreshedLines = latestLines.flatMap((line) => {
+            const start = toScreenPoint(line.a);
+            const end = toScreenPoint(line.b);
+            if (!start || !end) return [];
+            return [{ ...line, a: start, b: end }];
+          });
+          const refreshed = findSnapPointOnSegment(
+            resolvedEndSnap.screenPoint,
+            refreshedLines,
+            segmentSnapTolPx
+          );
           if (refreshed && refreshed.kind === "segment" && refreshed.lineId) {
+            const refreshedLngLat = toLngLat(refreshed.point);
             resolvedEndSnap = {
               type: "segment",
-              point: refreshed.point,
+              point: refreshedLngLat ?? resolvedEndSnap.point,
+              screenPoint: refreshed.point,
               lineId: refreshed.lineId,
               t: refreshed.t ?? 0,
             };
           } else if (refreshed?.kind === "endpoint") {
-            resolvedEndSnap = { type: "endpoint", point: refreshed.point };
+            const refreshedLngLat = toLngLat(refreshed.point);
+            if (refreshedLngLat) {
+              resolvedEndSnap = {
+                type: "endpoint",
+                point: refreshedLngLat,
+                screenPoint: refreshed.point,
+              };
+            }
           }
         }
       }
@@ -451,29 +484,32 @@ export function CanvasStage() {
     didDragRef.current = false;
   };
 
-  const trackPointerDrag = (point: Point, isPointerDown: boolean) => {
-    if (!isPointerDown || !pointerDownWorldRef.current) return;
+  const trackPointerDrag = (point: ScreenPoint, isPointerDown: boolean) => {
+    if (!isPointerDown || !pointerDownScreenRef.current) return;
 
-    const dist = Math.hypot(point.x - pointerDownWorldRef.current.x, point.y - pointerDownWorldRef.current.y);
-    if (dist > dragThresholdWorld) {
+    const dist = Math.hypot(
+      point.x - pointerDownScreenRef.current.x,
+      point.y - pointerDownScreenRef.current.y
+    );
+    if (dist > dragThresholdPx) {
       didDragRef.current = true;
     }
   };
 
-  const handleInteractionStart = (worldPoint: Point) => {
+  const handleInteractionStart = (screenPoint: ScreenPoint, worldPoint: Point) => {
     if (isCalibrating) {
-      registerCalibrationPoint(worldPoint);
+      registerCalibrationPoint(screenPoint);
       resetDrawingState();
       return;
     }
 
-    const snap = resolveSnapTarget(worldPoint);
+    const snap = resolveSnapTarget(screenPoint);
     setHoverSnap(snap);
 
     if (selectedGateType) {
-      const clickedLine = lines.find((line) => {
-        const dist = pointToLineDistance(worldPoint, line.a, line.b);
-        return dist < 10 / cameraState.scale;
+      const clickedLine = screenLines.find((line) => {
+        const dist = pointToLineDistance(screenPoint, line.a, line.b);
+        return dist < 10;
       });
 
       if (clickedLine && !clickedLine.gateId) {
@@ -495,6 +531,7 @@ export function CanvasStage() {
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
     const stage = stageRef.current ?? e.target.getStage();
     if (!stage) return;
+    if (!mapRef.current) return;
 
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
@@ -512,15 +549,16 @@ export function CanvasStage() {
     const worldPoint = getWorldPointFromEvent(e);
     if (!worldPoint) return;
 
-    pointerDownWorldRef.current = worldPoint;
+    pointerDownScreenRef.current = pointer;
     didDragRef.current = false;
 
-    handleInteractionStart(worldPoint);
+    handleInteractionStart(pointer, worldPoint);
   };
 
   const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
     const stage = stageRef.current ?? e.target.getStage();
     if (!stage) return;
+    if (!mapRef.current) return;
 
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
@@ -533,16 +571,14 @@ export function CanvasStage() {
       return;
     }
 
-    const worldPoint = screenToWorld(pointer, cameraState);
-    setHoverSnap(resolveSnapTarget(worldPoint));
+    const snap = resolveSnapTarget(pointer);
+    setHoverSnap(snap);
 
     if (!isDrawing || !startPoint) return;
 
-    const snap = resolveSnapTarget(worldPoint);
-
     setCurrentPoint(snap.point);
     setCurrentSnap(snap);
-    trackPointerDrag(worldPoint, Boolean(e.evt.buttons & 1));
+    trackPointerDrag(pointer, Boolean(e.evt.buttons & 1));
   };
 
   const handleMouseUp = () => {
@@ -550,7 +586,7 @@ export function CanvasStage() {
       setIsPanning(false);
       setLastPanPos(null);
       setPanByDelta(null);
-      pointerDownWorldRef.current = null;
+      pointerDownScreenRef.current = null;
       didDragRef.current = false;
       return;
     }
@@ -559,7 +595,7 @@ export function CanvasStage() {
       finalizeDrawing();
     }
 
-    pointerDownWorldRef.current = null;
+    pointerDownScreenRef.current = null;
     didDragRef.current = false;
   };
 
@@ -580,6 +616,7 @@ export function CanvasStage() {
     const touches = e.evt.touches;
     const stage = stageRef.current ?? e.target.getStage();
     if (!stage) return;
+    if (!mapRef.current) return;
 
     if (touches.length === 2) {
       e.evt.preventDefault();
@@ -596,15 +633,18 @@ export function CanvasStage() {
     }
 
     if (touches.length === 1) {
-      const worldPoint = getWorldPointFromEvent(e);
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const worldPoint = toLngLat(pointer);
       if (!worldPoint) return;
 
       if (isPanning || editingLineId) return;
 
-      pointerDownWorldRef.current = worldPoint;
+      pointerDownScreenRef.current = pointer;
       didDragRef.current = false;
 
-      handleInteractionStart(worldPoint);
+      handleInteractionStart(pointer, worldPoint);
     }
   };
 
@@ -613,6 +653,7 @@ export function CanvasStage() {
     const touches = e.evt.touches;
     const stage = stageRef.current ?? e.target.getStage();
     if (!stage) return;
+    if (!mapRef.current) return;
     
     if (touches.length === 2 && lastTouchDistance !== null && lastTouchCenter !== null) {
       const distance = getTouchDistance(touches[0], touches[1]);
@@ -644,23 +685,24 @@ export function CanvasStage() {
 
       setLastTouchDistance(distance);
       setLastTouchCenter(pointer);
-      pointerDownWorldRef.current = null;
+      pointerDownScreenRef.current = null;
       didDragRef.current = false;
       return;
     }
     
     if (touches.length === 1) {
-      const worldPoint = getWorldPointFromEvent(e);
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      const worldPoint = toLngLat(pointer);
       if (!worldPoint) return;
 
-      setHoverSnap(resolveSnapTarget(worldPoint));
+      const snap = resolveSnapTarget(pointer);
+      setHoverSnap(snap);
 
       if (isDrawing && startPoint) {
-        const snap = resolveSnapTarget(worldPoint);
-
         setCurrentPoint(snap.point);
         setCurrentSnap(snap);
-        trackPointerDrag(worldPoint, true);
+        trackPointerDrag(pointer, true);
       }
     }
   };
@@ -677,12 +719,12 @@ export function CanvasStage() {
       setIsPanning(false);
       setLastPanPos(null);
       setPanByDelta(null);
-      pointerDownWorldRef.current = null;
+      pointerDownScreenRef.current = null;
       didDragRef.current = false;
     } else if (touches.length === 1) {
       setLastTouchDistance(null);
       setLastTouchCenter(null);
-      pointerDownWorldRef.current = null;
+      pointerDownScreenRef.current = null;
       didDragRef.current = false;
     }
   };
@@ -699,7 +741,10 @@ export function CanvasStage() {
           y: e.evt.clientY - rect.top,
         };
 
-        addGate(lineId, screenToWorld(pointerScreen, cameraState));
+        const worldPoint = toLngLat(pointerScreen);
+        if (worldPoint) {
+          addGate(lineId, worldPoint);
+        }
       } else if (e.evt.shiftKey) {
         setSelectedLineId(lineId);
       } else {
@@ -723,7 +768,10 @@ export function CanvasStage() {
           x: e.evt.clientX - rect.left,
           y: e.evt.clientY - rect.top,
         };
-        addGate(lineId, screenToWorld(pointerScreen, cameraState));
+        const worldPoint = toLngLat(pointerScreen);
+        if (worldPoint) {
+          addGate(lineId, worldPoint);
+        }
       } else {
         setSelectedLineId(lineId);
       }
@@ -827,9 +875,9 @@ export function CanvasStage() {
       <MapOverlay
         onZoomChange={handleZoomChange}
         onScaleChange={handleScaleChange}
-        onPanOffsetChange={handleMapPanOffsetChange}
-        onPanReferenceReset={handlePanReferenceReset}
         onMapModeChange={handleMapModeChange}
+        onMapReady={handleMapReady}
+        onCenterChange={handleMapCenterChange}
         mapZoom={mapZoom}
         panByDelta={panByDelta}
       />
@@ -851,13 +899,10 @@ export function CanvasStage() {
           data-testid="canvas-stage"
         >
           <Layer listening={false}>
-            <Group x={viewOffset.x} y={viewOffset.y} scaleX={viewScale} scaleY={viewScale}>
-              {gridLines}
-            </Group>
+            {gridLines}
           </Layer>
           <Layer>
-            <Group x={viewOffset.x} y={viewOffset.y} scaleX={viewScale} scaleY={viewScale}>
-            {lines.map((line) => {
+            {screenLines.map((line) => {
               const isGate = !!line.gateId;
               const isSelected = line.id === selectedLineId;
 
@@ -928,13 +973,13 @@ export function CanvasStage() {
                     const midX = (line.a.x + line.b.x) / 2;
                     const midY = (line.a.y + line.b.y) / 2;
 
-                    const labelOffset = LABEL_OFFSET_PX / viewScale;
+                    const labelOffset = LABEL_OFFSET_PX;
                     const labelX = midX + nx * labelOffset;
                     const labelY = midY + ny * labelOffset;
 
                     const text = `${(line.length_mm / 1000).toFixed(2)}m`;
-                    const fontSize = 12 / viewScale;
-                    const padding = 4 / viewScale;
+                    const fontSize = 12;
+                    const padding = 4;
                     const estimatedWidth = text.length * fontSize * 0.6 + padding * 2;
                     const estimatedHeight = fontSize + padding * 2;
 
@@ -963,8 +1008,8 @@ export function CanvasStage() {
                         <Tag
                           fill={tagFill}
                           stroke={tagStroke}
-                          strokeWidth={1 / viewScale}
-                          cornerRadius={4 / viewScale}
+                          strokeWidth={1}
+                          cornerRadius={4}
                           pointerDirection="none"
                           padding={padding}
                         />
@@ -981,18 +1026,25 @@ export function CanvasStage() {
               );
             })}
 
-            {isDrawing && startPoint && currentPoint && (
-              <Line
-                points={[startPoint.x, startPoint.y, currentPoint.x, currentPoint.y]}
-                stroke={mapMode === "satellite" ? "#ffffff" : "#94a3b8"}
-                strokeWidth={previewStrokeWidth}
-                dash={[previewDashLength, previewDashLength]}
-                strokeScaleEnabled
-              />
-            )}
+            {isDrawing && startPoint && currentPoint && (() => {
+              const startScreen = toScreenPoint(startPoint);
+              const currentScreen = toScreenPoint(currentPoint);
+              if (!startScreen || !currentScreen) return null;
 
-            {posts.map((post) => {
+              return (
+                <Line
+                  points={[startScreen.x, startScreen.y, currentScreen.x, currentScreen.y]}
+                  stroke={mapMode === "satellite" ? "#ffffff" : "#94a3b8"}
+                  strokeWidth={previewStrokeWidth}
+                  dash={[previewDashLength, previewDashLength]}
+                  strokeScaleEnabled={false}
+                />
+              );
+            })()}
+
+            {screenPosts.map((post) => {
               const neighbours = getPostNeighbours(post.pos, lines);
+              const angleDeg = getPostAngleDeg(post.pos, neighbours, lines, post.category);
               const junctionAngle = showPostAngleDebug
                 ? getJunctionAngleDegForPost(post.pos, lines)
                 : null;
@@ -1000,20 +1052,19 @@ export function CanvasStage() {
               return (
                 <Group key={post.id}>
                   <PostShape
-                    x={post.pos.x}
-                    y={post.pos.y}
-                    neighbours={neighbours}
+                    x={post.screenPos.x}
+                    y={post.screenPos.y}
                     mmPerPixel={mmPerPixel}
                     category={post.category}
-                    lines={lines}
+                    angleDeg={angleDeg}
                     isSatelliteMode={mapMode === "satellite"}
                   />
                   {junctionAngle !== null && (
                     <Text
-                      x={post.pos.x + 8 / viewScale}
-                      y={post.pos.y - 18 / viewScale}
+                      x={post.screenPos.x + 8}
+                      y={post.screenPos.y - 18}
                       text={`${junctionAngle.toFixed(1)}°`}
-                      fontSize={12 / viewScale}
+                      fontSize={12}
                       fill={mapMode === "satellite" ? "#0f172a" : "#1e293b"}
                       listening={false}
                     />
@@ -1025,7 +1076,7 @@ export function CanvasStage() {
             {gates
               .filter((g) => g.type.startsWith("sliding"))
               .map((gate) => {
-                const gateLine = lines.find((l) => l.gateId === gate.id);
+                const gateLine = screenLines.find((l) => l.gateId === gate.id);
                 if (!gateLine) return null;
 
                 const geometry = getSlidingReturnRect(gate, gateLine, mmPerPixel);
@@ -1050,7 +1101,6 @@ export function CanvasStage() {
                   />
                 );
               })}
-            </Group>
           </Layer>
         </Stage>
       </div>
@@ -1098,8 +1148,8 @@ export function CanvasStage() {
               <p className="font-mono text-slate-600">{hoverSnap ? hoverSnap.type : "none"}</p>
               <p className="text-[0.7rem] text-slate-500">Press "d" to toggle</p>
               <div className="mt-1 space-y-0.5 font-mono text-slate-600">
-                <p>Scale: {cameraState.scale.toFixed(3)}</p>
-                <p>Snap (world px): {snapTolerance.toFixed(2)}</p>
+                <p>Zoom: {mapZoom.toFixed(2)}</p>
+                <p>Snap (px): {snapTolerance.toFixed(2)}</p>
                 <p>Snap (screen px): {snapToleranceScreenPx.toFixed(2)}</p>
               </div>
             </div>
@@ -1219,7 +1269,7 @@ export function CanvasStage() {
   );
 }
 
-function pointToLineDistance(point: Point, lineStart: Point, lineEnd: Point): number {
+function pointToLineDistance(point: ScreenPoint, lineStart: ScreenPoint, lineEnd: ScreenPoint): number {
   const A = point.x - lineStart.x;
   const B = point.y - lineStart.y;
   const C = lineEnd.x - lineStart.x;

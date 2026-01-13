@@ -1,3 +1,4 @@
+import { mercatorMetersToLngLat, lngLatToMercatorMeters } from "@/lib/geo";
 import { Point } from "@/types/models";
 
 export const DEFAULT_POINT_QUANTIZE_STEP_MM = 1;
@@ -7,11 +8,14 @@ export function quantizePointMm(point: Point, stepMm: number, mmPerPixel: number
     return point;
   }
 
-  const stepPx = stepMm / mmPerPixel;
-  const quantize = (value: number) => Math.round(value / stepPx) * stepPx;
+  const stepMeters = stepMm / 1000;
+  const meters = lngLatToMercatorMeters(point);
+  const quantize = (value: number) => Math.round(value / stepMeters) * stepMeters;
 
   return {
-    x: quantize(point.x),
-    y: quantize(point.y),
+    ...mercatorMetersToLngLat({
+      x: quantize(meters.x),
+      y: quantize(meters.y),
+    }),
   };
 }

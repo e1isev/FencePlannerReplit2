@@ -27,6 +27,13 @@ import { generatePosts } from "@/geometry/posts";
 import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
 import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
+import {
+  distanceMetersProjected,
+  interpolateLngLat,
+  lineLengthMeters,
+  lngLatToMercatorMeters,
+  pointAlongLineByMeters,
+} from "@/lib/geo";
 
 const ENDPOINT_WELD_EPS_MM = 60; // physical tolerance for welding endpoints
 const SEGMENT_INTERIOR_TOL_MM = 20;
@@ -38,16 +45,21 @@ const LEFTOVER_WARN_THRESHOLD = 1_000;
 const quantizePoint = (point: Point, mmPerPixel: number) =>
   quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
 
-const weldTolerancePx = (mmPerPixel: number) =>
-  ENDPOINT_WELD_EPS_MM / Math.max(mmPerPixel, 0.000001);
-const segmentInteriorTolerancePx = (mmPerPixel: number) =>
-  SEGMENT_INTERIOR_TOL_MM / Math.max(mmPerPixel, 0.000001);
+const mmToMeters = (mm: number) => mm / 1000;
+const metersToMm = (meters: number) => meters * 1000;
+const weldToleranceMeters = () => mmToMeters(ENDPOINT_WELD_EPS_MM);
+const segmentInteriorToleranceMeters = () => mmToMeters(SEGMENT_INTERIOR_TOL_MM);
 
-const pointsMatch = (p1: Point, p2: Point, epsPx: number) => {
-  return (
-    Math.abs(p1.x - p2.x) < epsPx && Math.abs(p1.y - p2.y) < epsPx
-  );
+const lineLengthMm = (a: Point, b: Point) => metersToMm(lineLengthMeters([a, b]));
+
+const vectorMeters = (a: Point, b: Point) => {
+  const aMeters = lngLatToMercatorMeters(a);
+  const bMeters = lngLatToMercatorMeters(b);
+  return { x: bMeters.x - aMeters.x, y: bMeters.y - aMeters.y };
 };
+
+const pointsMatch = (p1: Point, p2: Point, epsMeters: number) =>
+  distanceMetersProjected(p1, p2) < epsMeters;
 
 const degToRad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -58,19 +70,16 @@ const normalise = (v: { x: number; y: number }) => {
 };
 
 export function pointOnSegmentInterior(p: Point, a: Point, b: Point, tolPx: number) {
-  const abx = b.x - a.x;
-  const aby = b.y - a.y;
-  const apx = p.x - a.x;
-  const apy = p.y - a.y;
-  const ab2 = abx * abx + aby * aby;
+  const ab = vectorMeters(a, b);
+  const ap = vectorMeters(a, p);
+  const ab2 = ab.x * ab.x + ab.y * ab.y;
   if (ab2 === 0) return { ok: false, t: 0, closest: a, dist2: Infinity };
 
-  let t = (apx * abx + apy * aby) / ab2;
+  let t = (ap.x * ab.x + ap.y * ab.y) / ab2;
   t = Math.max(0, Math.min(1, t));
-  const closest = { x: a.x + t * abx, y: a.y + t * aby };
-  const dx = p.x - closest.x;
-  const dy = p.y - closest.y;
-  const dist2 = dx * dx + dy * dy;
+  const closest = interpolateLngLat(a, b, t);
+  const dist = distanceMetersProjected(p, closest);
+  const dist2 = dist * dist;
 
   const interior = t > 0.02 && t < 0.98;
   const ok = interior && dist2 <= tolPx * tolPx;
@@ -78,8 +87,8 @@ export function pointOnSegmentInterior(p: Point, a: Point, b: Point, tolPx: numb
 }
 
 const angleBetweenLinesAbs = (l1: FenceLine, l2: FenceLine) => {
-  const d1 = normalise({ x: l1.b.x - l1.a.x, y: l1.b.y - l1.a.y });
-  const d2 = normalise({ x: l2.b.x - l2.a.x, y: l2.b.y - l2.a.y });
+  const d1 = normalise(vectorMeters(l1.a, l1.b));
+  const d2 = normalise(vectorMeters(l2.a, l2.b));
   const dot = d1.x * d2.x + d1.y * d2.y;
   const clamped = Math.min(1, Math.max(-1, Math.abs(dot)));
   return Math.acos(clamped);
@@ -111,7 +120,7 @@ const linesShareEndpoint = (l1: FenceLine, l2: FenceLine, epsPx: number): Shared
   let bestDist = Infinity;
 
   for (const pair of pairs) {
-    const dist = Math.hypot(pair.p1.x - pair.p2.x, pair.p1.y - pair.p2.y);
+    const dist = distanceMetersProjected(pair.p1, pair.p2);
     if (dist <= epsPx && dist < bestDist) {
       bestDist = dist;
       bestMatch = {
@@ -129,10 +138,13 @@ const linesShareEndpoint = (l1: FenceLine, l2: FenceLine, epsPx: number): Shared
 const isMergeBlocked = (l1: FenceLine, l2: FenceLine) => Boolean(l1.gateId || l2.gateId);
 
 const segmentsOverlapOnLine = (l1: FenceLine, l2: FenceLine, tolPx: number) => {
-  const direction = normalise({ x: l1.b.x - l1.a.x, y: l1.b.y - l1.a.y });
+  const direction = normalise(vectorMeters(l1.a, l1.b));
   if (direction.x === 0 && direction.y === 0) return false;
 
-  const project = (p: Point) => p.x * direction.x + p.y * direction.y;
+  const project = (p: Point) => {
+    const meters = lngLatToMercatorMeters(p);
+    return meters.x * direction.x + meters.y * direction.y;
+  };
   const l1Proj = [project(l1.a), project(l1.b)];
   const l2Proj = [project(l2.a), project(l2.b)];
 
@@ -154,15 +166,14 @@ const buildMergedLine = (
   const otherOther = sharedEndpoint.line2End === "a" ? otherLine.b : otherLine.a;
   const quantizedA = quantizePoint(baseOther, mmPerPixel);
   const quantizedB = quantizePoint(otherOther, mmPerPixel);
-  const mergedDx = quantizedB.x - quantizedA.x;
-  const mergedDy = quantizedB.y - quantizedA.y;
-  const mergedOrthogonal = Math.abs(mergedDx) < 0.01 || Math.abs(mergedDy) < 0.01;
+  const mergedVector = vectorMeters(quantizedA, quantizedB);
+  const mergedOrthogonal = Math.abs(mergedVector.x) < 0.01 || Math.abs(mergedVector.y) < 0.01;
 
   return {
     ...baseLine,
     a: quantizedA,
     b: quantizedB,
-    length_mm: Math.hypot(mergedDx, mergedDy) * mmPerPixel,
+    length_mm: lineLengthMm(quantizedA, quantizedB),
     even_spacing: baseLine.even_spacing || otherLine.even_spacing,
     locked_90: mergedOrthogonal,
     gateId: undefined,
@@ -194,13 +205,12 @@ const snapLineEndpoint = (
   const quantizedPoint = quantizePoint(point, mmPerPixel);
   const newA = end === "a" ? quantizedPoint : otherPoint;
   const newB = end === "b" ? quantizedPoint : otherPoint;
-  const length_px = Math.hypot(newB.x - newA.x, newB.y - newA.y);
 
   return {
     ...line,
     a: newA,
     b: newB,
-    length_mm: length_px * mmPerPixel,
+    length_mm: lineLengthMm(newA, newB),
   };
 };
 
@@ -274,7 +284,7 @@ const splitLineAtPointImmutable = (
   const line = lines[idx];
   if (lineHasGateOrOpening(line)) return { lines, junction: null };
 
-  const interiorTolPx = segmentInteriorTolerancePx(mmPerPixel);
+  const interiorTolPx = segmentInteriorToleranceMeters();
   const hit = pointOnSegmentInterior(p, line.a, line.b, interiorTolPx);
   if (!hit.ok) return { lines, junction: null };
 
@@ -285,14 +295,14 @@ const splitLineAtPointImmutable = (
     id: line.id,
     a: line.a,
     b: junction,
-    length_mm: Math.hypot(junction.x - line.a.x, junction.y - line.a.y) * mmPerPixel,
+    length_mm: lineLengthMm(line.a, junction),
   };
   const lineB: FenceLine = {
     ...line,
     id: generateId("line"),
     a: junction,
     b: line.b,
-    length_mm: Math.hypot(line.b.x - junction.x, line.b.y - junction.y) * mmPerPixel,
+    length_mm: lineLengthMm(junction, line.b),
   };
 
   const next = [...lines];
@@ -306,7 +316,7 @@ const mergeCollinearLines = (
   primaryId: string,
   mmPerPixel: number
 ): { lines: FenceLine[]; merged: boolean; primaryId: string } => {
-  const weldEpsPx = weldTolerancePx(mmPerPixel);
+  const weldEpsPx = weldToleranceMeters();
   let updatedLines = [...lines];
   let merged = true;
   let mergedAny = false;
@@ -372,7 +382,7 @@ const mergeConnectedLines = (
   lineOrder: Map<string, number>,
   mmPerPixel: number
 ) => {
-  const weldEpsPx = weldTolerancePx(mmPerPixel);
+  const weldEpsPx = weldToleranceMeters();
   let updatedLines = [...lines];
   let merged = true;
 
@@ -422,7 +432,7 @@ const weldSharedEndpoints = (
   lineOrder: Map<string, number>,
   mmPerPixel: number
 ) => {
-  const weldEpsPx = weldTolerancePx(mmPerPixel);
+  const weldEpsPx = weldToleranceMeters();
   const lineLookup = new Map(lines.map((line) => [line.id, line]));
   const canonicalPoints: Array<{ point: Point; lineIds: Set<string> }> = [];
   const quantize = (point: Point) => quantizePoint(point, mmPerPixel);
@@ -444,7 +454,7 @@ const weldSharedEndpoints = (
     for (const canonical of canonicalPoints) {
       if (!canShareWith(canonical.lineIds, line)) continue;
 
-      const dist = Math.hypot(canonical.point.x - quantizedPoint.x, canonical.point.y - quantizedPoint.y);
+      const dist = distanceMetersProjected(canonical.point, quantizedPoint);
       if (dist <= weldEpsPx) {
         canonical.lineIds.add(line.id);
         return canonical.point;
@@ -467,7 +477,7 @@ const weldSharedEndpoints = (
       ...line,
       a: canonicalA,
       b: canonicalB,
-      length_mm: Math.hypot(canonicalB.x - canonicalA.x, canonicalB.y - canonicalA.y) * mmPerPixel,
+      length_mm: lineLengthMm(canonicalA, canonicalB),
     };
   });
 
@@ -639,13 +649,9 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           mmPerPixel,
           lines: state.lines.map((line) => {
-            const dx = line.b.x - line.a.x;
-            const dy = line.b.y - line.a.y;
-            const length_px = Math.hypot(dx, dy);
-
             return {
               ...line,
-              length_mm: length_px * mmPerPixel,
+              length_mm: lineLengthMm(line.a, line.b),
             };
           }),
         }));
@@ -660,14 +666,14 @@ export const useAppStore = create<AppState>()(
 
         const target = lines[targetIndex];
         const quantizedSplit = quantizePoint(splitPoint, mmPerPixel);
-        const weldEpsPx = weldTolerancePx(mmPerPixel);
+        const weldEpsPx = weldToleranceMeters();
 
-        const distToA = Math.hypot(quantizedSplit.x - target.a.x, quantizedSplit.y - target.a.y);
+        const distToA = distanceMetersProjected(quantizedSplit, target.a);
         if (distToA <= weldEpsPx) {
           return target.a;
         }
 
-        const distToB = Math.hypot(quantizedSplit.x - target.b.x, quantizedSplit.y - target.b.y);
+        const distToB = distanceMetersProjected(quantizedSplit, target.b);
         if (distToB <= weldEpsPx) {
           return target.b;
         }
@@ -683,7 +689,7 @@ export const useAppStore = create<AppState>()(
       addLine: (a, b) => {
         const mmPerPixel = get().mmPerPixel;
         let workingLines = get().lines;
-        const interiorTolPx = segmentInteriorTolerancePx(mmPerPixel);
+        const interiorTolPx = segmentInteriorToleranceMeters();
 
         const applySplit = (point: Point): Point => {
           for (const candidate of workingLines) {
@@ -709,10 +715,7 @@ export const useAppStore = create<AppState>()(
 
         const quantizedA = quantizePoint(snappedA, mmPerPixel);
         const quantizedB = quantizePoint(snappedB, mmPerPixel);
-        const dx = quantizedB.x - quantizedA.x;
-        const dy = quantizedB.y - quantizedA.y;
-        const length_px = Math.hypot(dx, dy);
-        const length_mm = length_px * mmPerPixel;
+        const length_mm = lineLengthMm(quantizedA, quantizedB);
 
         if (length_mm < MIN_LINE_LENGTH_MM) {
           const warning: WarningMsg = {
@@ -724,7 +727,8 @@ export const useAppStore = create<AppState>()(
           return;
         }
 
-        const isOrthogonal = Math.abs(dx) < 0.01 || Math.abs(dy) < 0.01;
+        const direction = vectorMeters(quantizedA, quantizedB);
+        const isOrthogonal = Math.abs(direction.x) < 0.01 || Math.abs(direction.y) < 0.01;
 
         const newLine: FenceLine = {
           id: generateId("line"),
@@ -773,40 +777,39 @@ export const useAppStore = create<AppState>()(
         
         const isDev = process.env.NODE_ENV === "development";
         const mmPerPixel = get().mmPerPixel;
-        const weldEpsPx = weldTolerancePx(mmPerPixel);
+        const weldEpsPx = weldToleranceMeters();
         const existingLines = get().lines;
         const lineOrder = new Map(existingLines.map((line, index) => [line.id, index]));
 
         const targetLine = existingLines.find((l) => l.id === id);
         if (!targetLine || targetLine.gateId) return;
         
-        const dx = targetLine.b.x - targetLine.a.x;
-        const dy = targetLine.b.y - targetLine.a.y;
-        const currentLength = Math.hypot(dx, dy);
+        const currentLength = distanceMetersProjected(targetLine.a, targetLine.b);
         if (currentLength === 0) return;
 
-        const desiredLengthPx = length_mm / mmPerPixel;
-        const scale = desiredLengthPx / currentLength;
+        const desiredLengthMeters = mmToMeters(length_mm);
         const quantize = (point: Point) => quantizePoint(point, mmPerPixel);
 
         let oldMovedPoint = targetLine.b;
-        let newMovedPoint = {
-          x: targetLine.a.x + dx * scale,
-          y: targetLine.a.y + dy * scale,
-        };
+        let newMovedPoint = pointAlongLineByMeters(
+          targetLine.a,
+          targetLine.b,
+          desiredLengthMeters,
+          { clamp: false }
+        );
 
         const stationaryPoint = targetLine.a;
         let newA = quantize(stationaryPoint);
         let newB = quantize(newMovedPoint);
 
         if (fromEnd === "a") {
-          const reverseDx = targetLine.a.x - targetLine.b.x;
-          const reverseDy = targetLine.a.y - targetLine.b.y;
           oldMovedPoint = targetLine.a;
-          newMovedPoint = {
-            x: targetLine.b.x + reverseDx * scale,
-            y: targetLine.b.y + reverseDy * scale,
-          };
+          newMovedPoint = pointAlongLineByMeters(
+            targetLine.b,
+            targetLine.a,
+            desiredLengthMeters,
+            { clamp: false }
+          );
           newA = quantize(newMovedPoint);
           newB = quantize(targetLine.b);
         } else {
@@ -836,10 +839,7 @@ export const useAppStore = create<AppState>()(
           if (updatedLine.a !== line.a || updatedLine.b !== line.b) {
             updatedLine.a = quantize(updatedLine.a);
             updatedLine.b = quantize(updatedLine.b);
-            const segDx = updatedLine.b.x - updatedLine.a.x;
-            const segDy = updatedLine.b.y - updatedLine.a.y;
-            const segLengthPx = Math.hypot(segDx, segDy);
-            updatedLine.length_mm = segLengthPx * mmPerPixel;
+            updatedLine.length_mm = lineLengthMm(updatedLine.a, updatedLine.b);
           }
 
           return updatedLine;
@@ -918,11 +918,7 @@ export const useAppStore = create<AppState>()(
           returnLength_mm,
         };
         
-        const dx = line.b.x - line.a.x;
-        const dy = line.b.y - line.a.y;
-        const totalLength_px = Math.sqrt(dx * dx + dy * dy);
-        const mmPerPixel = get().mmPerPixel;
-        const totalLength_mm = totalLength_px * mmPerPixel;
+        const totalLength_mm = line.length_mm;
 
         const remainingLength_mm = totalLength_mm - opening_mm;
         if (remainingLength_mm < 0) {
@@ -938,7 +934,7 @@ export const useAppStore = create<AppState>()(
         const allLines = get().lines;
 
         const pointsEqual = (p1: Point, p2: Point) =>
-          Math.abs(p1.x - p2.x) < 1 && Math.abs(p1.y - p2.y) < 1;
+          distanceMetersProjected(p1, p2) < weldToleranceMeters();
 
         const isEndpoint = (point: Point) => {
           const connectedLines = allLines.filter(
@@ -971,14 +967,17 @@ export const useAppStore = create<AppState>()(
         let desiredStart_mm = (minStart + maxStart) / 2;
 
         if (clickPoint) {
-          const abLenSq = dx * dx + dy * dy;
+          const aMeters = lngLatToMercatorMeters(line.a);
+          const bMeters = lngLatToMercatorMeters(line.b);
+          const clickMeters = lngLatToMercatorMeters(clickPoint);
+          const ab = { x: bMeters.x - aMeters.x, y: bMeters.y - aMeters.y };
+          const ap = { x: clickMeters.x - aMeters.x, y: clickMeters.y - aMeters.y };
+          const abLenSq = ab.x * ab.x + ab.y * ab.y;
           if (abLenSq > 0) {
-            const apX = clickPoint.x - line.a.x;
-            const apY = clickPoint.y - line.a.y;
-            let t = (apX * dx + apY * dy) / abLenSq;
+            let t = (ap.x * ab.x + ap.y * ab.y) / abLenSq;
             t = Math.max(0, Math.min(1, t));
 
-            const clickDist_mm = Math.sqrt(abLenSq) * t * mmPerPixel;
+            const clickDist_mm = Math.sqrt(abLenSq) * t * 1000;
             const placementMode: "center" | "start" = "center";
             desiredStart_mm =
               placementMode === "center"
@@ -991,25 +990,14 @@ export const useAppStore = create<AppState>()(
         const beforeLength_mm = Math.max(0, gateStart_mm);
         const afterLength_mm = Math.max(0, totalLength_mm - gateStart_mm - opening_mm);
 
-        const unitX = dx / totalLength_px;
-        const unitY = dy / totalLength_px;
-
-        const beforeEnd_px = beforeLength_mm / mmPerPixel;
-        const gateEnd_px = (beforeLength_mm + opening_mm) / mmPerPixel;
-
+        const mmPerPixel = get().mmPerPixel;
         const beforeEndPoint = quantizePoint(
-          {
-            x: line.a.x + unitX * beforeEnd_px,
-            y: line.a.y + unitY * beforeEnd_px,
-          },
+          pointAlongLineByMeters(line.a, line.b, mmToMeters(beforeLength_mm)),
           mmPerPixel
         );
 
         const gateEndPoint = quantizePoint(
-          {
-            x: line.a.x + unitX * gateEnd_px,
-            y: line.a.y + unitY * gateEnd_px,
-          },
+          pointAlongLineByMeters(line.a, line.b, mmToMeters(beforeLength_mm + opening_mm)),
           mmPerPixel
         );
         
