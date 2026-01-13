@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { handleNearmapTile } from "./nearmapTileProxy";
 import { log } from "./vite";
-import { handlePricingCatalog } from "./pricingCatalog";
+import { handlePricingCatalog, handlePricingCatalogStatus } from "./pricingCatalog";
 import { handlePricingResolve } from "./pricingResolve";
 import { getCatalogVersion, getRuleSetVersion, getSkuMappings } from "./versioning";
 import { z } from "zod";
@@ -43,6 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/nearmap/tiles/:z/:x/:y.:format", handleNearmapTile);
   app.get("/api/pricing/catalog", handlePricingCatalog);
+  app.get("/api/pricing-catalog/status", handlePricingCatalogStatus);
   app.post("/api/pricing/resolve", handlePricingResolve);
 
   app.get("/api/catalog/version", (_req: Request, res: Response) => {
