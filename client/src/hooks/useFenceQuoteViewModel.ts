@@ -80,6 +80,10 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       const unitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice ?? 0 : 0;
       const lineTotal = Number.isFinite(item.lineTotal) ? item.lineTotal ?? 0 : 0;
       const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
+      const gateWidthLabel =
+        item.itemType === "gate" && item.gateWidthM
+          ? `Gate width: ${item.gateWidthM.toFixed(2)} m`
+          : null;
       return {
         id: `${item.sku ?? item.name}-${index}`,
         title: item.name,
@@ -88,6 +92,7 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
             type: "text",
             text: `SKU: ${item.sku ?? "-"}`,
           },
+          ...(gateWidthLabel ? [{ type: "text", text: gateWidthLabel }] : []),
         ],
         quantity,
         unitPriceExDiscount: unitPrice,

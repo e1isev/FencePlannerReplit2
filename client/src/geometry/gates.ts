@@ -1,5 +1,6 @@
-import { GateType, Gate, FenceLine, Point, SlidingReturnSide } from "@/types/models";
+import { Gate, FenceLine, Point, SlidingReturnSide } from "@/types/models";
 import { distanceMetersProjected } from "@/lib/geo";
+import { getDefaultGateWidthMm } from "@/lib/gates/gateWidth";
 
 function gateAngleDeg(x1: number, y1: number, x2: number, y2: number) {
   return (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
@@ -19,15 +20,6 @@ function gateBasis(x1: number, y1: number, x2: number, y2: number) {
   return { ux, uy, nx, ny, len };
 }
 
-const GATE_SIZES_MM: Record<GateType, number> = {
-  single_900: 900,
-  single_1800: 1800,
-  double_900: 1800,
-  double_1800: 3600,
-  sliding_4800: 4800,
-  opening_custom: 0,
-};
-
 export function getGateWidth(gate: Gate): number {
   if (gate.type === "opening_custom") {
     return gate.opening_mm;
@@ -37,7 +29,7 @@ export function getGateWidth(gate: Gate): number {
     return gate.opening_mm;
   }
 
-  return GATE_SIZES_MM[gate.type];
+  return getDefaultGateWidthMm(gate.type);
 }
 
 export function validateSlidingReturn(

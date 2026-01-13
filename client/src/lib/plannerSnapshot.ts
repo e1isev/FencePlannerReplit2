@@ -20,6 +20,7 @@ import type { FenceColorId } from "@/config/fenceColors";
 import type { ProjectDependencies, ProjectMeta, ProjectUiState } from "@shared/project";
 import { getDefaultFenceStyleId } from "@/config/fenceStyles";
 import { fencingModeFromProjectType } from "@/config/plannerOptions";
+import { normalizeGateWidthMm } from "@/lib/gates/gateWidth";
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
@@ -30,6 +31,7 @@ type FencingPlannerState = {
   fenceHeightM: FenceHeightM;
   fenceColorId: FenceColorId;
   selectedGateType: GateType;
+  selectedGateId: string | null;
   drawingMode: boolean;
   mmPerPixel: number;
   selectedLineId: string | null;
@@ -82,6 +84,7 @@ const buildFencingPlannerState = (): FencingPlannerState => {
     fenceHeightM: store.fenceHeightM,
     fenceColorId: store.fenceColorId,
     selectedGateType: store.selectedGateType,
+    selectedGateId: store.selectedGateId,
     drawingMode: store.drawingMode,
     mmPerPixel: store.mmPerPixel,
     selectedLineId: store.selectedLineId,
@@ -107,6 +110,7 @@ const applyFencingPlannerState = (state: FencingPlannerState) => {
       slidingReturnSide: gate.slidingReturnDirection === "left" ? "a" : "b",
     };
   });
+  const normalizedGates = gates.map((gate) => normalizeGateWidthMm(gate));
   useAppStore.setState({
     productKind: state.productKind,
     fenceStyleId: state.fenceStyleId,
@@ -114,11 +118,12 @@ const applyFencingPlannerState = (state: FencingPlannerState) => {
     fenceHeightM: state.fenceHeightM,
     fenceColorId: state.fenceColorId,
     selectedGateType: state.selectedGateType,
+    selectedGateId: state.selectedGateId ?? null,
     drawingMode: state.drawingMode,
     mmPerPixel: state.mmPerPixel,
     selectedLineId: state.selectedLineId,
     lines: state.lines,
-    gates,
+    gates: normalizedGates,
     panels: state.panels,
     posts: state.posts,
     leftovers: state.leftovers,

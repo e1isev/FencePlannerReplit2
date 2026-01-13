@@ -14,6 +14,7 @@ import {
 import { FENCE_THICKNESS_MM, LINE_HIT_SLOP_PX } from "@/constants/geometry";
 import { getSlidingReturnRect } from "@/geometry/gates";
 import { LineControls } from "./LineControls";
+import { GateControls } from "./GateControls";
 import MapOverlay, { DEFAULT_CENTER, type MapStyleMode } from "./MapOverlay";
 import { calculateMetersPerPixel } from "@/lib/mapScale";
 import { Button } from "@/components/ui/button";
@@ -110,10 +111,12 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
     addLine,
     splitLineAtPoint,
     selectedGateType,
+    selectedGateId,
     addGate,
     updateLine,
     mmPerPixel,
     setMmPerPixel,
+    setSelectedGateId,
   } = useAppStore();
 
   const mmToPx = useCallback(
@@ -813,11 +816,13 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
         }
       } else if (e.evt.shiftKey) {
         setSelectedLineId(lineId);
+        setSelectedGateId(null);
       } else {
         setEditingLineId(lineId);
         setLabelUnit("mm");
         setEditValue(currentLength.toFixed(0));
         setEditError(null);
+        setSelectedGateId(null);
       }
     }
   };
@@ -840,8 +845,16 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
         }
       } else {
         setSelectedLineId(lineId);
+        setSelectedGateId(null);
       }
     }
+  };
+
+  const handleGateClick = (gateId: string, e: any) => {
+    e.cancelBubble = true;
+    if (isDrawing || selectedGateType) return;
+    setSelectedGateId(gateId);
+    setSelectedLineId(null);
   };
 
   const parseLengthInput = useCallback(
@@ -977,8 +990,10 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
             {screenLines.map((line) => {
               const isGate = !!line.gateId;
               const isSelected = line.id === selectedLineId;
+              const isGateSelected = Boolean(line.gateId && line.gateId === selectedGateId);
 
               const isInteractive = !isGate && !isReadOnly;
+              const isGateInteractive = isGate && !isReadOnly && !selectedGateType;
 
               const baseStrokeWidth = mmToPx(FENCE_THICKNESS_MM);
               const outlineStrokeWidth = baseStrokeWidth + mmToPx(6);
@@ -991,6 +1006,7 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
                   : isSelected
                     ? "#2563eb"
                     : "#475569";
+              const gateStroke = isGateSelected ? "#f97316" : mainStroke;
 
               const outlineStroke = mapMode === "satellite" ? "rgba(0,0,0,0.6)" : "#0f172a";
 
@@ -1005,7 +1021,7 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
                   />
                   <Line
                     points={linePoints}
-                    stroke={mainStroke}
+                    stroke={gateStroke}
                     strokeWidth={baseStrokeWidth}
                     opacity={isGate ? 0.8 : 1}
                     listening={false}
@@ -1031,6 +1047,27 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
                       }}
                       onClick={(e) => handleLineClick(line.id, e)}
                       onTap={(e) => handleLineClick(line.id, e)}
+                    />
+                  )}
+                  {isGateInteractive && line.gateId && (
+                    <Line
+                      points={linePoints}
+                      stroke="rgba(0,0,0,0)"
+                      strokeWidth={1}
+                      hitStrokeWidth={lineHitStrokeWidth}
+                      listening
+                      perfectDrawEnabled={false}
+                      strokeScaleEnabled={false}
+                      onMouseEnter={(e) => {
+                        const stage = e.target.getStage();
+                        if (stage) stage.container().style.cursor = "pointer";
+                      }}
+                      onMouseLeave={(e) => {
+                        const stage = e.target.getStage();
+                        if (stage) stage.container().style.cursor = "default";
+                      }}
+                      onClick={(e) => handleGateClick(line.gateId as string, e)}
+                      onTap={(e) => handleGateClick(line.gateId as string, e)}
                     />
                   )}
 
@@ -1272,6 +1309,13 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
         <LineControls
           lineId={selectedLineId}
           onClose={() => setSelectedLineId(null)}
+        />
+      )}
+
+      {!isReadOnly && selectedGateId && (
+        <GateControls
+          gateId={selectedGateId}
+          onClose={() => setSelectedGateId(null)}
         />
       )}
 

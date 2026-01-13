@@ -25,15 +25,22 @@ import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
 import { fitPanels, MIN_LEFTOVER_MM, PANEL_LENGTH_MM } from "@/geometry/panels";
-import { validateSlidingReturn, getGateWidth } from "@/geometry/gates";
+import { validateSlidingReturn } from "@/geometry/gates";
 import { MIN_LINE_LENGTH_MM } from "@/constants/geometry";
 import {
   distanceMetersProjected,
   interpolateLngLat,
   lineLengthMeters,
   lngLatToMercatorMeters,
+  mercatorMetersToLngLat,
   pointAlongLineByMeters,
 } from "@/lib/geo";
+import {
+  clampGateWidthM,
+  getDefaultGateWidthMm,
+  getGateWidthRules,
+  normalizeGateWidthMm,
+} from "@/lib/gates/gateWidth";
 
 const ENDPOINT_WELD_EPS_MM = 60; // physical tolerance for welding endpoints
 const SEGMENT_INTERIOR_TOL_MM = 20;
@@ -67,6 +74,41 @@ const normalise = (v: { x: number; y: number }) => {
   const mag = Math.hypot(v.x, v.y);
   if (mag === 0) return { x: 0, y: 0 };
   return { x: v.x / mag, y: v.y / mag };
+};
+
+const lineDirectionMeters = (a: Point, b: Point) => {
+  const direction = vectorMeters(a, b);
+  return normalise(direction);
+};
+
+const findAlignedBoundaryPoint = (
+  lines: FenceLine[],
+  gateLine: FenceLine,
+  endpoint: Point
+) => {
+  const weldEpsPx = weldToleranceMeters();
+  const gateDir = lineDirectionMeters(gateLine.a, gateLine.b);
+  const candidates = lines.filter(
+    (line) =>
+      line.id !== gateLine.id &&
+      (pointsMatch(line.a, endpoint, weldEpsPx) || pointsMatch(line.b, endpoint, weldEpsPx))
+  );
+
+  let bestMatch: { point: Point; dot: number } | null = null;
+  candidates.forEach((line) => {
+    const otherPoint = pointsMatch(line.a, endpoint, weldEpsPx) ? line.b : line.a;
+    const candidateDir = lineDirectionMeters(endpoint, otherPoint);
+    const dot = Math.abs(gateDir.x * candidateDir.x + gateDir.y * candidateDir.y);
+    if (!bestMatch || dot > bestMatch.dot) {
+      bestMatch = { point: otherPoint, dot };
+    }
+  });
+
+  if (!bestMatch || bestMatch.dot < 0.5) {
+    return endpoint;
+  }
+
+  return bestMatch.point;
 };
 
 export function pointOnSegmentInterior(p: Point, a: Point, b: Point, tolPx: number) {
@@ -497,6 +539,7 @@ interface AppState {
   leftovers: Leftover[];
   warnings: WarningMsg[];
   selectedGateType: GateType | null;
+  selectedGateId: string | null;
   drawingMode: boolean;
   previewLine: { start: Point; end: Point } | null;
   panelPositionsMap: Map<string, number[]>;
@@ -515,6 +558,7 @@ interface AppState {
   setFenceHeightM: (height: FenceHeightM) => void;
   setFenceColorId: (colorId: FenceColorId) => void;
   setSelectedGateType: (type: GateType | null) => void;
+  setSelectedGateId: (id: string | null) => void;
   setSelectedLineId: (id: string | null) => void;
   setDrawingMode: (mode: boolean) => void;
   setPreviewLine: (line: { start: Point; end: Point } | null) => void;
@@ -534,6 +578,10 @@ interface AppState {
   addGate: (runId: string, clickPoint?: Point) => void;
   updateGateReturnDirection: (gateId: string, direction: "left" | "right") => void;
   updateGateReturnSide: (gateId: string, side: "a" | "b") => void;
+  updateGateWidth: (
+    gateId: string,
+    widthMm: number
+  ) => { ok: boolean; widthMm: number; error?: string };
   
   recalculate: () => void;
   clear: () => void;
@@ -558,6 +606,7 @@ export const useAppStore = create<AppState>()(
       leftovers: [],
       warnings: [],
       selectedGateType: null,
+      selectedGateId: null,
       drawingMode: false,
       previewLine: null,
       panelPositionsMap: new Map(),
@@ -636,7 +685,9 @@ export const useAppStore = create<AppState>()(
           return { selectedGateType: type };
         }),
 
-      setSelectedLineId: (id) => set({ selectedLineId: id }),
+      setSelectedGateId: (id) => set({ selectedGateId: id, selectedLineId: null }),
+
+      setSelectedLineId: (id) => set({ selectedLineId: id, selectedGateId: null }),
       
       setDrawingMode: (mode) => set({ drawingMode: mode }),
 
@@ -871,9 +922,20 @@ export const useAppStore = create<AppState>()(
       },
       
       deleteLine: (id) => {
+        const nextLines = get().lines.filter((l) => l.id !== id);
+        const removedGateIds = get()
+          .lines.filter((line) => line.id === id && line.gateId)
+          .map((line) => line.gateId as string);
+        const nextGates = get()
+          .gates.filter((g) => g.runId !== id && !removedGateIds.includes(g.id));
+        const selectedGateId = get().selectedGateId;
+
         set({
-          lines: get().lines.filter((l) => l.id !== id),
-          gates: get().gates.filter((g) => g.runId !== id),
+          lines: nextLines,
+          gates: nextGates,
+          selectedGateId: selectedGateId && removedGateIds.includes(selectedGateId)
+            ? null
+            : selectedGateId,
         });
         get().saveToHistory();
         get().recalculate();
@@ -896,13 +958,7 @@ export const useAppStore = create<AppState>()(
           if (isNaN(metres) || metres <= 0) return;
           opening_mm = metres * 1000;
         } else {
-          opening_mm = getGateWidth({
-            id: "",
-            type: gateType,
-            opening_mm: 0,
-            runId: "",
-            slidingReturnDirection: "left",
-          });
+          opening_mm = getDefaultGateWidthMm(gateType);
         }
         
         const newGate: Gate = {
@@ -1041,6 +1097,7 @@ export const useAppStore = create<AppState>()(
         set({
           gates: [...get().gates, newGate],
           lines: [...otherLines, ...newLines],
+          selectedGateId: null,
         });
         
         get().setSelectedGateType(null);
@@ -1064,6 +1121,133 @@ export const useAppStore = create<AppState>()(
           ),
         });
         get().recalculate();
+      },
+
+      updateGateWidth: (gateId, widthMm) => {
+        const { gates, lines, mmPerPixel } = get();
+        const gate = gates.find((g) => g.id === gateId);
+        if (!gate) {
+          return { ok: false, widthMm, error: "Gate not found." };
+        }
+
+        const gateLine = lines.find((line) => line.gateId === gateId);
+        if (!gateLine) {
+          return { ok: false, widthMm, error: "Gate line not found." };
+        }
+
+        const gateRules = getGateWidthRules(gate.type);
+        const proposedWidthM = widthMm / 1000;
+        const clampedWidthM = clampGateWidthM(proposedWidthM, gate.type);
+
+        const boundaryA = findAlignedBoundaryPoint(lines, gateLine, gateLine.a);
+        const boundaryB = findAlignedBoundaryPoint(lines, gateLine, gateLine.b);
+
+        const aMeters = lngLatToMercatorMeters(gateLine.a);
+        const bMeters = lngLatToMercatorMeters(gateLine.b);
+        const centerMeters = {
+          x: (aMeters.x + bMeters.x) / 2,
+          y: (aMeters.y + bMeters.y) / 2,
+        };
+
+        const direction = lineDirectionMeters(gateLine.a, gateLine.b);
+        const boundaryAMeters = lngLatToMercatorMeters(boundaryA);
+        const boundaryBMeters = lngLatToMercatorMeters(boundaryB);
+        const distToA = Math.abs(
+          (boundaryAMeters.x - centerMeters.x) * direction.x +
+            (boundaryAMeters.y - centerMeters.y) * direction.y
+        );
+        const distToB = Math.abs(
+          (boundaryBMeters.x - centerMeters.x) * direction.x +
+            (boundaryBMeters.y - centerMeters.y) * direction.y
+        );
+        const maxWidthM = Math.min(distToA, distToB) * 2;
+
+        if (maxWidthM > 0 && maxWidthM < gateRules.minM - 0.0001) {
+          return {
+            ok: false,
+            widthMm: gate.opening_mm,
+            error: `Insufficient space for minimum width of ${gateRules.minM.toFixed(2)} m.`,
+          };
+        }
+
+        const finalWidthM =
+          maxWidthM > 0 ? Math.min(clampedWidthM, maxWidthM) : clampedWidthM;
+        const finalWidthMm = Math.round(finalWidthM * 1000);
+
+        const half = finalWidthM / 2;
+        const newAMeters = {
+          x: centerMeters.x - direction.x * half,
+          y: centerMeters.y - direction.y * half,
+        };
+        const newBMeters = {
+          x: centerMeters.x + direction.x * half,
+          y: centerMeters.y + direction.y * half,
+        };
+        const newA = quantizePoint(
+          mercatorMetersToLngLat(newAMeters),
+          mmPerPixel
+        );
+        const newB = quantizePoint(
+          mercatorMetersToLngLat(newBMeters),
+          mmPerPixel
+        );
+
+        const weldEpsPx = weldToleranceMeters();
+        const updatedLines = lines.map((line) => {
+          if (line.id === gateLine.id) {
+            return { ...line, a: newA, b: newB, length_mm: finalWidthMm };
+          }
+
+          let updatedLine = { ...line };
+          let changed = false;
+          if (pointsMatch(line.a, gateLine.a, weldEpsPx)) {
+            updatedLine.a = newA;
+            changed = true;
+          }
+          if (pointsMatch(line.b, gateLine.a, weldEpsPx)) {
+            updatedLine.b = newA;
+            changed = true;
+          }
+          if (pointsMatch(line.a, gateLine.b, weldEpsPx)) {
+            updatedLine.a = newB;
+            changed = true;
+          }
+          if (pointsMatch(line.b, gateLine.b, weldEpsPx)) {
+            updatedLine.b = newB;
+            changed = true;
+          }
+
+          if (changed) {
+            updatedLine = {
+              ...updatedLine,
+              length_mm: lineLengthMm(updatedLine.a, updatedLine.b),
+            };
+          }
+
+          return updatedLine;
+        });
+
+        const leafCount = gate.type.startsWith("double") ? 2 : 1;
+        const updatedGates = gates.map((g) =>
+          g.id === gateId
+            ? {
+                ...g,
+                opening_mm: finalWidthMm,
+                leaf_count: leafCount,
+                leaf_width_mm: finalWidthMm / leafCount,
+                panel_width_mm: finalWidthMm,
+              }
+            : g
+        );
+
+        set({
+          lines: updatedLines,
+          gates: updatedGates,
+        });
+        get().saveToHistory();
+        get().recalculate();
+
+        return { ok: true, widthMm: finalWidthMm };
       },
       
       recalculate: () => {
@@ -1195,6 +1379,7 @@ export const useAppStore = create<AppState>()(
           leftovers: [],
           warnings: [],
           selectedGateType: null,
+          selectedGateId: null,
           drawingMode: false,
           previewLine: null,
           panelPositionsMap: new Map(),
@@ -1211,6 +1396,7 @@ export const useAppStore = create<AppState>()(
             lines: structuredClone(prevState.lines),
             gates: structuredClone(prevState.gates),
             historyIndex: historyIndex - 1,
+            selectedGateId: null,
           });
           get().recalculate();
         }
@@ -1224,6 +1410,7 @@ export const useAppStore = create<AppState>()(
             lines: structuredClone(nextState.lines),
             gates: structuredClone(nextState.gates),
             historyIndex: historyIndex + 1,
+            selectedGateId: null,
           });
           get().recalculate();
         }
@@ -1249,7 +1436,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "fence-planner-storage",
-      version: 5,
+      version: 6,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
@@ -1341,6 +1528,21 @@ export const useAppStore = create<AppState>()(
           };
         }
 
+        if (version < 6) {
+          const gates = (persistedState?.state?.gates ?? []).map((gate: Gate) =>
+            normalizeGateWidthMm(gate)
+          );
+
+          return {
+            ...persistedState,
+            state: {
+              ...persistedState.state,
+              gates,
+              selectedGateId: null,
+            },
+          };
+        }
+
         return persistedState;
       },
       partialize: (state) => ({
@@ -1352,6 +1554,7 @@ export const useAppStore = create<AppState>()(
         lines: state.lines,
         gates: state.gates,
         selectedGateType: state.selectedGateType,
+        selectedGateId: state.selectedGateId,
         drawingMode: state.drawingMode,
         mmPerPixel: state.mmPerPixel,
         selectedLineId: state.selectedLineId,
