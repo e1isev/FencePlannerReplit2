@@ -30,6 +30,10 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    target: "es2022",
+  },
+  esbuild: {
+    target: "es2022",
   },
   server: {
     fs: {

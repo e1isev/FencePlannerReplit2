@@ -118,10 +118,9 @@ export function LeftPanel() {
       return false;
     });
   }, [catalogReady, pricingIndex, fenceCategoryId, catalogStyle]);
-  const defaultColourId = availableColours[0]?.id ?? null;
-  const hasColour = useMemo(
-    () => availableColours.some((color) => color.id === fenceColorId),
-    [availableColours, fenceColorId]
+  const availableColoursKey = useMemo(
+    () => availableColours.map((color) => color.id).join("|"),
+    [availableColours]
   );
   useEffect(() => {
     if (!supportedHeights.length) return;
@@ -134,11 +133,13 @@ export function LeftPanel() {
   }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
   useEffect(() => {
-    if (hasColour) return;
-    if (defaultColourId === null) return;
-    if (fenceColorId === defaultColourId) return;
-    setFenceColorId(defaultColourId);
-  }, [hasColour, defaultColourId, fenceColorId, setFenceColorId]);
+    const availableIds = new Set(availableColours.map((color) => color.id));
+    const currentValid = fenceColorId && availableIds.has(fenceColorId);
+    if (currentValid) return;
+    const nextId = availableColours[0]?.id;
+    if (!nextId) return;
+    if (nextId !== fenceColorId) setFenceColorId(nextId);
+  }, [availableColoursKey, fenceColorId, setFenceColorId]);
 
   if (!hasBootstrapped) {
     return (
