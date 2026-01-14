@@ -108,10 +108,12 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     const fallback =
       Object.values(projectsById)
         .sort(
-          (a, b) =>
-            (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0)
+            (a, b) =>
+              (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0)
         )[0]?.id ?? null;
-    console.warn(`Active project ${activeProjectId} missing; falling back to ${fallback}.`);
+    if (import.meta.env.DEV) {
+      console.warn(`Active project ${activeProjectId} missing; falling back to ${fallback}.`);
+    }
     set({ activeProjectId: fallback });
   },
   setSessionIntent: (intent) => set({ sessionIntent: intent }),

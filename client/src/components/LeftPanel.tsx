@@ -15,10 +15,9 @@ import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
-import { fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
+import { coerceFenceProjectType, fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
-import { getCatalogStyleForFenceStyle } from "@/pricing/catalogStyle";
-import { getActiveProject, useProjectSessionStore } from "@/store/projectSessionStore";
+import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { useEffect, useMemo } from "react";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
@@ -57,10 +56,12 @@ export function LeftPanel() {
     catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
-  const activeProject = useProjectSessionStore(getActiveProject);
+  const activeProject = useProjectSessionStore((state) =>
+    state.activeProjectId ? state.projectsById[state.activeProjectId] : null
+  );
   const activeProjectId = useProjectSessionStore((state) => state.activeProjectId);
   const hasBootstrapped = useProjectSessionStore((state) => state.hasBootstrapped);
-  const projectType = activeProject?.projectType ?? null;
+  const projectType = coerceFenceProjectType(activeProject?.projectType ?? null);
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
   const supportedHeights = useMemo(
