@@ -20,14 +20,17 @@ export const projectTypeFromProduct = (kind: ProductKind): ProjectType => {
   }
 };
 
-export const fencingModeFromProjectType = (type: ProjectType): FencingMode | null => {
+export const fencingModeFromProjectType = (type: ProjectType): FencingMode => {
   switch (type) {
     case "residential":
       return "residential";
     case "rural":
       return "rural";
     default:
-      return null;
+      if (import.meta.env.DEV) {
+        console.warn(`Unknown project type "${type}", falling back to residential.`);
+      }
+      return "residential";
   }
 };
 

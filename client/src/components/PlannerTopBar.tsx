@@ -12,6 +12,7 @@ export function PlannerTopBar() {
   const setProjectName = useProjectSessionStore((state) => state.setProjectName);
   const saveStatus = useProjectSessionStore((state) => state.saveStatus);
   const lastSavedAt = useProjectSessionStore((state) => state.lastSavedAt);
+  const errorMessage = useProjectSessionStore((state) => state.errorMessage);
   const saveProject = useProjectSessionStore((state) => state.saveProject);
   const [nameInput, setNameInput] = useState(projectName);
 
@@ -28,7 +29,7 @@ export function PlannerTopBar() {
       case "local":
         return "Saved locally";
       case "error":
-        return "Save failed";
+        return errorMessage ? `Save failed: ${errorMessage}` : "Save failed";
       default:
         return lastSavedAt ? `Saved ${new Date(lastSavedAt).toLocaleTimeString()}` : "";
     }

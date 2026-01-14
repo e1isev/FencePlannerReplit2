@@ -17,7 +17,7 @@ import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
-import { useProjectSessionStore } from "@/store/projectSessionStore";
+import { getActiveProject, useProjectSessionStore } from "@/store/projectSessionStore";
 import { useEffect, useMemo } from "react";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
@@ -56,9 +56,9 @@ export function LeftPanel() {
     catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
-  const activeProject = useProjectSessionStore((state) =>
-    state.activeProjectId ? state.projectsById[state.activeProjectId] : null
-  );
+  const activeProject = useProjectSessionStore(getActiveProject);
+  const activeProjectId = useProjectSessionStore((state) => state.activeProjectId);
+  const hasBootstrapped = useProjectSessionStore((state) => state.hasBootstrapped);
   const projectType = activeProject?.projectType ?? null;
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
@@ -66,7 +66,10 @@ export function LeftPanel() {
     () => getSupportedPanelHeights(fenceStyleId, fenceColourMode),
     [fenceStyleId, fenceColourMode]
   );
-  const fencingMode = projectType ? fencingModeFromProjectType(projectType) : null;
+  const resolvedProjectType = projectType ?? "residential";
+  const fencingMode = fencingModeFromProjectType(resolvedProjectType);
+  const showProjectTypeWarning = !projectType;
+  const showFencingModeWarning = !fencingMode;
   useEffect(() => {
     if (!supportedHeights.length) return;
     const currentHeight = Number(fenceHeightM);
@@ -77,10 +80,25 @@ export function LeftPanel() {
     setFenceHeightM(nextHeight);
   }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
-  if (!activeProject || !projectType || !fencingMode) {
+  if (!hasBootstrapped) {
     return (
       <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
         <div className="text-sm text-slate-500">Loading project…</div>
+      </div>
+    );
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
+        <div className="text-sm text-slate-600">
+          No active project. Please create or select a project to load the planner.
+        </div>
+        {import.meta.env.DEV && (
+          <div className="mt-2 text-xs text-slate-400">
+            Missing project for activeProjectId: {activeProjectId ?? "none"}
+          </div>
+        )}
       </div>
     );
   }
@@ -98,8 +116,9 @@ export function LeftPanel() {
     catalogReady,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
+  const resolvedFencingMode = fencingMode ?? "residential";
   const availableCategories =
-    fencingMode === "rural"
+    resolvedFencingMode === "rural"
       ? plannerOptions.rural.fenceCategories
       : plannerOptions.residential.fenceCategories;
   const formattedUpdatedAt =
@@ -120,8 +139,13 @@ export function LeftPanel() {
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
       <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Fence Planner</h2>
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Fence Planner</h2>
+          {(showProjectTypeWarning || showFencingModeWarning) && (
+            <p className="text-xs text-amber-600">
+              Planner defaulted to residential due to an unknown project type.
+            </p>
+          )}
         </div>
 
         <div>

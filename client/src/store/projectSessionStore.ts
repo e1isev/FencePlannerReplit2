@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import { shallow } from "zustand/shallow";
 import type { ProjectSnapshotV1, ProjectType } from "@shared/projectSnapshot";
-import { serializePlannerSnapshot, hydratePlannerSnapshot, initializePlannerState } from "@/lib/plannerSnapshot";
+import {
+  buildPlannerSnapshot,
+  hydratePlannerSnapshot,
+  initializePlannerState,
+  normalizePlannerSnapshot,
+} from "@/lib/plannerSnapshot";
 import {
   readPersistedProjects,
   writePersistedProjects,
@@ -29,6 +34,7 @@ type ProjectSessionState = {
   activeProjectId: string | null;
   hasBootstrapped: boolean;
   sessionIntent: "new" | "restore" | null;
+  ensureActiveProjectIntegrity: () => void;
   setSessionIntent: (intent: "new" | "restore" | null) => void;
   setProjectName: (name: string) => void;
   refreshDependencies: () => Promise<void>;
@@ -38,11 +44,21 @@ type ProjectSessionState = {
   loadProject: (projectId: string) => Promise<void>;
   loadGuestProject: (localId: string) => void;
   saveProject: () => Promise<void>;
+  saveActiveProjectFromAppState: () => Promise<{
+    ok: boolean;
+    reason?: string;
+    snapshot?: ProjectSnapshotV1;
+  }>;
   saveGuestToAccount: (localId: string) => Promise<boolean>;
 };
 
 const DEFAULT_DEPENDENCIES = { catalogVersion: "unknown", ruleSetVersion: "unknown" };
 const persistedState = readPersistedProjects();
+
+export const getActiveProject = (state: ProjectSessionState): LocalProject | null => {
+  if (!state.activeProjectId) return null;
+  return state.projectsById[state.activeProjectId] ?? null;
+};
 
 const buildLocalProject = (
   snapshot: ProjectSnapshotV1,
@@ -86,6 +102,18 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
   activeProjectId: persistedState.activeProjectId,
   hasBootstrapped: false,
   sessionIntent: null,
+  ensureActiveProjectIntegrity: () => {
+    const { activeProjectId, projectsById } = get();
+    if (!activeProjectId || projectsById[activeProjectId]) return;
+    const fallback =
+      Object.values(projectsById)
+        .sort(
+          (a, b) =>
+            (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0)
+        )[0]?.id ?? null;
+    console.warn(`Active project ${activeProjectId} missing; falling back to ${fallback}.`);
+    set({ activeProjectId: fallback });
+  },
   setSessionIntent: (intent) => set({ sessionIntent: intent }),
   setProjectName: (name) => set({ projectName: name }),
   refreshDependencies: async () => {
@@ -109,7 +137,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     const nowIso = new Date().toISOString();
     const localId = `local-${crypto.randomUUID()}`;
     initializePlannerState(projectType);
-    const snapshot = serializePlannerSnapshot(projectType, name, dependencies);
+    const snapshot = buildPlannerSnapshot(projectType, name, dependencies);
     const projectRecord = buildLocalProject(snapshot, name, localId, nowIso);
     set({
       projectId: null,
@@ -127,6 +155,8 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       sessionIntent: "new",
       hasBootstrapped: true,
     });
+    writePersistedProjects({ projectsById: get().projectsById, activeProjectId: localId });
+    get().ensureActiveProjectIntegrity();
     if (projectType === "rural" && projectRecord.projectType !== "rural") {
       console.error(`Project type invariant failed for ${localId}.`);
     }
@@ -169,6 +199,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       sessionIntent: "restore",
       hasBootstrapped: true,
     });
+    get().ensureActiveProjectIntegrity();
     return true;
   },
   loadProject: async (projectId) => {
@@ -185,6 +216,12 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       updatedAt: string;
     };
     hydratePlannerSnapshot(payload.snapshot);
+    const localProject = buildLocalProject(
+      payload.snapshot,
+      payload.name,
+      payload.id,
+      payload.updatedAt
+    );
     set({
       projectId: payload.id,
       localId: null,
@@ -193,9 +230,15 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       lastSavedAt: payload.updatedAt,
       saveStatus: "idle",
       errorMessage: null,
+      projectsById: {
+        ...get().projectsById,
+        [payload.id]: localProject,
+      },
+      activeProjectId: payload.id,
       sessionIntent: "restore",
       hasBootstrapped: true,
     });
+    get().ensureActiveProjectIntegrity();
   },
   loadGuestProject: (localId) => {
     const project = get().projectsById[localId];
@@ -216,35 +259,52 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       sessionIntent: "restore",
       hasBootstrapped: true,
     });
+    get().ensureActiveProjectIntegrity();
   },
   saveProject: async () => {
-    const {
-      projectType,
-      projectName,
-      projectId,
-      localId,
-      dependencies,
-      projectsById,
-    } = get();
-    if (!projectType) return;
-    const snapshot = serializePlannerSnapshot(projectType, projectName, dependencies);
+    const { projectId, localId, projectName } = get();
+    const saveResult = await get().saveActiveProjectFromAppState();
+    if (!saveResult.ok || !saveResult.snapshot) {
+      const resolveReason = (reason?: string) => {
+        switch (reason) {
+          case "NO_ACTIVE_PROJECT":
+            return "No active project to save.";
+          case "ACTIVE_PROJECT_MISSING":
+            return "Active project record is missing.";
+          default:
+            return reason ?? "Unable to save project.";
+        }
+      };
+      set({
+        saveStatus: "error",
+        errorMessage: resolveReason(saveResult.reason),
+      });
+      return;
+    }
+    const snapshot = saveResult.snapshot;
     const authUser = useAuthStore.getState().user;
 
     if (!authUser) {
       const resolvedLocalId = localId ?? `local-${crypto.randomUUID()}`;
+      if (resolvedLocalId !== localId) {
         const updatedAt = new Date().toISOString();
+        const nextProjects = {
+          ...get().projectsById,
+          [resolvedLocalId]: buildLocalProject(snapshot, projectName, resolvedLocalId, updatedAt),
+        };
         set({
           localId: resolvedLocalId,
           activeProjectId: resolvedLocalId,
-          projectsById: {
-            ...projectsById,
-            [resolvedLocalId]: buildLocalProject(snapshot, projectName, resolvedLocalId, updatedAt),
-          },
+          projectsById: nextProjects,
           saveStatus: "local",
-        lastSavedAt: updatedAt,
-        sessionIntent: "restore",
-        hasBootstrapped: true,
-      });
+          lastSavedAt: updatedAt,
+          sessionIntent: "restore",
+          hasBootstrapped: true,
+        });
+        writePersistedProjects({ projectsById: nextProjects, activeProjectId: resolvedLocalId });
+      } else {
+        set({ saveStatus: "local", sessionIntent: "restore", hasBootstrapped: true });
+      }
       return;
     }
 
@@ -256,7 +316,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: projectName,
-            projectType,
+            projectType: snapshot.projectType,
             snapshot,
           }),
         });
@@ -264,11 +324,28 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
           throw new Error("Unable to create project.");
         }
         const created = (await createRes.json()) as { id: string };
+        const updatedAt = new Date().toISOString();
+        const nextProjects = { ...get().projectsById };
+        const activeProjectId = get().activeProjectId;
+        if (activeProjectId && nextProjects[activeProjectId]) {
+          const activeProject = nextProjects[activeProjectId];
+          delete nextProjects[activeProjectId];
+          nextProjects[created.id] = {
+            ...activeProject,
+            id: created.id,
+            updatedAt,
+            snapshot,
+          };
+        }
         set({
           projectId: created.id,
+          localId: null,
+          activeProjectId: created.id,
+          projectsById: nextProjects,
           saveStatus: "saved",
-          lastSavedAt: new Date().toISOString(),
+          lastSavedAt: updatedAt,
         });
+        writePersistedProjects({ projectsById: nextProjects, activeProjectId: created.id });
       } else {
         const updateRes = await fetch(`/api/projects/${projectId}`, {
           method: "PUT",
@@ -279,12 +356,19 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
           throw new Error("Unable to save project.");
         }
         const updated = (await updateRes.json()) as { updatedAt: string };
-        set({ saveStatus: "saved", lastSavedAt: updated.updatedAt });
-      }
-      if (localId) {
+        const updatedAt = updated.updatedAt ?? new Date().toISOString();
+        const activeProjectId = get().activeProjectId;
         const nextProjects = { ...get().projectsById };
-        delete nextProjects[localId];
-        set({ localId: null, projectsById: nextProjects, activeProjectId: null });
+        if (activeProjectId && nextProjects[activeProjectId]) {
+          nextProjects[activeProjectId] = {
+            ...nextProjects[activeProjectId],
+            name: projectName,
+            snapshot,
+            updatedAt,
+          };
+        }
+        set({ saveStatus: "saved", lastSavedAt: updatedAt, projectsById: nextProjects });
+        writePersistedProjects({ projectsById: nextProjects, activeProjectId });
       }
     } catch (error) {
       set({
@@ -292,6 +376,49 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
         errorMessage: error instanceof Error ? error.message : "Unable to save project.",
       });
     }
+  },
+  saveActiveProjectFromAppState: async () => {
+    get().ensureActiveProjectIntegrity();
+    const { projectType, projectName, dependencies, projectsById, activeProjectId } = get();
+    if (!activeProjectId) {
+      return { ok: false, reason: "NO_ACTIVE_PROJECT" };
+    }
+    const existing = projectsById[activeProjectId];
+    if (!existing) {
+      return { ok: false, reason: "ACTIVE_PROJECT_MISSING" };
+    }
+    const resolvedProjectType = projectType ?? existing.projectType;
+    if (!resolvedProjectType) {
+      return { ok: false, reason: "NO_ACTIVE_PROJECT" };
+    }
+    const snapshot = normalizePlannerSnapshot(
+      buildPlannerSnapshot(resolvedProjectType, projectName, dependencies),
+      resolvedProjectType
+    );
+    const updatedAt = new Date().toISOString();
+    const nextProjects = {
+      ...projectsById,
+      [activeProjectId]: {
+        ...existing,
+        name: projectName,
+        projectType: resolvedProjectType,
+        snapshot,
+        updatedAt,
+      },
+    };
+    set({
+      projectsById: nextProjects,
+      lastSavedAt: updatedAt,
+      errorMessage: null,
+    });
+    try {
+      writePersistedProjects({ projectsById: nextProjects, activeProjectId });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Unable to persist project.";
+      console.error("Persisted project save failed.", error);
+      return { ok: false, reason };
+    }
+    return { ok: true, snapshot };
   },
   saveGuestToAccount: async (localId) => {
     const authUser = useAuthStore.getState().user;
@@ -338,6 +465,10 @@ useProjectSessionStore.subscribe(
     equalityFn: shallow,
   }
 );
+
+if (typeof window !== "undefined") {
+  useProjectSessionStore.getState().ensureActiveProjectIntegrity();
+}
 
 export const loadGuestProjectSummaries = () => {
   const { projectsById } = useProjectSessionStore.getState();

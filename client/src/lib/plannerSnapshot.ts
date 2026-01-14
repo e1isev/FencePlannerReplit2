@@ -19,10 +19,7 @@ import type { FenceHeightM } from "@/config/fenceHeights";
 import type { FenceColorId } from "@/config/fenceColors";
 import type { ProjectDependencies, ProjectMeta, ProjectUiState } from "@shared/project";
 import { getDefaultFenceStyleId } from "@/config/fenceStyles";
-import { DEFAULT_FENCE_HEIGHT_M } from "@/config/fenceHeights";
-import { DEFAULT_FENCE_COLOR } from "@/config/fenceColors";
 import { fencingModeFromProjectType } from "@/config/plannerOptions";
-import { normalizeGateWidthMm } from "@/lib/gates/gateWidth";
 
 const MAP_VIEW_STORAGE_KEY = "map-overlay-view";
 
@@ -142,44 +139,6 @@ const buildFencingPlannerState = (): FencingPlannerState => {
   };
 };
 
-const applyFencingPlannerState = (state: FencingPlannerState) => {
-  const resolvedCategory =
-    state.fenceCategoryId ?? (state.productKind === "Rural fencing" ? "rural" : "residential");
-  const resolvedStyle = state.fenceStyleId ?? getDefaultFenceStyleId(resolvedCategory);
-  const resolvedHeight = state.fenceHeightM ?? DEFAULT_FENCE_HEIGHT_M;
-  const resolvedColor = state.fenceColorId ?? DEFAULT_FENCE_COLOR;
-  const map = new Map<string, number[]>(Object.entries(state.panelPositionsMap ?? {}));
-  const gates = (state.gates ?? []).map((gate) => {
-    if (!gate.type.startsWith("sliding")) return gate;
-    if (gate.slidingReturnSide) return gate;
-    return {
-      ...gate,
-      slidingReturnSide: gate.slidingReturnDirection === "left" ? "a" : "b",
-    };
-  });
-  const normalizedGates = gates.map((gate) => normalizeGateWidthMm(gate));
-  useAppStore.setState({
-    productKind: state.productKind ?? "Residential fencing",
-    fenceStyleId: resolvedStyle,
-    fenceCategoryId: resolvedCategory,
-    fenceHeightM: resolvedHeight,
-    fenceColorId: resolvedColor,
-    selectedGateType: state.selectedGateType,
-    selectedGateId: state.selectedGateId ?? null,
-    drawingMode: state.drawingMode,
-    mmPerPixel: state.mmPerPixel,
-    selectedLineId: state.selectedLineId,
-    lines: state.lines,
-    gates: normalizedGates,
-    panels: state.panels,
-    posts: state.posts,
-    leftovers: state.leftovers,
-    warnings: state.warnings,
-    panelPositionsMap: map,
-  });
-  useAppStore.getState().recalculate();
-};
-
 const buildDeckingSnapshot = (
   name: string,
   dependencies: ProjectDependencies
@@ -229,14 +188,29 @@ const applyDeckingSnapshot = (snapshot: ProjectSnapshot) => {
   useDeckingStore.getState().applyProjectState(state);
 };
 
-export const serializePlannerSnapshot = (
+const warnIfSnapshotLarge = (snapshot: ProjectSnapshotV1) => {
+  if (!import.meta.env.DEV) return;
+  try {
+    const payload = JSON.stringify(snapshot);
+    const sizeLimit = 1_500_000;
+    if (payload.length > sizeLimit) {
+      console.warn(
+        `Planner snapshot is large (${payload.length} bytes). Consider trimming planner state.`
+      );
+    }
+  } catch (error) {
+    console.warn("Unable to serialize planner snapshot for size check.", error);
+  }
+};
+
+export const buildPlannerSnapshot = (
   projectType: ProjectType,
   name: string,
   dependencies: ProjectDependencies
 ): ProjectSnapshotV1 => {
   const nowIso = new Date().toISOString();
   if (projectType === "decking") {
-    return {
+    const snapshot: ProjectSnapshotV1 = {
       version: 1,
       projectType,
       name,
@@ -246,9 +220,11 @@ export const serializePlannerSnapshot = (
       createdAt: nowIso,
       updatedAt: nowIso,
     };
+    warnIfSnapshotLarge(snapshot);
+    return snapshot;
   }
 
-  return {
+  const snapshot: ProjectSnapshotV1 = {
     version: 1,
     projectType,
     name,
@@ -258,7 +234,15 @@ export const serializePlannerSnapshot = (
     createdAt: nowIso,
     updatedAt: nowIso,
   };
+  warnIfSnapshotLarge(snapshot);
+  return snapshot;
 };
+
+export const serializePlannerSnapshot = (
+  projectType: ProjectType,
+  name: string,
+  dependencies: ProjectDependencies
+): ProjectSnapshotV1 => buildPlannerSnapshot(projectType, name, dependencies);
 
 export const hydratePlannerSnapshot = (snapshot: ProjectSnapshotV1) => {
   const normalized = normalizePlannerSnapshot(snapshot);
@@ -267,7 +251,7 @@ export const hydratePlannerSnapshot = (snapshot: ProjectSnapshotV1) => {
     return;
   }
 
-  applyFencingPlannerState(normalized.plannerState as FencingPlannerState);
+  useAppStore.getState().hydrateFromSnapshot(normalized);
   writeMapState(normalized.mapState);
 };
 
@@ -280,7 +264,7 @@ export const initializePlannerState = (type: ProjectType) => {
   const mode = fencingModeFromProjectType(type);
   const defaultCategory: FenceCategoryId = mode === "rural" ? "rural" : "residential";
   const defaultStyle = getDefaultFenceStyleId(defaultCategory);
-  useAppStore.getState().clear();
+  useAppStore.getState().resetPlannerState();
   useAppStore.setState({
     productKind: mode === "rural" ? "Rural fencing" : "Residential fencing",
     fenceCategoryId: defaultCategory,
