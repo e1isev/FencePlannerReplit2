@@ -13,6 +13,7 @@ import {
   ProductKind,
   WarningMsg,
 } from "@/types/models";
+import type { ProjectSnapshotV1 } from "@shared/projectSnapshot";
 import {
   getDefaultFenceStyleId,
   getFenceStyleCategory,
@@ -58,6 +59,26 @@ const weldToleranceMeters = () => mmToMeters(ENDPOINT_WELD_EPS_MM);
 const segmentInteriorToleranceMeters = () => mmToMeters(SEGMENT_INTERIOR_TOL_MM);
 
 const lineLengthMm = (a: Point, b: Point) => metersToMm(lineLengthMeters([a, b]));
+
+type FencingPlannerSnapshotState = {
+  productKind?: ProductKind;
+  fenceStyleId?: FenceStyleId;
+  fenceCategoryId?: FenceCategoryId;
+  fenceHeightM?: FenceHeightM;
+  fenceColorId?: FenceColorId;
+  selectedGateType?: GateType;
+  selectedGateId?: string | null;
+  drawingMode?: boolean;
+  mmPerPixel?: number;
+  selectedLineId?: string | null;
+  lines?: FenceLine[];
+  gates?: Gate[];
+  panels?: PanelSegment[];
+  posts?: Post[];
+  leftovers?: Leftover[];
+  warnings?: WarningMsg[];
+  panelPositionsMap?: Record<string, number[]>;
+};
 
 const vectorMeters = (a: Point, b: Point) => {
   const aMeters = lngLatToMercatorMeters(a);
@@ -585,6 +606,8 @@ interface AppState {
   
   recalculate: () => void;
   clear: () => void;
+  resetPlannerState: () => void;
+  hydrateFromSnapshot: (snapshot: ProjectSnapshotV1) => void;
   undo: () => void;
   redo: () => void;
   
@@ -1382,6 +1405,75 @@ export const useAppStore = create<AppState>()(
           history: [],
           historyIndex: -1,
         });
+      },
+
+      resetPlannerState: () => {
+        set({
+          productKind: "Residential fencing",
+          fenceStyleId: getDefaultFenceStyleId("residential"),
+          fenceHeightM: DEFAULT_FENCE_HEIGHT_M,
+          fenceColorId: DEFAULT_FENCE_COLOR,
+          fenceCategoryId: "residential",
+          lines: [],
+          posts: [],
+          gates: [],
+          panels: [],
+          leftovers: [],
+          warnings: [],
+          selectedGateType: null,
+          selectedGateId: null,
+          drawingMode: false,
+          previewLine: null,
+          panelPositionsMap: new Map(),
+          mmPerPixel: 10,
+          selectedLineId: null,
+          history: [],
+          historyIndex: -1,
+        });
+      },
+
+      hydrateFromSnapshot: (snapshot) => {
+        if (snapshot.projectType === "decking") return;
+        const state = snapshot.plannerState as FencingPlannerSnapshotState;
+        const resolvedCategory =
+          state.fenceCategoryId ?? (state.productKind === "Rural fencing" ? "rural" : "residential");
+        const resolvedStyle = state.fenceStyleId ?? getDefaultFenceStyleId(resolvedCategory);
+        const resolvedHeight = state.fenceHeightM ?? DEFAULT_FENCE_HEIGHT_M;
+        const resolvedColor = state.fenceColorId ?? DEFAULT_FENCE_COLOR;
+        const map = new Map<string, number[]>(Object.entries(state.panelPositionsMap ?? {}));
+        const gates = (state.gates ?? []).map((gate) => {
+          if (!gate.type.startsWith("sliding")) return gate;
+          if (gate.slidingReturnSide) return gate;
+          return {
+            ...gate,
+            slidingReturnSide: gate.slidingReturnDirection === "left" ? "a" : "b",
+          };
+        });
+        const normalizedGates = gates.map((gate) => normalizeGateWidthMm(gate));
+
+        set({
+          productKind: state.productKind ?? "Residential fencing",
+          fenceStyleId: resolvedStyle,
+          fenceCategoryId: resolvedCategory,
+          fenceHeightM: resolvedHeight,
+          fenceColorId: resolvedColor,
+          selectedGateType: state.selectedGateType ?? null,
+          selectedGateId: state.selectedGateId ?? null,
+          drawingMode: state.drawingMode ?? false,
+          mmPerPixel: state.mmPerPixel ?? 10,
+          selectedLineId: state.selectedLineId ?? null,
+          lines: state.lines ?? [],
+          gates: normalizedGates,
+          panels: state.panels ?? [],
+          posts: state.posts ?? [],
+          leftovers: state.leftovers ?? [],
+          warnings: state.warnings ?? [],
+          panelPositionsMap: map,
+          previewLine: null,
+          history: [],
+          historyIndex: -1,
+        });
+        get().recalculate();
       },
       
       undo: () => {

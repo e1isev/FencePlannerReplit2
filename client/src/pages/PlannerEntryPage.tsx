@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import PlannerPage from "@/pages/PlannerPage";
-import { useProjectSessionStore } from "@/store/projectSessionStore";
+import { getActiveProject, useProjectSessionStore } from "@/store/projectSessionStore";
 import type { ProjectType } from "@shared/projectSnapshot";
+import { hydratePlannerSnapshot, normalizePlannerSnapshot } from "@/lib/plannerSnapshot";
+import { useAppStore } from "@/store/appStore";
 
 const coerceProjectType = (value: string | null): ProjectType | null => {
   if (!value) return null;
@@ -25,6 +27,9 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
   const projectsById = useProjectSessionStore((state) => state.projectsById);
   const sessionIntent = useProjectSessionStore((state) => state.sessionIntent);
   const hasBootstrapped = useProjectSessionStore((state) => state.hasBootstrapped);
+  const activeProject = useProjectSessionStore(getActiveProject);
+  const resetPlannerState = useAppStore((state) => state.resetPlannerState);
+  const hydrateFromSnapshot = useAppStore((state) => state.hydrateFromSnapshot);
 
   const query = useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
   const requestedType = query.get("projectType") ?? query.get("type");
@@ -74,6 +79,27 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
     projectsById,
     sessionIntent,
     hasBootstrapped,
+  ]);
+
+  useEffect(() => {
+    if (!activeProject?.snapshot) return;
+    const normalized = normalizePlannerSnapshot(activeProject.snapshot, activeProject.projectType);
+    if (normalized.projectType === "decking") {
+      hydratePlannerSnapshot(normalized);
+      return;
+    }
+    if (sessionIntent === "new") {
+      resetPlannerState();
+    }
+    hydrateFromSnapshot(normalized);
+  }, [
+    activeProject?.id,
+    activeProject?.updatedAt,
+    activeProject?.snapshot,
+    sessionIntent,
+    resetPlannerState,
+    hydrateFromSnapshot,
+    hydratePlannerSnapshot,
   ]);
 
   if (loading) {
