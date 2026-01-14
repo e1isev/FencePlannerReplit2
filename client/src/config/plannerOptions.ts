@@ -6,6 +6,12 @@ import type { ProjectType } from "@shared/projectSnapshot";
 
 export type FencingMode = "residential" | "rural";
 
+export const coerceFenceProjectType = (value: unknown): FencingMode | null => {
+  if (value === null || value === undefined || value === "") return null;
+  if (value === "rural" || value === "rural_fencing") return "rural";
+  return "residential";
+};
+
 export const projectTypeFromProduct = (kind: ProductKind): ProjectType => {
   switch (kind) {
     case "Decking":
