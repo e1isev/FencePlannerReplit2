@@ -43,14 +43,11 @@ export function exportCuttingListCSV(args: {
     catalogReady,
   });
 
-  const rows: string[][] = [
-    ["Item", "SKU", "Quantity", "Unit Price", "Total Price"],
-  ];
+  const rows: string[][] = [["Item", "Quantity", "Unit Price", "Total Price"]];
 
   costs.lineItems.forEach((item) => {
     rows.push([
       item.name,
-      item.sku ?? "",
       item.quantity.toString(),
       item.unitPrice === null ? "" : `$${item.unitPrice.toFixed(2)}`,
       item.lineTotal === null ? "" : `$${item.lineTotal.toFixed(2)}`,
@@ -58,11 +55,10 @@ export function exportCuttingListCSV(args: {
   });
 
   rows.push([]);
-  rows.push(["", "Total Length", `${(costs.totalLengthMm / 1000).toFixed(2)}m`, "", ""]);
+  rows.push(["", "Total Length", `${(costs.totalLengthMm / 1000).toFixed(2)}m`, ""]);
   rows.push([
     "",
     "Grand Total",
-    "",
     "",
     costs.grandTotal === null ? "" : `$${costs.grandTotal.toFixed(2)}`,
   ]);
@@ -130,7 +126,6 @@ export function exportPDF(args: {
   costs.lineItems.forEach((item) => {
     tableData.push([
       item.name,
-      item.sku ?? "",
       item.quantity,
       item.unitPrice === null ? "" : `$${item.unitPrice.toFixed(2)}`,
       item.lineTotal === null ? "" : `$${item.lineTotal.toFixed(2)}`,
@@ -138,7 +133,7 @@ export function exportPDF(args: {
   });
   
   autoTable(doc, {
-    head: [["Item", "SKU", "Qty", "Unit Price", "Total"]],
+    head: [["Item", "Qty", "Unit Price", "Total"]],
     body: tableData,
     startY: 45,
     theme: "grid",
