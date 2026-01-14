@@ -46,10 +46,12 @@ const renderValue = (value: string) => value || "—";
 
 type QuoteDocumentProps = {
   viewModel: QuoteViewModel;
+  hidePricing?: boolean;
 };
 
-export function QuoteDocument({ viewModel }: QuoteDocumentProps) {
+export function QuoteDocument({ viewModel, hidePricing = false }: QuoteDocumentProps) {
   const { quoteMeta, comments, lineItems, totals, delivery, paymentSchedule, companyFooter } = viewModel;
+  const showPricing = !hidePricing;
 
   return (
     <section className="quote-document bg-white border border-slate-200 shadow-sm rounded-2xl p-6 md:p-10 space-y-10">
@@ -103,14 +105,14 @@ export function QuoteDocument({ viewModel }: QuoteDocumentProps) {
               <TableRow className="bg-slate-50">
                 <TableHead className="w-[55%]">Description</TableHead>
                 <TableHead className="w-[15%] text-right">Quantity</TableHead>
-                <TableHead className="w-[15%] text-right">Unit Price</TableHead>
-                <TableHead className="w-[15%] text-right">Total</TableHead>
+                {showPricing && <TableHead className="w-[15%] text-right">Unit Price</TableHead>}
+                {showPricing && <TableHead className="w-[15%] text-right">Total</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {lineItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-sm text-slate-500">
+                  <TableCell colSpan={showPricing ? 4 : 2} className="text-center text-sm text-slate-500">
                     No line items available.
                   </TableCell>
                 </TableRow>
@@ -128,19 +130,25 @@ export function QuoteDocument({ viewModel }: QuoteDocumentProps) {
                             ))}
                           </ul>
                         )}
-                        <div className="text-xs text-slate-500 space-y-1">
-                          <p>after {item.discountPercent}% discount</p>
-                          <p>+{formatAUD(item.gstAmount)} GST on Income</p>
-                        </div>
+                        {showPricing && (
+                          <div className="text-xs text-slate-500 space-y-1">
+                            <p>after {item.discountPercent}% discount</p>
+                            <p>+{formatAUD(item.gstAmount)} GST on Income</p>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right text-slate-700">{item.quantity}</TableCell>
-                    <TableCell className="text-right text-slate-700">
-                      {formatAUD(item.unitPriceExDiscount)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-slate-900">
-                      {formatAUD(item.totalAfterDiscount)}
-                    </TableCell>
+                    {showPricing && (
+                      <TableCell className="text-right text-slate-700">
+                        {formatAUD(item.unitPriceExDiscount)}
+                      </TableCell>
+                    )}
+                    {showPricing && (
+                      <TableCell className="text-right font-semibold text-slate-900">
+                        {formatAUD(item.totalAfterDiscount)}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -149,7 +157,7 @@ export function QuoteDocument({ viewModel }: QuoteDocumentProps) {
         </div>
       </section>
 
-      <section className="quote-section grid gap-6 md:grid-cols-2">
+      <section className={`quote-section grid gap-6 ${showPricing ? "md:grid-cols-2" : ""}`}>
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-900">Delivery</h2>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-3">
@@ -172,71 +180,75 @@ export function QuoteDocument({ viewModel }: QuoteDocumentProps) {
           </div>
         </div>
 
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-900">Totals</h2>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-3">
-            <div className="flex items-center justify-between">
-              <span>Subtotal</span>
-              <span className="font-semibold text-slate-900">
-                {formatAUD(totals.subtotalAfterDiscount)}
-              </span>
+        {showPricing && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">Totals</h2>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-3">
+              <div className="flex items-center justify-between">
+                <span>Subtotal</span>
+                <span className="font-semibold text-slate-900">
+                  {formatAUD(totals.subtotalAfterDiscount)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Tax (10%)</span>
+                <span className="font-semibold text-slate-900">
+                  {formatAUD(totals.taxAmount)}
+                </span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between text-base font-semibold text-slate-900">
+                <span>Total</span>
+                <span>{formatAUD(totals.total)}</span>
+              </div>
+              <p className="text-xs text-slate-500">
+                after {formatAUD(totals.discountAmount)} discount
+              </p>
             </div>
-            <div className="flex items-center justify-between">
-              <span>Tax (10%)</span>
-              <span className="font-semibold text-slate-900">
-                {formatAUD(totals.taxAmount)}
-              </span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between text-base font-semibold text-slate-900">
-              <span>Total</span>
-              <span>{formatAUD(totals.total)}</span>
-            </div>
-            <p className="text-xs text-slate-500">
-              after {formatAUD(totals.discountAmount)} discount
-            </p>
           </div>
-        </div>
+        )}
       </section>
 
-      <section className="quote-section space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900">Payment Schedule</h2>
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead>Name</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paymentSchedule.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-sm text-slate-500">
-                    No payment schedule available.
-                  </TableCell>
+      {showPricing && (
+        <section className="quote-section space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900">Payment Schedule</h2>
+          <div className="rounded-lg border border-slate-200 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50">
+                  <TableHead>Name</TableHead>
+                  <TableHead>Due</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
-              ) : (
-                paymentSchedule.map((payment, index) => (
-                  <TableRow key={`${payment.name}-${index}`}>
-                    <TableCell className="font-medium text-slate-900">
-                      {payment.name}
-                      {payment.isDueNow && (
-                        <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                          Due now
-                        </span>
-                      )}
+              </TableHeader>
+              <TableBody>
+                {paymentSchedule.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-sm text-slate-500">
+                      No payment schedule available.
                     </TableCell>
-                    <TableCell>{payment.due}</TableCell>
-                    <TableCell className="text-right">{formatAUD(payment.amount)}</TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
+                ) : (
+                  paymentSchedule.map((payment, index) => (
+                    <TableRow key={`${payment.name}-${index}`}>
+                      <TableCell className="font-medium text-slate-900">
+                        {payment.name}
+                        {payment.isDueNow && (
+                          <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                            Due now
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>{payment.due}</TableCell>
+                      <TableCell className="text-right">{formatAUD(payment.amount)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+      )}
 
       <footer className="quote-section grid gap-6 md:grid-cols-2 text-sm text-slate-700">
         <div className="rounded-lg border border-slate-200 p-4 space-y-2">

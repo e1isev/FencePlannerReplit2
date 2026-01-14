@@ -19,8 +19,6 @@ export const ProjectManagerDialog = ({ open, onOpenChange }: ProjectManagerDialo
     revisionHistory,
     projectId,
     projectMeta,
-    warnings,
-    pricingSummary,
     fetchProjectList,
     fetchRevisionHistory,
     loadProject,
@@ -180,23 +178,6 @@ export const ProjectManagerDialog = ({ open, onOpenChange }: ProjectManagerDialo
                 />
               </div>
               {importError && <p className="text-xs text-red-500">{importError}</p>}
-            </div>
-
-            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-              <p className="text-sm font-semibold text-slate-700">Pricing warnings</p>
-              {warnings.length === 0 && (
-                <p className="text-xs text-slate-500">No pricing warnings.</p>
-              )}
-              {warnings.map((warning, index) => (
-                <p key={`${warning}-${index}`} className="text-xs text-amber-600">
-                  {warning}
-                </p>
-              ))}
-              {pricingSummary && (
-                <p className="text-xs text-slate-600">
-                  Total {pricingSummary.totals.currency} {pricingSummary.totals.total.toFixed(2)}
-                </p>
-              )}
             </div>
 
             <div className="rounded-lg border border-slate-200 p-3 space-y-2">

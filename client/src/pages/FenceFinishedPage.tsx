@@ -39,6 +39,7 @@ export default function FenceFinishedPage() {
       <main className="quote-page max-w-6xl mx-auto px-4 md:px-6 py-8">
         <QuoteDocument
           viewModel={viewModel}
+          hidePricing
           headerAddon={
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
