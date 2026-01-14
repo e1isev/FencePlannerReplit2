@@ -1,11 +1,21 @@
 import type { FenceCategoryId, FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
 import type { FenceLine } from "@/types/models";
 import { countBoardsPurchased } from "@/geometry/panels";
-import { formatHeightM, roundToTenth, type LineItemType } from "@/pricing/skuRules";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
-import type { CatalogIndex } from "@/pricing/catalogTypes";
 
-export type PricingCatalogEntry = { name: string; unitPrice: number; sku: string };
+export type LineItemType =
+  | "panel"
+  | "gate"
+  | "post_end"
+  | "post_corner"
+  | "post_line"
+  | "post_t"
+  | "post_blank"
+  | "cap"
+  | "bracket";
+
+const formatHeightM = (heightM: number) => `${heightM.toFixed(1)}m`;
+const roundToTenth = (value: number) => Math.round(value * 10) / 10;
 
 export type QuoteLineItem = {
   name: string;
@@ -43,8 +53,6 @@ export function calculateCosts(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingIndex: CatalogIndex | null;
-  catalogReady: boolean;
 }): QuoteSummary {
   const { fenceStyleId, fenceHeightM, panels, posts, gates, lines } = args;
 

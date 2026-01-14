@@ -20,9 +20,8 @@ import {
   getFenceStylesByCategory,
 } from "@/config/fenceStyles";
 import { DEFAULT_FENCE_HEIGHT_M, FenceHeightM } from "@/config/fenceHeights";
-import { DEFAULT_FENCE_COLOR, FenceColorId, getFenceColourMode } from "@/config/fenceColors";
-import { getSupportedPanelHeights } from "@/pricing/skuRules";
-import { usePricingStore } from "@/store/pricingStore";
+import { DEFAULT_FENCE_COLOR, FenceColorId } from "@/config/fenceColors";
+import { FENCE_HEIGHTS_M } from "@/config/fenceHeights";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
@@ -655,15 +654,7 @@ export const useAppStore = create<AppState>()(
           ? fenceStyleId
           : getDefaultFenceStyleId(categoryId);
         const nextColorId = DEFAULT_FENCE_COLOR;
-        const nextColourMode = getFenceColourMode(nextColorId);
-        const pricingIndex = usePricingStore.getState().pricingIndex;
-        const supportedHeights = getSupportedPanelHeights(
-          nextStyleId,
-          nextColourMode,
-          categoryId,
-          pricingIndex
-        );
-        const nextHeight = supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
+        const nextHeight = FENCE_HEIGHTS_M[0] ?? DEFAULT_FENCE_HEIGHT_M;
 
         set({
           fenceCategoryId: categoryId,
@@ -682,14 +673,7 @@ export const useAppStore = create<AppState>()(
         const { fenceStyleId, fenceColorId, fenceHeightM } = get();
         if (fenceStyleId === styleId) return;
 
-        const fenceColourMode = getFenceColourMode(fenceColorId);
-        const pricingIndex = usePricingStore.getState().pricingIndex;
-        const supportedHeights = getSupportedPanelHeights(
-          styleId,
-          fenceColourMode,
-          getFenceStyleCategory(styleId),
-          pricingIndex
-        );
+        const supportedHeights = FENCE_HEIGHTS_M;
         const nextHeight = supportedHeights.includes(fenceHeightM)
           ? fenceHeightM
           : supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;

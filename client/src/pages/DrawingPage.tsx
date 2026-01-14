@@ -39,8 +39,6 @@ export default function DrawingPage() {
     posts,
     gates,
     lines,
-    pricingIndex: null,
-    catalogReady: false,
   });
 
   const padding = 80;

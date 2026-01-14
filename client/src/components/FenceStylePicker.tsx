@@ -6,7 +6,7 @@ import {
   FENCE_CATEGORIES,
   getFenceStylesByCategory,
 } from "@/config/fenceStyles";
-import { normalizeStyleToken } from "@/pricing/catalogStyle";
+import { normalizeStyleToken } from "@/lib/styleTokens";
 import { FenceCategoryId } from "@/types/models";
 
 type FenceStylePickerProps = {

@@ -64,8 +64,6 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       posts,
       gates,
       lines,
-      pricingIndex: null,
-      catalogReady: false,
     });
 
     const createdDate = new Date().toISOString();

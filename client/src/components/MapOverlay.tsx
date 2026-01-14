@@ -152,7 +152,7 @@ async function isTileMostlyEmpty(blob: Blob): Promise<boolean> {
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return false;
 
     ctx.drawImage(bitmap, 0, 0);
@@ -562,6 +562,7 @@ export function MapOverlay({
   const viewportSaveTimeoutRef = useRef<number | null>(null);
   const defaultVenueAbortRef = useRef<AbortController | null>(null);
   const pendingSearchRef = useRef<{ result: SearchResult; inputValue?: string } | null>(null);
+  const styleKeyRef = useRef<string | null>(null);
 
   const getTileCoordForCurrentView = useCallback(
     (provider: SatelliteProvider): TileCoord => {
@@ -785,6 +786,7 @@ export function MapOverlay({
     map.touchZoomRotate.disableRotation();
 
     mapRef.current = map;
+    styleKeyRef.current = `${mapMode}:${satelliteProviderRef.current}`;
     setIsMapReady(true);
     onMapReady?.(map);
 
@@ -976,10 +978,22 @@ export function MapOverlay({
     const activeProvider = mapMode === "satellite" ? satelliteProvider : BASE_SATELLITE_PROVIDER;
     const minZoom = PROVIDER_MIN_ZOOM[activeProvider] ?? MAP_MIN_ZOOM;
     const maxZoom = maxZoomForMode(mapMode, activeProvider);
+    const styleKey = `${mapMode}:${satelliteProvider}`;
 
     map.setMaxZoom(maxZoom);
     map.setMinZoom(minZoom);
-    map.setStyle(buildMapStyle(mapMode, satelliteProvider));
+
+    const applyStyle = () => {
+      if (styleKeyRef.current === styleKey) return;
+      styleKeyRef.current = styleKey;
+      map.setStyle(buildMapStyle(mapMode, satelliteProvider));
+    };
+
+    if (map.isStyleLoaded()) {
+      applyStyle();
+    } else {
+      map.once("load", applyStyle);
+    }
 
     const currentZoom = map.getZoom();
     if (currentZoom > maxZoom) {
