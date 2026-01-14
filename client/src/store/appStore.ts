@@ -666,21 +666,17 @@ export const useAppStore = create<AppState>()(
       },
 
       setFenceHeightM: (height) => {
-        const { fenceHeightM } = get();
-        if (fenceHeightM === height) return;
-        set({ fenceHeightM: height });
+        set((state) => (state.fenceHeightM === height ? state : { fenceHeightM: height }));
       },
 
       setFenceColorId: (colorId) => {
-        const { fenceColorId } = get();
-        if (fenceColorId === colorId) return;
-        set({ fenceColorId: colorId });
+        set((state) => (state.fenceColorId === colorId ? state : { fenceColorId: colorId }));
       },
       
       setSelectedGateType: (type) =>
         set((state) => {
           // Keep the current gate selection when the same gate button is clicked again
-          if (type !== null && state.selectedGateType === type) return state;
+          if (state.selectedGateType === type) return state;
 
           return { selectedGateType: type };
         }),
