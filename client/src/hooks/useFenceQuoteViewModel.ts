@@ -87,10 +87,6 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
         id: `${item.sku ?? item.name}-${index}`,
         title: item.name,
         longDescriptionBlocks: [
-          {
-            type: "text",
-            text: `SKU: ${item.sku ?? "-"}`,
-          },
           ...(gateWidthLabel ? [{ type: "text", text: gateWidthLabel }] : []),
         ],
         quantity,

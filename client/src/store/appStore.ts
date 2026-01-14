@@ -50,6 +50,7 @@ export const MIN_RUN_MM = Math.max(50, MIN_LINE_LENGTH_MM);
 export const MAX_RUN_MM = 200_000;
 const HISTORY_LIMIT = 100;
 const LEFTOVER_WARN_THRESHOLD = 1_000;
+const heightEquals = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 const quantizePoint = (point: Point, mmPerPixel: number) =>
   quantizePointMm(point, DEFAULT_POINT_QUANTIZE_STEP_MM, mmPerPixel);
 
@@ -673,8 +674,18 @@ export const useAppStore = create<AppState>()(
         const { fenceStyleId, fenceColorId, fenceHeightM } = get();
         if (fenceStyleId === styleId) return;
 
-        const supportedHeights = FENCE_HEIGHTS_M;
-        const nextHeight = supportedHeights.includes(fenceHeightM)
+        const fenceColourMode = getFenceColourMode(fenceColorId);
+        const pricingIndex = usePricingStore.getState().pricingIndex;
+        const supportedHeights = getSupportedPanelHeights(
+          styleId,
+          fenceColourMode,
+          getFenceStyleCategory(styleId),
+          pricingIndex
+        );
+        const hasSupportedHeight = supportedHeights.some((height) =>
+          heightEquals(height, fenceHeightM)
+        );
+        const nextHeight = hasSupportedHeight
           ? fenceHeightM
           : supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
 
@@ -687,7 +698,11 @@ export const useAppStore = create<AppState>()(
       },
 
       setFenceHeightM: (height) => {
-        set((state) => (state.fenceHeightM === height ? state : { fenceHeightM: height }));
+        set((state) =>
+          state.fenceHeightM !== undefined && heightEquals(state.fenceHeightM, height)
+            ? state
+            : { fenceHeightM: height }
+        );
       },
 
       setFenceColorId: (colorId) => {

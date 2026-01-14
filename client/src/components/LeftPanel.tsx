@@ -243,9 +243,6 @@ export function LeftPanel() {
                   <th className="px-3 py-2 text-left font-semibold text-slate-700">
                     Product
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700">
-                    SKU
-                  </th>
                   <th className="px-3 py-2 text-right font-semibold text-slate-700">
                     Qty
                   </th>
@@ -254,20 +251,17 @@ export function LeftPanel() {
               <tbody className="font-mono">
                 {costs.lineItems.length === 0 && (
                   <tr className="border-b border-slate-100">
-                    <td className="px-3 py-2 text-slate-400" colSpan={3}>
+                    <td className="px-3 py-2 text-slate-400" colSpan={2}>
                       Add fence segments to see items.
                     </td>
                   </tr>
                 )}
-                {costs.lineItems.map((item) => (
+                {costs.lineItems.map((item, index) => (
                   <tr
-                    key={`${item.name}-${item.sku ?? "missing"}`}
+                    key={`${item.name}-${index}`}
                     className="border-b border-slate-100"
                   >
                     <td className="px-3 py-2">{item.name}</td>
-                    <td className="px-3 py-2 text-left">
-                      {item.sku ?? "—"}
-                    </td>
                     <td className="px-3 py-2 text-right">{item.quantity}</td>
                   </tr>
                 ))}
