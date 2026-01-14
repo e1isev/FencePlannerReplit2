@@ -2,17 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import PlannerPage from "@/pages/PlannerPage";
 import { getActiveProject, useProjectSessionStore } from "@/store/projectSessionStore";
-import type { ProjectType } from "@shared/projectSnapshot";
 import { hydratePlannerSnapshot, normalizePlannerSnapshot } from "@/lib/plannerSnapshot";
 import { useAppStore } from "@/store/appStore";
-
-const coerceProjectType = (value: string | null): ProjectType | null => {
-  if (!value) return null;
-  if (value === "residential" || value === "rural") return value;
-  if (value === "residential_fencing") return "residential";
-  if (value === "rural_fencing") return "rural";
-  return null;
-};
+import { coerceFenceProjectType } from "@/config/plannerOptions";
 
 export default function PlannerEntryPage({ params }: { params: { projectId?: string } }) {
   const [location] = useLocation();
@@ -36,7 +28,7 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
   const projectName = query.get("name");
   const localId = query.get("localId");
   const requestedProjectType =
-    coerceProjectType(requestedType) ?? coerceProjectType(query.get("category"));
+    coerceFenceProjectType(requestedType) ?? coerceFenceProjectType(query.get("category"));
 
   useEffect(() => {
     if (projectId) {
@@ -83,7 +75,10 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
 
   useEffect(() => {
     if (!activeProject?.snapshot) return;
-    const normalized = normalizePlannerSnapshot(activeProject.snapshot, activeProject.projectType);
+    const normalized = normalizePlannerSnapshot(
+      activeProject.snapshot,
+      coerceFenceProjectType(activeProject.projectType) ?? undefined
+    );
     if (normalized.projectType === "decking") {
       hydratePlannerSnapshot(normalized);
       return;
