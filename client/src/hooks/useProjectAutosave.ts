@@ -13,6 +13,9 @@ export const useProjectAutosave = () => {
   const dependencies = useProjectSessionStore((state) => state.dependencies);
   const projectType = useProjectSessionStore((state) => state.projectType);
   const projectName = useProjectSessionStore((state) => state.projectName);
+  const updateActiveProjectSnapshot = useProjectSessionStore(
+    (state) => state.updateActiveProjectSnapshot
+  );
 
   const fencingState = useAppStore(
     useShallow((state) => ({
@@ -61,6 +64,7 @@ export const useProjectAutosave = () => {
     if (snapshotText === lastSnapshotRef.current) return;
 
     lastSnapshotRef.current = snapshotText;
+    updateActiveProjectSnapshot(snapshot);
     if (timerRef.current) {
       window.clearTimeout(timerRef.current);
     }
@@ -80,5 +84,6 @@ export const useProjectAutosave = () => {
     fencingState,
     deckingState,
     saveProject,
+    updateActiveProjectSnapshot,
   ]);
 };

@@ -45,11 +45,9 @@ export default function StylesPage({ params }: { params: { category?: string } }
 
   const handleContinue = () => {
     if (!category) return;
-    const projectType = category === "rural" ? "rural_fencing" : "residential_fencing";
+    const projectType = category === "rural" ? "rural" : "residential";
     setSessionIntent("new");
-    setLocation(
-      `/planner/new?type=${projectType}&name=${encodedName}&category=${category}`
-    );
+    setLocation(`/planner/new?projectType=${projectType}&name=${encodedName}`);
   };
 
   const handleBack = () => {

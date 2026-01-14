@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const projectTypeSchema = z.enum([
   "decking",
-  "residential_fencing",
-  "rural_fencing",
+  "residential",
+  "rural",
   "titan_rail",
 ]);
 
@@ -20,7 +20,7 @@ export type MapState = z.infer<typeof mapStateSchema>;
 
 export const projectSnapshotV1Schema = z.object({
   version: z.literal(1),
-  type: projectTypeSchema,
+  projectType: projectTypeSchema,
   name: z.string(),
   plannerState: z.unknown(),
   uiState: z.unknown().optional(),

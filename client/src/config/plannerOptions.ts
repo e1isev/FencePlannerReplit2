@@ -11,20 +11,20 @@ export const projectTypeFromProduct = (kind: ProductKind): ProjectType => {
     case "Decking":
       return "decking";
     case "Rural fencing":
-      return "rural_fencing";
+      return "rural";
     case "Titan rail":
       return "titan_rail";
     case "Residential fencing":
     default:
-      return "residential_fencing";
+      return "residential";
   }
 };
 
 export const fencingModeFromProjectType = (type: ProjectType): FencingMode | null => {
   switch (type) {
-    case "residential_fencing":
+    case "residential":
       return "residential";
-    case "rural_fencing":
+    case "rural":
       return "rural";
     default:
       return null;
@@ -32,13 +32,13 @@ export const fencingModeFromProjectType = (type: ProjectType): FencingMode | nul
 };
 
 export const plannerOptions = {
-  residential_fencing: {
+  residential: {
     fenceCategories: ["residential"] as FenceCategoryId[],
     fenceStyles: FENCE_CATEGORIES.filter((category) => category.id === "residential"),
     heights: FENCE_HEIGHTS_M,
     colors: FENCE_COLORS,
   },
-  rural_fencing: {
+  rural: {
     fenceCategories: ["rural"] as FenceCategoryId[],
     fenceStyles: FENCE_CATEGORIES.filter((category) => category.id === "rural"),
     heights: FENCE_HEIGHTS_M,

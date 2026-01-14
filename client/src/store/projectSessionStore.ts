@@ -12,7 +12,7 @@ import { useAuthStore } from "@/store/authStore";
 export type ProjectSummary = {
   id: string;
   name: string;
-  type: ProjectType;
+  projectType: ProjectType;
   updatedAt: string;
 };
 
@@ -32,7 +32,8 @@ type ProjectSessionState = {
   setSessionIntent: (intent: "new" | "restore" | null) => void;
   setProjectName: (name: string) => void;
   refreshDependencies: () => Promise<void>;
-  startNewProject: (type: ProjectType, name: string) => void;
+  startNewProject: (projectType: ProjectType, name: string) => void;
+  updateActiveProjectSnapshot: (snapshot: ProjectSnapshotV1) => void;
   restoreActiveProject: () => boolean;
   loadProject: (projectId: string) => Promise<void>;
   loadGuestProject: (localId: string) => void;
@@ -50,14 +51,12 @@ const buildLocalProject = (
   updatedAt: string
 ): LocalProject => {
   const plannerState = snapshot.plannerState as {
-    fenceCategoryId?: LocalProject["category"];
     fenceStyleId?: LocalProject["styleId"];
   };
   return {
     id,
     name,
-    type: snapshot.type,
-    category: plannerState?.fenceCategoryId ?? null,
+    projectType: snapshot.projectType,
     styleId: plannerState?.fenceStyleId ?? null,
     updatedAt,
     snapshot,
@@ -105,20 +104,21 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       set({ errorMessage: error instanceof Error ? error.message : "Unable to fetch dependencies." });
     }
   },
-  startNewProject: (type, name) => {
+  startNewProject: (projectType, name) => {
     const dependencies = get().dependencies;
     const nowIso = new Date().toISOString();
     const localId = `local-${crypto.randomUUID()}`;
-    initializePlannerState(type);
-    const snapshot = serializePlannerSnapshot(type, name, dependencies);
+    initializePlannerState(projectType);
+    const snapshot = serializePlannerSnapshot(projectType, name, dependencies);
+    const projectRecord = buildLocalProject(snapshot, name, localId, nowIso);
     set({
       projectId: null,
       localId,
-      projectType: type,
+      projectType,
       projectName: name,
       projectsById: {
         ...get().projectsById,
-        [localId]: buildLocalProject(snapshot, name, localId, nowIso),
+        [localId]: projectRecord,
       },
       activeProjectId: localId,
       saveStatus: "idle",
@@ -126,6 +126,29 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       lastSavedAt: null,
       sessionIntent: "new",
       hasBootstrapped: true,
+    });
+    if (projectType === "rural" && projectRecord.projectType !== "rural") {
+      console.error(`Project type invariant failed for ${localId}.`);
+    }
+  },
+  updateActiveProjectSnapshot: (snapshot) => {
+    const { activeProjectId, projectsById, projectName, projectType } = get();
+    if (!activeProjectId || !projectType) return;
+    const existing = projectsById[activeProjectId];
+    if (!existing) return;
+    const updatedAt = new Date().toISOString();
+    set({
+      projectsById: {
+        ...projectsById,
+        [activeProjectId]: {
+          ...existing,
+          name: projectName,
+          projectType,
+          snapshot,
+          updatedAt,
+        },
+      },
+      lastSavedAt: updatedAt,
     });
   },
   restoreActiveProject: () => {
@@ -138,7 +161,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     set({
       projectId: null,
       localId: project.id,
-      projectType: project.type,
+      projectType: project.projectType,
       projectName: project.name,
       lastSavedAt: project.updatedAt,
       saveStatus: "local",
@@ -157,7 +180,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     const payload = (await response.json()) as {
       id: string;
       name: string;
-      type: ProjectType;
+      projectType: ProjectType;
       snapshot: ProjectSnapshotV1;
       updatedAt: string;
     };
@@ -165,7 +188,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     set({
       projectId: payload.id,
       localId: null,
-      projectType: payload.type,
+      projectType: payload.projectType,
       projectName: payload.name,
       lastSavedAt: payload.updatedAt,
       saveStatus: "idle",
@@ -184,7 +207,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
     set({
       projectId: null,
       localId: project.id,
-      projectType: project.type,
+      projectType: project.projectType,
       projectName: project.name,
       lastSavedAt: project.updatedAt,
       saveStatus: "local",
@@ -209,15 +232,15 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
 
     if (!authUser) {
       const resolvedLocalId = localId ?? `local-${crypto.randomUUID()}`;
-      const updatedAt = new Date().toISOString();
-      set({
-        localId: resolvedLocalId,
-        activeProjectId: resolvedLocalId,
-        projectsById: {
-          ...projectsById,
-          [resolvedLocalId]: buildLocalProject(snapshot, projectName, resolvedLocalId, updatedAt),
-        },
-        saveStatus: "local",
+        const updatedAt = new Date().toISOString();
+        set({
+          localId: resolvedLocalId,
+          activeProjectId: resolvedLocalId,
+          projectsById: {
+            ...projectsById,
+            [resolvedLocalId]: buildLocalProject(snapshot, projectName, resolvedLocalId, updatedAt),
+          },
+          saveStatus: "local",
         lastSavedAt: updatedAt,
         sessionIntent: "restore",
         hasBootstrapped: true,
@@ -233,7 +256,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: projectName,
-            type: projectType,
+            projectType,
             snapshot,
           }),
         });
@@ -280,7 +303,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: project.name,
-        type: project.type,
+        projectType: project.projectType,
         snapshot: project.snapshot,
       }),
     });
@@ -321,7 +344,7 @@ export const loadGuestProjectSummaries = () => {
   return Object.values(projectsById).map((project) => ({
     id: project.id,
     name: project.name,
-    type: project.type,
+    projectType: project.projectType,
     updatedAt: project.updatedAt,
   }));
 };

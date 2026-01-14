@@ -2,15 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import PlannerPage from "@/pages/PlannerPage";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
-import { useAppStore } from "@/store/appStore";
-import type { FenceCategoryId } from "@/types/models";
 import type { ProjectType } from "@shared/projectSnapshot";
 
-const isSupportedFenceType = (value: string | null): value is ProjectType =>
-  value === "residential_fencing" || value === "rural_fencing";
-
-const isFenceCategory = (value: string | null): value is FenceCategoryId =>
-  value === "residential" || value === "rural";
+const coerceProjectType = (value: string | null): ProjectType | null => {
+  if (!value) return null;
+  if (value === "residential" || value === "rural") return value;
+  if (value === "residential_fencing") return "residential";
+  if (value === "rural_fencing") return "rural";
+  return null;
+};
 
 export default function PlannerEntryPage({ params }: { params: { projectId?: string } }) {
   const [location] = useLocation();
@@ -22,16 +22,16 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
   const loadGuestProject = useProjectSessionStore((state) => state.loadGuestProject);
   const currentType = useProjectSessionStore((state) => state.projectType);
   const activeProjectId = useProjectSessionStore((state) => state.activeProjectId);
+  const projectsById = useProjectSessionStore((state) => state.projectsById);
   const sessionIntent = useProjectSessionStore((state) => state.sessionIntent);
   const hasBootstrapped = useProjectSessionStore((state) => state.hasBootstrapped);
-  const setFenceCategory = useAppStore((state) => state.setFenceCategory);
 
   const query = useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
-  const requestedType = query.get("type");
+  const requestedType = query.get("projectType") ?? query.get("type");
   const projectName = query.get("name");
   const localId = query.get("localId");
-  const categoryParam = query.get("category");
-  const requestedCategory = isFenceCategory(categoryParam) ? categoryParam : null;
+  const requestedProjectType =
+    coerceProjectType(requestedType) ?? coerceProjectType(query.get("category"));
 
   useEffect(() => {
     if (projectId) {
@@ -44,40 +44,36 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
       return;
     }
     if (
-      !requestedType &&
-      !requestedCategory &&
+      !requestedProjectType &&
       !projectName &&
-      activeProjectId &&
-      sessionIntent === null &&
-      !hasBootstrapped
+      !activeProjectId &&
+      (sessionIntent === null || sessionIntent === "restore") &&
+      (!hasBootstrapped || Object.keys(projectsById).length === 0)
     ) {
       const restored = restoreActiveProject();
       if (restored) return;
     }
-    if (!requestedType && currentType && currentType !== "decking") {
+    if (!requestedProjectType && currentType && currentType !== "decking") {
       return;
     }
-    const type = isSupportedFenceType(requestedType) ? requestedType : "residential_fencing";
+    const type = requestedProjectType ?? "residential";
     const name = projectName ? decodeURIComponent(projectName) : `Untitled project ${new Date().toLocaleString()}`;
     startNewProject(type, name);
-    if (requestedCategory) {
-      setFenceCategory(requestedCategory);
-    }
   }, [
     projectId,
     requestedType,
     projectName,
     localId,
-    requestedCategory,
+    requestedProjectType,
     startNewProject,
     restoreActiveProject,
     loadProject,
     loadGuestProject,
     currentType,
     activeProjectId,
+    projectsById,
     sessionIntent,
     hasBootstrapped,
-    setFenceCategory,
   ]);
 
   if (loading) {

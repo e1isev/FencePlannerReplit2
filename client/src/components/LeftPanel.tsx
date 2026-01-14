@@ -54,7 +54,12 @@ export function LeftPanel() {
     catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
-  const projectType = useProjectSessionStore((state) => state.projectType);
+  const { activeProjectId, projectsById } = useProjectSessionStore((state) => ({
+    activeProjectId: state.activeProjectId,
+    projectsById: state.projectsById,
+  }));
+  const activeProject = activeProjectId ? projectsById[activeProjectId] : null;
+  const projectType = activeProject?.projectType ?? null;
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
   const supportedHeights = useMemo(
@@ -77,8 +82,8 @@ export function LeftPanel() {
   const fencingMode = projectType ? fencingModeFromProjectType(projectType) : null;
   const availableCategories =
     fencingMode === "rural"
-      ? plannerOptions.rural_fencing.fenceCategories
-      : plannerOptions.residential_fencing.fenceCategories;
+      ? plannerOptions.rural.fenceCategories
+      : plannerOptions.residential.fenceCategories;
   const formattedUpdatedAt =
     updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
       ? new Date(updatedAtIso).toLocaleString()
@@ -100,7 +105,7 @@ export function LeftPanel() {
     setFenceHeightM(supportedHeights[0] as FenceHeightM);
   }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
-  if (!projectType || !fencingMode) {
+  if (!activeProject || !projectType || !fencingMode) {
     return (
       <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
         <div className="text-sm text-slate-500">Loading project…</div>

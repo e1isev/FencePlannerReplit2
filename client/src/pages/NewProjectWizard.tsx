@@ -18,13 +18,13 @@ const PROJECT_TYPES: Array<{
     available: true,
   },
   {
-    type: "residential_fencing",
+    type: "residential",
     label: "Residential fencing",
     description: "Full residential fence design workflow.",
     available: true,
   },
   {
-    type: "rural_fencing",
+    type: "rural",
     label: "Rural fencing",
     description: "Rural fence styles without residential options.",
     available: true,
@@ -42,7 +42,7 @@ const defaultProjectName = () =>
 
 export default function NewProjectWizard() {
   const [location, setLocation] = useLocation();
-  const [selectedType, setSelectedType] = useState<ProjectType>("residential_fencing");
+  const [selectedType, setSelectedType] = useState<ProjectType>("residential");
   const [projectName, setProjectName] = useState(defaultProjectName());
   const setSessionIntent = useProjectSessionStore((state) => state.setSessionIntent);
 
@@ -71,10 +71,9 @@ export default function NewProjectWizard() {
       setLocation(`/decking/new?name=${encodedName}`);
       return;
     }
-    if (selectedType === "residential_fencing" || selectedType === "rural_fencing") {
-      const category = selectedType === "rural_fencing" ? "rural" : "residential";
+    if (selectedType === "residential" || selectedType === "rural") {
       setSessionIntent("new");
-      setLocation(`/planner/new?type=${selectedType}&name=${encodedName}&category=${category}`);
+      setLocation(`/planner/new?projectType=${selectedType}&name=${encodedName}`);
       return;
     }
     setSessionIntent("new");
