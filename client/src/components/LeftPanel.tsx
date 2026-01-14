@@ -19,6 +19,7 @@ import { coerceFenceProjectType, fencingModeFromProjectType, plannerOptions } fr
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { useEffect, useMemo } from "react";
+import { getCatalogStyleForFenceStyle } from "@/pricing/catalogStyle";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "single_900", label: "Single 900mm" },
@@ -30,6 +31,13 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
 ];
 
 const heightEquals = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+let hasWarnedCatalogStyle = false;
+
+const warnCatalogStyleOnce = (message: string) => {
+  if (hasWarnedCatalogStyle) return;
+  hasWarnedCatalogStyle = true;
+  console.warn(message);
+};
 
 export function LeftPanel() {
   const {
@@ -78,7 +86,23 @@ export function LeftPanel() {
   const fencingMode = fencingModeFromProjectType(resolvedProjectType);
   const showProjectTypeWarning = !projectType;
   const showFencingModeWarning = !fencingMode;
-  const catalogStyle = getCatalogStyleForFenceStyle(fenceStyleId, "panel");
+  const fallbackCatalogStyle =
+    pricingIndex?.optionSets.stylesByCategory[resolvedProjectType]?.[0] ?? "Standard";
+  const catalogStyle = useMemo(() => {
+    if (typeof getCatalogStyleForFenceStyle !== "function") {
+      warnCatalogStyleOnce(
+        "Catalog style helper is unavailable; falling back to default style."
+      );
+      return fallbackCatalogStyle;
+    }
+    const resolved = getCatalogStyleForFenceStyle(fenceStyleId, "panel");
+    if (!resolved) {
+      warnCatalogStyleOnce(
+        `Catalog style could not be resolved for fence style "${fenceStyleId}".`
+      );
+    }
+    return resolved ?? fallbackCatalogStyle;
+  }, [fenceStyleId, fallbackCatalogStyle]);
   const availableColours = useMemo(() => {
     if (!catalogReady || !pricingIndex || !catalogStyle) return FENCE_COLORS;
     const colours =
