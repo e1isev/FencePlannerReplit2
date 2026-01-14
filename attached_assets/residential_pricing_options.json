@@ -1,0 +1,998 @@
+{
+  "category": [
+    "Residential"
+  ],
+  "types": [
+    "Blank Post",
+    "Corner Post",
+    "Double Gate",
+    "End Post",
+    "Line Post",
+    "Panel",
+    "Single Gate",
+    "Sliding Gate"
+  ],
+  "styles_by_type": {
+    "Panel": [
+      "Bellbrae",
+      "Jabiru",
+      "Kestrel",
+      "Kookaburra",
+      "Mystique Lattice",
+      "Mystique Solid",
+      "Rosella",
+      "Toucan",
+      "Wren"
+    ],
+    "End Post": [
+      "Picket"
+    ],
+    "Line Post": [
+      "Picket"
+    ],
+    "Corner Post": [
+      "Picket"
+    ],
+    "Blank Post": [
+      "Picket"
+    ],
+    "Single Gate": [
+      "Mystique Lattice",
+      "Mystique Solid",
+      "Picket"
+    ],
+    "Double Gate": [
+      "Mystique Lattice",
+      "Mystique Solid",
+      "Picket"
+    ],
+    "Sliding Gate": [
+      "Mystique Lattice",
+      "Mystique Solid",
+      "Picket"
+    ]
+  },
+  "colours_by_type": {
+    "Panel": [
+      "Coloured",
+      "White"
+    ],
+    "End Post": [
+      "Coloured",
+      "White"
+    ],
+    "Line Post": [
+      "Coloured",
+      "White"
+    ],
+    "Corner Post": [
+      "Coloured",
+      "White"
+    ],
+    "Blank Post": [
+      "Coloured",
+      "White"
+    ]
+  },
+  "heights_by_type_style_colour": {
+    "Panel|Bellbrae|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Bellbrae|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Jabiru|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Jabiru|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Kestrel|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Kestrel|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Kookaburra|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Kookaburra|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Mystique Lattice|Coloured": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Panel|Mystique Lattice|White": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Panel|Mystique Solid|Coloured": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Panel|Mystique Solid|White": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Panel|Rosella|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Rosella|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Toucan|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Toucan|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Wren|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Panel|Wren|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "End Post|Picket|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "End Post|Picket|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Line Post|Picket|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Line Post|Picket|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Corner Post|Picket|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Corner Post|Picket|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Blank Post|Picket|Coloured": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Blank Post|Picket|White": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Single Gate|Picket|*": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Double Gate|Picket|*": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Sliding Gate|Picket|*": [
+      0.9,
+      1.2,
+      1.4,
+      1.6,
+      1.8
+    ],
+    "Single Gate|Mystique Solid|*": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Double Gate|Mystique Solid|*": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Sliding Gate|Mystique Solid|*": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Single Gate|Mystique Lattice|*": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Double Gate|Mystique Lattice|*": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ],
+    "Sliding Gate|Mystique Lattice|*": [
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0,
+      2.1
+    ]
+  },
+  "widths_by_type_style_height": {
+    "Single Gate|Picket|0.9": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Picket|1.2": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Picket|1.4": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Picket|1.6": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Picket|1.8": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Double Gate|Picket|0.9": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Picket|1.2": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Picket|1.4": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Picket|1.6": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Picket|1.8": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Sliding Gate|Picket|0.9": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Picket|1.2": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Picket|1.4": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Picket|1.6": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Picket|1.8": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Single Gate|Mystique Solid|1.2": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Solid|1.4": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Solid|1.6": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Solid|1.8": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Solid|2.0": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Solid|2.1": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Double Gate|Mystique Solid|1.2": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Solid|1.4": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Solid|1.6": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Solid|1.8": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Solid|2.0": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Solid|2.1": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Sliding Gate|Mystique Solid|1.2": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Solid|1.4": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Solid|1.6": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Solid|1.8": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Solid|2.0": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Solid|2.1": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Single Gate|Mystique Lattice|1.2": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Lattice|1.4": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Lattice|1.6": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Lattice|1.8": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Lattice|2.0": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Single Gate|Mystique Lattice|2.1": [
+      0.9,
+      1.2,
+      1.5,
+      2.35
+    ],
+    "Double Gate|Mystique Lattice|1.2": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Lattice|1.4": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Lattice|1.6": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Lattice|1.8": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Lattice|2.0": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Double Gate|Mystique Lattice|2.1": [
+      2.4,
+      3.0,
+      4.0,
+      4.7
+    ],
+    "Sliding Gate|Mystique Lattice|1.2": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Lattice|1.4": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Lattice|1.6": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Lattice|1.8": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Lattice|2.0": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ],
+    "Sliding Gate|Mystique Lattice|2.1": [
+      {
+        "min": 3.1,
+        "max": 3.5
+      },
+      {
+        "min": 3.6,
+        "max": 4.0
+      },
+      {
+        "min": 4.1,
+        "max": 4.5
+      },
+      {
+        "min": 4.6,
+        "max": 5.0
+      },
+      {
+        "min": 5.1,
+        "max": 5.5
+      },
+      {
+        "min": 5.6,
+        "max": 6.5
+      }
+    ]
+  }
+}

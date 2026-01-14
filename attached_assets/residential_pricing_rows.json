@@ -1,0 +1,4576 @@
+[
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Bellbrae Screen Fence @ 0.9m",
+    "sku": "Bellbrae-Colour-0.9m",
+    "unit_price": 298.53
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Bellbrae Screen Fence @ 1.2m",
+    "sku": "Bellbrae-Colour-1.2m",
+    "unit_price": 359.52
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Bellbrae Screen Fence @ 1.4m",
+    "sku": "Bellbrae-Colour-1.4m",
+    "unit_price": 379.85
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Bellbrae Screen Fence @ 1.6m",
+    "sku": "Bellbrae-Colour-1.6m",
+    "unit_price": 420.51
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Bellbrae Screen Fence @ 1.8m",
+    "sku": "Bellbrae-Colour-1.8m",
+    "unit_price": 481.5
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Bellbrae Screen Fence @ 0.9m",
+    "sku": "Bellbrae-White-0.9m",
+    "unit_price": 221.49
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Bellbrae Screen Fence @ 1.2m",
+    "sku": "Bellbrae-White-1.2m",
+    "unit_price": 262.15
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Bellbrae Screen Fence @ 1.4m",
+    "sku": "Bellbrae-White-1.4m",
+    "unit_price": 276.06
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Bellbrae Screen Fence @ 1.6m",
+    "sku": "Bellbrae-White-1.6m",
+    "unit_price": 303.88
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Bellbrae",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Bellbrae Screen Fence @ 1.8m",
+    "sku": "Bellbrae-White-1.8m",
+    "unit_price": 345.61
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Jabiru Picket Fencing @ 0.9m",
+    "sku": "Picket-Jabiru-Colour-0.9m",
+    "unit_price": 260.01
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Jabiru Picket Fencing @ 1.2m",
+    "sku": "Picket-Jabiru-Colour-1.2m",
+    "unit_price": 297.46
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Jabiru Picket Fencing @ 1.4m",
+    "sku": "Picket-Jabiru-Colour-1.4m",
+    "unit_price": 323.14
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Jabiru Picket Fencing @ 1.6m",
+    "sku": "Picket-Jabiru-Colour-1.6m",
+    "unit_price": 411.95
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Jabiru Picket Fencing @ 1.8m",
+    "sku": "Picket-Jabiru-Colour-1.8m",
+    "unit_price": 437.63
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Jabiru Picket Fencing @ 0.9m",
+    "sku": "Picket-Jabiru-White-0.9m",
+    "unit_price": 193.67
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Jabiru Picket Fencing @ 1.2m",
+    "sku": "Picket-Jabiru-White-1.2m",
+    "unit_price": 218.28
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Jabiru Picket Fencing @ 1.4m",
+    "sku": "Picket-Jabiru-White-1.4m",
+    "unit_price": 235.4
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Jabiru Picket fencing @ 1.6m",
+    "sku": "Picket-Jabiru-White-1.6m",
+    "unit_price": 303.88
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Jabiru",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Jabiru Picket Fencing @ 1.8m",
+    "sku": "Picket-Jabiru-White-1.8m",
+    "unit_price": 321.0
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Kestrel Picket Fence @ 0.9m",
+    "sku": "Picket-Kestrel-Colour-0.9m",
+    "unit_price": 301.74
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Kestrel Picket Fence @ 1.2m",
+    "sku": "Picket-Kestrel-Colour-1.2m",
+    "unit_price": 345.61
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Kestrel Picket Fence @ 1.4m",
+    "sku": "Picket-Kestrel-Colour-1.4m",
+    "unit_price": 374.5
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Kestrel Picket Fence @ 1.6m",
+    "sku": "Picket-Kestrel-Colour-1.6m",
+    "unit_price": 476.15
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Kestrel Picket Fence @ 1.8m",
+    "sku": "Picket-Kestrel-Colour-1.8m",
+    "unit_price": 506.11
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Kestrel Picket Fencing @ 0.9m",
+    "sku": "Picket-Kestrel-White-0.9m",
+    "unit_price": 224.7
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Kestrel Picket Fencing @ 1.2m",
+    "sku": "Picket-Kestrel-White-1.2m",
+    "unit_price": 253.59
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Kestrel Picket Fencing @ 1.4m",
+    "sku": "Picket-Kestrel-White-1.4m",
+    "unit_price": 272.85
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Kestrel Picket Fencing @ 1.6m",
+    "sku": "Picket-Kestrel-White-1.6m",
+    "unit_price": 350.96
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kestrel",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Kestrel Picket Fencing @ 1.8m",
+    "sku": "Picket-Kestrel-White-1.8m",
+    "unit_price": 370.22
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Kookaburra Picket @ 0.9m",
+    "sku": "Picket-Kookaburra-Colour-0.9m",
+    "unit_price": 301.74
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Kookaburra Picket @ 1.2m",
+    "sku": "Picket-Kookaburra-Colour-1.2m",
+    "unit_price": 345.61
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Kookaburra Picket @ 1.4m",
+    "sku": "Picket-Kookaburra-Colour-1.4m",
+    "unit_price": 374.5
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Kookaburra Picket @ 1.6m",
+    "sku": "Picket-Kookaburra-Colour-1.6m",
+    "unit_price": 476.15
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Kookaburra Picket @ 1.8m",
+    "sku": "Picket-Kookaburra-Colour-1.8m",
+    "unit_price": 506.11
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Kookaburra Picket @ 0.9m",
+    "sku": "Picket-Kookaburra-White-0.9m",
+    "unit_price": 224.7
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Kookaburra Picket @ 1.2m",
+    "sku": "Picket-Kookaburra-White-1.2m",
+    "unit_price": 253.59
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Kookaburra Picket @ 1.4m",
+    "sku": "Picket-Kookaburra-White-1.4m",
+    "unit_price": 272.85
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Kookaburra Picket @ 1.6m",
+    "sku": "Picket-Kookaburra-White-1.6m",
+    "unit_price": 350.96
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Kookaburra",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Kookaburra Picket @ 1.8m",
+    "sku": "Picket-Kookaburra-White-1.8m",
+    "unit_price": 370.22
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Mystique Lattice @ 1.2m",
+    "sku": "Mystique-Lattice-Colour-1.2m",
+    "unit_price": 338.12
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Mystique Lattice @ 1.4m",
+    "sku": "Mystique-Lattice-Colour-1.4m",
+    "unit_price": 384.13
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Mystique Lattice @ 1.6m",
+    "sku": "Mystique-Lattice-Colour-1.6m",
+    "unit_price": 415.16
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Mystique Lattice @ 1.8m",
+    "sku": "Mystique-Lattice-Colour-1.8m",
+    "unit_price": 447.26
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "Coloured",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Panel of Colour Mystique Lattice @ 2.0m",
+    "sku": "Mystique-Lattice-Colour-2.0m",
+    "unit_price": 486.85
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "Coloured",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Panel of Colour Mystique Lattice @ 2.1m",
+    "sku": "Mystique-Lattice-Colour-2.1m",
+    "unit_price": 505.04
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Mystique Lattice @ 1.2m",
+    "sku": "Mystique-Lattice-White-1.2m",
+    "unit_price": 237.54
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Mystique Lattice @ 1.4m",
+    "sku": "Mystique-Lattice-White-1.4m",
+    "unit_price": 260.01
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Mystique Lattice @ 1.6m",
+    "sku": "Mystique-Lattice-White-1.6m",
+    "unit_price": 281.41
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Mystique Lattice @ 1.8m",
+    "sku": "Mystique-Lattice-White-1.8m",
+    "unit_price": 304.95
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "White",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Panel of White Mystique Lattice @ 2.0m",
+    "sku": "Mystique-Lattice-White-2.0m",
+    "unit_price": 329.56
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Lattice",
+    "colour": "White",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Panel of White Mystique Lattice @ 2.1m",
+    "sku": "Mystique-Lattice-White-2.1m",
+    "unit_price": 345.61
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Mystique Solid Fence @ 1.2m",
+    "sku": "Mystique-Solid-Colour-1.2m",
+    "unit_price": 317.79
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Mystique Solid Fence @ 1.4m",
+    "sku": "Mystique-Solid-Colour-1.4m",
+    "unit_price": 364.87
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Mystique Solid Fence @ 1.6m",
+    "sku": "Mystique-Solid-Colour-1.6m",
+    "unit_price": 394.83
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Mystique Solid Fence @ 1.8m",
+    "sku": "Mystique-Solid-Colour-1.8m",
+    "unit_price": 428.0
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "Coloured",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Panel of Colour Mystique Solid Fence @ 2.0m",
+    "sku": "Mystique-Solid-Colour-2.0m",
+    "unit_price": 466.52
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "Coloured",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Panel of Colour Mystique Solid Fence @ 2.1m",
+    "sku": "Mystique-Solid-Colour-2.1m",
+    "unit_price": 485.78
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Mystique Solid Fence @ 1.2m",
+    "sku": "Mystique-Solid-White-1.2m",
+    "unit_price": 182.97
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Mystique Solid Fence @ 1.4m",
+    "sku": "Mystique-Solid-White-1.4m",
+    "unit_price": 205.44
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Mystique Solid Fence @ 1.6m",
+    "sku": "Mystique-Solid-White-1.6m",
+    "unit_price": 226.84
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Mystique Solid Fence @ 1.8m",
+    "sku": "Mystique-Solid-White-1.8m",
+    "unit_price": 250.38
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "White",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Panel of White Mystique Solid Fence @ 2.0m",
+    "sku": "Mystique-Solid-White-2.0m",
+    "unit_price": 274.99
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Mystique Solid",
+    "colour": "White",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Panel of White Mystique Solid Fence @ 2.1m",
+    "sku": "Mystique-Solid-White-2.1m",
+    "unit_price": 291.04
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Rosella Picket Fence @ 0.9m",
+    "sku": "Picket-Rosella-Colour-0.9m",
+    "unit_price": 329.56
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Rosella Picket Fence @ 1.2m",
+    "sku": "Picket-Rosella-Colour-1.2m",
+    "unit_price": 373.43
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Rosella Picket Fence @ 1.4m",
+    "sku": "Picket-Rosella-Colour-1.4m",
+    "unit_price": 402.32
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Rosella Picket Fence @ 1.6m",
+    "sku": "Picket-Rosella-Colour-1.6m",
+    "unit_price": 503.97
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Rosella Picket Fence @ 1.8m",
+    "sku": "Picket-Rosella-Colour-1.8m",
+    "unit_price": 532.86
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Rosella Picket Fencing @ 0.9m",
+    "sku": "Picket-Rosella-White-0.9m",
+    "unit_price": 250.38
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Rosella Picket Fencing @ 1.2m",
+    "sku": "Picket-Rosella-White-1.2m",
+    "unit_price": 279.27
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Rosella Picket Fencing @ 1.4m",
+    "sku": "Picket-Rosella-White-1.4m",
+    "unit_price": 298.53
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Rosella Picket Fencing @ 1.6m",
+    "sku": "Picket-Rosella-White-1.6m",
+    "unit_price": 376.64
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Rosella",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Rosella Picket Fencing @ 1.8m",
+    "sku": "Picket-Rosella-White-1.8m",
+    "unit_price": 395.9
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Toucan Picket Fencing @ 0.9m",
+    "sku": "Picket-Toucan-Colour-0.9m",
+    "unit_price": 301.74
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Toucan Picket Fencing @ 1.2m",
+    "sku": "Picket-Toucan-Colour-1.2m",
+    "unit_price": 345.61
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Toucan Picket Fencing @ 1.4m",
+    "sku": "Picket-Toucan-Colour-1.4m",
+    "unit_price": 374.5
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Toucan Picket Fencing @ 1.6m",
+    "sku": "Picket-Toucan-Colour-1.6m",
+    "unit_price": 476.15
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Toucan Picket Fencing @ 1.8m",
+    "sku": "Picket-Toucan-Colour-1.8m",
+    "unit_price": 506.11
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Toucan Picket Fence @ 0.9m",
+    "sku": "Picket-Toucan-White-0.9m",
+    "unit_price": 224.7
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Toucan Picket Fencing @ 1.2m",
+    "sku": "Picket-Toucan-White-1.2m",
+    "unit_price": 253.59
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Toucan Picket Fencing @ 1.4m",
+    "sku": "Picket-Toucan-White-1.4m",
+    "unit_price": 272.85
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Toucan Picket Fencing @ 1.6m",
+    "sku": "Picket-Toucan-White-1.6m",
+    "unit_price": 350.96
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Toucan",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Toucan Picket Fencing @ 1.8m",
+    "sku": "Picket-Toucan-White-1.8m",
+    "unit_price": 370.22
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of Colour Wren Picket Fencing @ 0.9m",
+    "sku": "Picket-Wren-Colour-0.9m",
+    "unit_price": 274.99
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of Colour Wren Picket Fencing @ 1.2m",
+    "sku": "Picket-Wren-Colour-1.2m",
+    "unit_price": 318.86
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of Colour Wren Picket Fencing @ 1.4m",
+    "sku": "Picket-Wren-Colour-1.4m",
+    "unit_price": 347.75
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of Colour Wren Picket Fencing @ 1.6m",
+    "sku": "Picket-Wren-Colour-1.6m",
+    "unit_price": 450.47
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of Colour Wren Picket Fencing @ 1.8m",
+    "sku": "Picket-Wren-Colour-1.8m",
+    "unit_price": 479.36
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Panel of White Wren Picket Fencing @ 0.9m",
+    "sku": "Picket-Wren-White-0.9m",
+    "unit_price": 204.37
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Panel of White Wren Picket Fencing @ 1.2m",
+    "sku": "Picket-Wren-White-1.2m",
+    "unit_price": 233.26
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Panel of White Wren Picket Fencing @ 1.4m",
+    "sku": "Picket-Wren-White-1.4m",
+    "unit_price": 252.52
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Panel of White Wren Picket Fencing @ 1.6m",
+    "sku": "Picket-Wren-White-1.6m",
+    "unit_price": 331.7
+  },
+  {
+    "category": "Residential",
+    "type": "Panel",
+    "style": "Wren",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Panel of White Wren Picket Fencing @ 1.8m",
+    "sku": "Picket-Wren-White-1.8m",
+    "unit_price": 350.96
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post Colour End 900mm",
+    "sku": "ResPost-End-Col-0.9m",
+    "unit_price": 57.78
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post Colour End 1200mm",
+    "sku": "ResPost-End-Col-1.2m",
+    "unit_price": 66.34
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post Colour End 1400mm",
+    "sku": "ResPost-End-Col-1.4m",
+    "unit_price": 72.76
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post Colour End 1600mm",
+    "sku": "ResPost-End-Col-1.6m",
+    "unit_price": 80.25
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post Colour End 1800mm",
+    "sku": "ResPost-End-Col-1.8m",
+    "unit_price": 86.67
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post Colour End 2000mm",
+    "sku": "ResPost-End-Col-2.0m",
+    "unit_price": 89.88
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post Colour End 2100mm",
+    "sku": "ResPost-End-Col-2.1m",
+    "unit_price": 93.09
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post White End 900mm",
+    "sku": "ResPost-End-Wht-0.9m",
+    "unit_price": 40.66
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post White End1200mm",
+    "sku": "ResPost-End-Wht-1.2m",
+    "unit_price": 46.01
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post White End 1400mm",
+    "sku": "ResPost-End-Wht-1.4m",
+    "unit_price": 49.22
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post White End 1600mm",
+    "sku": "ResPost-End-Wht-1.6m",
+    "unit_price": 54.57
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post White End 1800mm",
+    "sku": "ResPost-End-Wht-1.8m",
+    "unit_price": 58.85
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post White End 2000mm",
+    "sku": "ResPost-End-Wht-2.0m",
+    "unit_price": 59.92
+  },
+  {
+    "category": "Residential",
+    "type": "End Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post White End 2100mm",
+    "sku": "ResPost-End-Wht-2.1m",
+    "unit_price": 62.06
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post Colour Line 900mm",
+    "sku": "ResPost-Line-Col-0.9m",
+    "unit_price": 57.78
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post Colour Line 1200mm",
+    "sku": "ResPost-Line-Col-1.2m",
+    "unit_price": 66.34
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post Colour Line 1400mm",
+    "sku": "ResPost-Line-Col-1.4m",
+    "unit_price": 72.76
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post Colour Line 1600mm",
+    "sku": "ResPost-Line-Col-1.6m",
+    "unit_price": 80.25
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post Colour Line 1800mm",
+    "sku": "ResPost-Line-Col-1.8m",
+    "unit_price": 86.67
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post Colour Line 2000mm",
+    "sku": "ResPost-Line-Col-2.0m",
+    "unit_price": 89.88
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post Colour Line 2100mm",
+    "sku": "ResPost-Line-Col-2.1m",
+    "unit_price": 93.09
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post White Line 900mm",
+    "sku": "ResPost-Line-Wht-0.9m",
+    "unit_price": 40.66
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post White Line 1200mm",
+    "sku": "ResPost-Line-Wht-1.2m",
+    "unit_price": 46.01
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post White Line 1400mm",
+    "sku": "ResPost-Line-Wht-1.4m",
+    "unit_price": 49.22
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post White Line 1600mm",
+    "sku": "ResPost-Line-Wh-1.6m",
+    "unit_price": 54.57
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post White Line 1800mm",
+    "sku": "ResPost-Line-Wht-1.8m",
+    "unit_price": 58.85
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post White Line 2000mm",
+    "sku": "ResPost-Line-Wht-2.0m",
+    "unit_price": 59.92
+  },
+  {
+    "category": "Residential",
+    "type": "Line Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post White Line 2100mm",
+    "sku": "ResPost-Line-Wht-2.1m",
+    "unit_price": 62.06
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post Colour Corner 900mm",
+    "sku": "ResPost-Corner-Col-0.9m",
+    "unit_price": 57.78
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post Colour Corner 1200mm",
+    "sku": "ResPost-Corner-Col-1.2m",
+    "unit_price": 66.34
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post Colour Corner 1400mm",
+    "sku": "ResPost-Corner-Col-1.4m",
+    "unit_price": 72.76
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post Colour Corner 1600mm",
+    "sku": "ResPost-Corner-Col-1.6m",
+    "unit_price": 80.25
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post Colour Corner 1800mm",
+    "sku": "ResPost-Corner-Col-1.8m",
+    "unit_price": 86.67
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post Colour Corner 2000mm",
+    "sku": "ResPost-Corner-Col-2.0m",
+    "unit_price": 89.88
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post Colour Corner 2100mm",
+    "sku": "ResPost-Corner-Col-2.1m",
+    "unit_price": 93.09
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post White Corner 900mm",
+    "sku": "ResPost-Corner-Wht-0.9m",
+    "unit_price": 40.66
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post White Corner 1200mm",
+    "sku": "ResPost-Corner-Wht-1.2m",
+    "unit_price": 46.01
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post White Corner 1400mm",
+    "sku": "ResPost-Corner-Wht-1.4m",
+    "unit_price": 49.22
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "PostWht Corner 1600mm",
+    "sku": "ResPost-Corner-Wht-1.6m",
+    "unit_price": 54.57
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post White Corner 1800mm",
+    "sku": "ResPost-Corner-Wht-1.8m",
+    "unit_price": 58.85
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post White Corner 2000m",
+    "sku": "ResPost-Corner-Wht-2.0m",
+    "unit_price": 59.92
+  },
+  {
+    "category": "Residential",
+    "type": "Corner Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post White Corner 2100mm",
+    "sku": "ResPost-Corner-Wht-2.1m",
+    "unit_price": 62.06
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post Colour Blank 900mm",
+    "sku": "ResPost-Blank-Col-0.9m",
+    "unit_price": 57.78
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post Colour Blank 1200mm",
+    "sku": "ResPost-Blank-Col-1.2m",
+    "unit_price": 66.34
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post Colour Blank 1400mm",
+    "sku": "ResPost-Blank-Col-1.4m",
+    "unit_price": 72.76
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post Colour Blank 1600mm",
+    "sku": "ResPost-Blank-Col-1.6m",
+    "unit_price": 80.25
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post Colour Blank 1800mm",
+    "sku": "ResPost-Blank-Col-1.8m",
+    "unit_price": 86.67
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post Colour Blank 2000mm",
+    "sku": "ResPost-Blank-Col-2.0m",
+    "unit_price": 89.88
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "Coloured",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post Colour Blank 2100mm",
+    "sku": "ResPost-Blank-Col-2.1m",
+    "unit_price": 93.09
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 0.9,
+    "width": null,
+    "name": "Post White Blank 900mm",
+    "sku": "ResPost-Blank-Wht-0.9m",
+    "unit_price": 40.66
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.2,
+    "width": null,
+    "name": "Post White Blank 1200mm",
+    "sku": "ResPost-Blank-Wht-1.2m",
+    "unit_price": 46.01
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.4,
+    "width": null,
+    "name": "Post White Blank 1400mm",
+    "sku": "ResPost-Blank-Wht-1.4m",
+    "unit_price": 49.22
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.6,
+    "width": null,
+    "name": "Post White Blank 1600mm",
+    "sku": "ResPost-Blank-Wht-1.6m",
+    "unit_price": 54.57
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 1.8,
+    "width": null,
+    "name": "Post White Blank 1800mm",
+    "sku": "ResPost-Blank-Wht-1.8m",
+    "unit_price": 58.85
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.0,
+    "width": null,
+    "name": "Post White Blank 2000mm",
+    "sku": "ResPost-Blank-Wht-2.0m",
+    "unit_price": 59.92
+  },
+  {
+    "category": "Residential",
+    "type": "Blank Post",
+    "style": "Picket",
+    "colour": "White",
+    "height_m": 2.1,
+    "width": null,
+    "name": "Post White Blank 2100mm",
+    "sku": "ResPost-Blank-Wht-2.1m",
+    "unit_price": 62.06
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 0.9,
+    "name": "0.9m Picket Single Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Single-0.9H-0.9W",
+    "unit_price": 557.29
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 0.9,
+    "name": "0.9m Picket Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Single-1.2H-0.9W",
+    "unit_price": 582.45
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 0.9,
+    "name": "0.9m Picket Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Single-1.4H-0.9W",
+    "unit_price": 611.74
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 0.9,
+    "name": "0.9m Picket Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Single-1.6H-0.9W",
+    "unit_price": 641.03
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 0.9,
+    "name": "0.9m Picket Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Single-1.8H-0.9W",
+    "unit_price": 657.81
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 1.2,
+    "name": "1.2m Picket Single Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Single-0.9H-1.2W",
+    "unit_price": 557.29
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 1.2,
+    "name": "1.2m Picket Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Single-1.2H-1.2W",
+    "unit_price": 582.45
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 1.2,
+    "name": "1.2m Picket Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Single-1.4H-1.2W",
+    "unit_price": 611.74
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 1.2,
+    "name": "1.2m Picket Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Single-1.6H-1.2W",
+    "unit_price": 641.03
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 1.2,
+    "name": "1.2m Picket Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Single-1.8H-1.2W",
+    "unit_price": 657.81
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 1.5,
+    "name": "1.5m Picket Single Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Single-0.9H-1.5W",
+    "unit_price": 744.63
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 1.5,
+    "name": "1.5m Picket Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Single-1.2H-1.5W",
+    "unit_price": 793.99
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 1.5,
+    "name": "1.5m Picket Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Single-1.4H-1.5W",
+    "unit_price": 853.88
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 1.5,
+    "name": "1.5m Picket Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Single-1.6H-1.5W",
+    "unit_price": 913.76
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 1.5,
+    "name": "1.5m Picket Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Single-1.8H-1.5W",
+    "unit_price": 946.66
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 2.35,
+    "name": "2.35m Picket Single Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Single-0.9H-2.35W",
+    "unit_price": 744.63
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 2.35,
+    "name": "2.35m Picket Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Single-1.2H-2.35W",
+    "unit_price": 793.99
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 2.35,
+    "name": "2.35m Picket Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Single-1.4H-2.35W",
+    "unit_price": 853.88
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 2.35,
+    "name": "2.35m Picket Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Single-1.6H-2.35W",
+    "unit_price": 913.76
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 2.35,
+    "name": "2.35m Picket Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Single-1.8H-2.35W",
+    "unit_price": 946.66
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 2.4,
+    "name": "2.4m Picket Double Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Double-0.9H-2.4W",
+    "unit_price": 1221.59
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 2.4,
+    "name": "2.4m Picket Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Double-1.2H-2.4W",
+    "unit_price": 1271.95
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 2.4,
+    "name": "2.4m Picket Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Double-1.4H-2.4W",
+    "unit_price": 1330.52
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 2.4,
+    "name": "2.4m Picket Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Double-1.6H-2.4W",
+    "unit_price": 1389.07
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 2.4,
+    "name": "2.4m Picket Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Double-1.8H-2.4W",
+    "unit_price": 1422.63
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 3.0,
+    "name": "3.0m Picket Double Gate @ 0.9 Above Ground",
+    "sku": "Gate-Picket-Double-0.9H-3.0W",
+    "unit_price": 1460.9
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 3.0,
+    "name": "3.0m Picket Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Double-1.2H-3.0W",
+    "unit_price": 1550.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 3.0,
+    "name": "3.0m Picket Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Double-1.4H-3.0W",
+    "unit_price": 1659.5
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 3.0,
+    "name": "3.0m Picket Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Double-1.6H-3.0W",
+    "unit_price": 1768.36
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 3.0,
+    "name": "3.0m Picket Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Double-1.8H-3.0W",
+    "unit_price": 1828.18
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Picket Sliding Gate @ 0.9m Above Ground",
+    "sku": "Gate-Pick-Sliding-0.9H-3.1/3.5",
+    "unit_price": 2815.83
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Picket Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.2H-3.1/3.5",
+    "unit_price": 2815.83
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Picket Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Pick-Sliding-3.1/3.5",
+    "unit_price": 2815.83
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Picket Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.6H-3.1/3.5",
+    "unit_price": 3942.17
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Picket Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.8H-3.1/3.5",
+    "unit_price": 3942.17
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Picket Sliding Gate @ 0.9m Above Ground",
+    "sku": "Gate-Pick-Sliding-0.9H-3.6/4.0",
+    "unit_price": 3285.14
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Picket Sliding Gate @ 1.2m Above ground",
+    "sku": "Gate-Pick-Sliding-1.2H-3.6/4.0",
+    "unit_price": 3285.14
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Picket Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.4H-3.6/4.0",
+    "unit_price": 3285.14
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Picket Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.6H-3.6/4.0",
+    "unit_price": 4505.33
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Picket Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.8H-3.6/4.0",
+    "unit_price": 4505.33
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 4.0,
+    "name": "4.0m Picket Double Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Double-0.9H-4.0W",
+    "unit_price": 1460.9
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 4.0,
+    "name": "4.0m Picket Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Double-1.2H-4.0W",
+    "unit_price": 1550.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 4.0,
+    "name": "4.0m Picket Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Double-1.4H-4.0W",
+    "unit_price": 1659.5
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 4.0,
+    "name": "4.0m Picket Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Double-1.6H-4.0W",
+    "unit_price": 1768.36
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 4.0,
+    "name": "4.0m Picket Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Double-1.8H-4.0W",
+    "unit_price": 1828.18
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Picket Sliding Gate @ 0.9m Above Ground",
+    "sku": "Gate-Pick-Sliding-0.9H-4.1/4.5",
+    "unit_price": 3754.45
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Picket Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.2H-4.1/4.5",
+    "unit_price": 3754.45
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Picket Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.4H-4.1/4.5",
+    "unit_price": 3754.45
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Picket Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.6H-4.1/4.5",
+    "unit_price": 5068.49
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Picket Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.8H-4.1/4.5",
+    "unit_price": 5068.49
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Picket Sliding Gate @ 0.9m Above Ground",
+    "sku": "Gate-Pick-Sliding-0.9H-4.6/5.0",
+    "unit_price": 4223.75
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Picket Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.2H-4.6/5.0",
+    "unit_price": 4223.75
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Picket Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.4H-4.6/5.0",
+    "unit_price": 4223.75
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Picket Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.6H-4.6/5.0",
+    "unit_price": 5631.67
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Picket Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.8H-4.6/5.0",
+    "unit_price": 5631.67
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": 4.7,
+    "name": "4.7m Picket Double Gate @ 0.9m Above Ground",
+    "sku": "Gate-Picket-Double-0.9H-4.7W",
+    "unit_price": 1460.9
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 4.7,
+    "name": "4.7m Picket Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Picket-Double-1.2H-4.7W",
+    "unit_price": 1550.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 4.7,
+    "name": "4.7m Picket Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Picket-Double-1.4H-4.7W",
+    "unit_price": 1659.5
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 4.7,
+    "name": "4.7m Picket Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Picket-Double-1.6H-4.7W",
+    "unit_price": 1768.36
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 4.7,
+    "name": "4.7m Picket Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Picket-Double-1.8H-4.7W",
+    "unit_price": 1828.18
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Picket Sliding gate @ 0.9m Above Ground",
+    "sku": "Gate-Pick-Sliding-0.9H-5.1/5.5",
+    "unit_price": 4693.05
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Picket Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.2H-5.1/5.5",
+    "unit_price": 4693.05
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Picket Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.4H-5.1/5.5",
+    "unit_price": 4693.05
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Picket Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.6H-5.1/6.5",
+    "unit_price": 6194.83
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Picket Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.8H-5.1/5.5",
+    "unit_price": 6194.83
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 0.9,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Picket Sliding Gate @ 0.9m Above Ground",
+    "sku": "Gate-Pick-Sliding-0.9H-5.6/6.5",
+    "unit_price": 5162.35
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Picket Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.2H-5.6/6.5",
+    "unit_price": 5162.35
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Picket Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.4H-5.6/6.5",
+    "unit_price": 5162.35
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Picket Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.6H-5.6/6.5",
+    "unit_price": 6758.0
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Picket",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Picket Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Pick-Sliding-1.8H-5.6/6.5",
+    "unit_price": 6758.0
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-0.9W",
+    "unit_price": 698.97
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-0.9W",
+    "unit_price": 734.12
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-0.9W",
+    "unit_price": 769.24
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-0.9W",
+    "unit_price": 789.38
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-0.9W",
+    "unit_price": 868.32
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-0.9W",
+    "unit_price": 955.15
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-1.2W",
+    "unit_price": 698.97
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-1.2W",
+    "unit_price": 734.12
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-1.2W",
+    "unit_price": 769.24
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-1.2W",
+    "unit_price": 789.38
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-1.2W",
+    "unit_price": 868.32
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-1.2W",
+    "unit_price": 955.15
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-1.5W",
+    "unit_price": 866.17
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-1.5W",
+    "unit_price": 931.5
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-1.5W",
+    "unit_price": 996.82
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-1.5W",
+    "unit_price": 1032.72
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-1.5W",
+    "unit_price": 1135.99
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-1.5W",
+    "unit_price": 1249.57
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-2.35",
+    "unit_price": 866.17
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-2.35",
+    "unit_price": 931.5
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-2.35",
+    "unit_price": 996.82
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-2.35",
+    "unit_price": 1032.72
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-2.35",
+    "unit_price": 1135.99
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-2.35",
+    "unit_price": 1249.57
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-2.4W",
+    "unit_price": 1561.24
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-2.4W",
+    "unit_price": 1603.36
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-2.4W",
+    "unit_price": 1645.48
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-2.4W",
+    "unit_price": 1685.76
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-2.4W",
+    "unit_price": 1843.64
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-2.4W",
+    "unit_price": 2017.29
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-3.0W",
+    "unit_price": 1839.37
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-3.0W",
+    "unit_price": 1970.01
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-3.0W",
+    "unit_price": 2100.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-3.0W",
+    "unit_price": 2172.43
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-3.0W",
+    "unit_price": 2378.97
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-3.0W",
+    "unit_price": 2606.19
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-3.1/3.5",
+    "unit_price": 3449.4
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-3.6/4.0",
+    "unit_price": 3942.17
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-3.6-4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.8m Above ground",
+    "sku": "Gate-Myst-Sliding-1.8H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-4.0W",
+    "unit_price": 1839.37
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-4.0W",
+    "unit_price": 1970.01
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-4.0W",
+    "unit_price": 2100.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-4.0W",
+    "unit_price": 2172.43
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-4.0W",
+    "unit_price": 2378.97
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-4.0W",
+    "unit_price": 2606.19
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-4.1/4.5",
+    "unit_price": 4434.95
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-4.6/5.0",
+    "unit_price": 4927.7
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-4.7W",
+    "unit_price": 1839.37
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-4.7W",
+    "unit_price": 1970.01
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-4.7W",
+    "unit_price": 2100.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-4.7W",
+    "unit_price": 2172.43
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-4.7W",
+    "unit_price": 2378.97
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-4.7W",
+    "unit_price": 2606.19
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-5.1/5.5",
+    "unit_price": 5420.48
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-5.6/6.5",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Solid",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-0.9W",
+    "unit_price": 698.97
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-0.9W",
+    "unit_price": 734.12
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-0.9W",
+    "unit_price": 769.24
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-0.9W",
+    "unit_price": 789.38
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-0.9W",
+    "unit_price": 868.32
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 0.9,
+    "name": "0.9m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-0.9W",
+    "unit_price": 955.15
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-1.2W",
+    "unit_price": 698.97
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-1.2W",
+    "unit_price": 734.12
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-1.2W",
+    "unit_price": 769.24
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-1.2W",
+    "unit_price": 789.38
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-1.2W",
+    "unit_price": 868.32
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 1.2,
+    "name": "1.2m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-1.2W",
+    "unit_price": 955.15
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-1.5W",
+    "unit_price": 866.17
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-1.5W",
+    "unit_price": 931.5
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-1.5W",
+    "unit_price": 996.82
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-1.5W",
+    "unit_price": 1032.72
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-1.5W",
+    "unit_price": 1135.99
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 1.5,
+    "name": "1.5m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-1.5W",
+    "unit_price": 1249.57
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.2m Above Ground",
+    "sku": "Gate-Mystique-Single-1.2H-2.35",
+    "unit_price": 866.17
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.4m Above Ground",
+    "sku": "Gate-Mystique-Single-1.4H-2.35",
+    "unit_price": 931.5
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.6m Above Ground",
+    "sku": "Gate-Mystique-Single-1.6H-2.35",
+    "unit_price": 996.82
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 1.8m Above Ground",
+    "sku": "Gate-Mystique-Single-1.8H-2.35",
+    "unit_price": 1032.72
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 2.0m Above Ground",
+    "sku": "Gate-Mystique-Single-2.0H-2.35",
+    "unit_price": 1135.99
+  },
+  {
+    "category": "Residential",
+    "type": "Single Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 2.35,
+    "name": "2.35m Mystique Single Gate @ 2.1m Above Ground",
+    "sku": "Gate-Mystique-Single-2.1H-2.35",
+    "unit_price": 1249.57
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-2.4W",
+    "unit_price": 1561.24
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-2.4W",
+    "unit_price": 1603.36
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-2.4W",
+    "unit_price": 1645.48
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-2.4W",
+    "unit_price": 1685.76
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-2.4W",
+    "unit_price": 1843.64
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 2.4,
+    "name": "2.4m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-2.4W",
+    "unit_price": 2017.29
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-3.0W",
+    "unit_price": 1839.37
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-3.0W",
+    "unit_price": 1970.01
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-3.0W",
+    "unit_price": 2100.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-3.0W",
+    "unit_price": 2172.43
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-3.0W",
+    "unit_price": 2378.97
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 3.0,
+    "name": "3.0m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-3.0W",
+    "unit_price": 2606.19
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-3.1/3.5",
+    "unit_price": 3449.4
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 3.1,
+      "max": 3.5
+    },
+    "name": "3.1-3.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-3.1/3.5",
+    "unit_price": 4139.27
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-3.6/4.0",
+    "unit_price": 3942.17
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-3.6-4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 1.8m Above ground",
+    "sku": "Gate-Myst-Sliding-1.8H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 3.6,
+      "max": 4.0
+    },
+    "name": "3.6-4.0m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-3.6/4.0",
+    "unit_price": 4730.6
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-4.0W",
+    "unit_price": 1839.37
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-4.0W",
+    "unit_price": 1970.01
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-4.0W",
+    "unit_price": 2100.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-4.0W",
+    "unit_price": 2172.43
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-4.0W",
+    "unit_price": 2378.97
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 4.0,
+    "name": "4.0m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-4.0W",
+    "unit_price": 2606.19
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-4.1/4.5",
+    "unit_price": 4434.95
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 4.1,
+      "max": 4.5
+    },
+    "name": "4.1-4.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-4.1/4.5",
+    "unit_price": 5321.92
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-4.6/5.0",
+    "unit_price": 4927.7
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 4.6,
+      "max": 5.0
+    },
+    "name": "4.6-5.0m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-4.6/5.0",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Double-1.2H-4.7W",
+    "unit_price": 1839.37
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Double-1.4H-4.7W",
+    "unit_price": 1970.01
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Double-1.6H-4.7W",
+    "unit_price": 2100.62
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Double-1.8H-4.7W",
+    "unit_price": 2172.43
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Double-2.0H-4.7W",
+    "unit_price": 2378.97
+  },
+  {
+    "category": "Residential",
+    "type": "Double Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": 4.7,
+    "name": "4.7m Mystique Double Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Double-2.1H-4.7W",
+    "unit_price": 2606.19
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-5.1/5.5",
+    "unit_price": 5420.48
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 5.1,
+      "max": 5.5
+    },
+    "name": "5.1-5.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-5.1/5.5",
+    "unit_price": 6504.57
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.2,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.2m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.2H-5.6/6.5",
+    "unit_price": 5913.25
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.4,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.4m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.4H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.6,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.6m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.6H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 1.8,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 1.8m Above Ground",
+    "sku": "Gate-Myst-Sliding-1.8H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.0,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 2.0m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.0H-5.6/6.5",
+    "unit_price": 7095.9
+  },
+  {
+    "category": "Residential",
+    "type": "Sliding Gate",
+    "style": "Mystique Lattice",
+    "colour": null,
+    "height_m": 2.1,
+    "width": {
+      "min": 5.6,
+      "max": 6.5
+    },
+    "name": "5.6-6.5m Mystique Sliding Gate @ 2.1m Above Ground",
+    "sku": "Gate-Myst-Sliding-2.1H-5.6/6.5",
+    "unit_price": 7095.9
+  }
+]
