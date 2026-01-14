@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { exportPDF, exportCuttingListCSV } from "@/lib/exports";
-import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { getFenceColourMode } from "@/config/fenceColors";
 import { getSlidingReturnSide } from "@/geometry/gates";
 
@@ -33,8 +32,6 @@ export function Toolbar() {
     updateGateReturnSide,
   } = useAppStore();
   const [, setLocation] = useLocation();
-  const { pricingIndex, catalogReady } = usePricingCatalog();
-
   const selectedGate = gates.find((g) =>
     g.type.startsWith("sliding")
   );
@@ -54,8 +51,8 @@ export function Toolbar() {
       posts,
       gates,
       lines,
-      pricingIndex,
-      catalogReady,
+      pricingIndex: null,
+      catalogReady: false,
     });
   };
 
@@ -69,8 +66,8 @@ export function Toolbar() {
       posts,
       gates,
       lines,
-      pricingIndex,
-      catalogReady,
+      pricingIndex: null,
+      catalogReady: false,
     });
   };
 

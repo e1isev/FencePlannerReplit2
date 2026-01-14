@@ -14,12 +14,10 @@ import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
-import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { coerceFenceProjectType, fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { useEffect, useMemo } from "react";
-import { getCatalogStyleForFenceStyle } from "@/pricing/catalogStyle";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "single_900", label: "Single 900mm" },
@@ -31,13 +29,6 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
 ];
 
 const heightEquals = (a: number, b: number) => Math.abs(a - b) < 1e-6;
-let hasWarnedCatalogStyle = false;
-
-const warnCatalogStyleOnce = (message: string) => {
-  if (hasWarnedCatalogStyle) return;
-  hasWarnedCatalogStyle = true;
-  console.warn(message);
-};
 
 export function LeftPanel() {
   const {
@@ -54,16 +45,6 @@ export function LeftPanel() {
     setFenceHeightM,
     setFenceColorId,
   } = useAppStore();
-  const {
-    pricingIndex,
-    pricingStatus,
-    noticeMessage: pricingNotice,
-    updatedAtIso,
-    errorMessage: pricingError,
-    catalogStatus,
-    catalogReady,
-    loadPricingCatalog,
-  } = usePricingCatalog();
   const activeProject = useProjectSessionStore((state) =>
     state.activeProjectId ? state.projectsById[state.activeProjectId] : null
   );
@@ -73,51 +54,14 @@ export function LeftPanel() {
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
   const supportedHeights = useMemo(
-    () =>
-      getSupportedPanelHeights(
-        fenceStyleId,
-        fenceColourMode,
-        fenceCategoryId,
-        pricingIndex
-      ),
-    [fenceStyleId, fenceColourMode, fenceCategoryId, pricingIndex]
+    () => getSupportedPanelHeights(fenceStyleId, fenceColourMode, fenceCategoryId, null),
+    [fenceStyleId, fenceColourMode, fenceCategoryId]
   );
   const resolvedProjectType = projectType ?? "residential";
   const fencingMode = fencingModeFromProjectType(resolvedProjectType);
   const showProjectTypeWarning = !projectType;
   const showFencingModeWarning = !fencingMode;
-  const fallbackCatalogStyle =
-    pricingIndex?.optionSets.stylesByCategory[resolvedProjectType]?.[0] ?? "Standard";
-  const catalogStyle = useMemo(() => {
-    if (typeof getCatalogStyleForFenceStyle !== "function") {
-      warnCatalogStyleOnce(
-        "Catalog style helper is unavailable; falling back to default style."
-      );
-      return fallbackCatalogStyle;
-    }
-    const resolved = getCatalogStyleForFenceStyle(fenceStyleId, "panel");
-    if (!resolved) {
-      warnCatalogStyleOnce(
-        `Catalog style could not be resolved for fence style "${fenceStyleId}".`
-      );
-    }
-    return resolved ?? fallbackCatalogStyle;
-  }, [fenceStyleId, fallbackCatalogStyle]);
-  const availableColours = useMemo(() => {
-    if (!catalogReady || !pricingIndex || !catalogStyle) return FENCE_COLORS;
-    const colours =
-      pricingIndex.optionSets.coloursByCategoryStyle[
-        `${fenceCategoryId}|${catalogStyle}`
-      ] ?? [];
-    if (colours.length === 0) return FENCE_COLORS;
-    const normalized = new Set(colours.map((colour) => colour.toLowerCase()));
-    return FENCE_COLORS.filter((colorOption) => {
-      if (normalized.has(colorOption.id)) return true;
-      if (normalized.has("white") && colorOption.id === "white") return true;
-      if (normalized.has("colour") && colorOption.id !== "white") return true;
-      return false;
-    });
-  }, [catalogReady, pricingIndex, fenceCategoryId, catalogStyle]);
+  const availableColours = useMemo(() => FENCE_COLORS, []);
   const availableColoursKey = useMemo(
     () => availableColours.map((color) => color.id).join("|"),
     [availableColours]
@@ -173,8 +117,8 @@ export function LeftPanel() {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
+    pricingIndex: null,
+    catalogReady: false,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
   const resolvedFencingMode = fencingMode ?? "residential";
@@ -183,21 +127,7 @@ export function LeftPanel() {
       ? plannerOptions.rural.fenceCategories
       : plannerOptions.residential.fenceCategories;
   const availableStyles =
-    catalogReady && pricingIndex
-      ? pricingIndex.optionSets.stylesByCategory[resolvedFencingMode]
-      : null;
-  const formattedUpdatedAt =
-    updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
-      ? new Date(updatedAtIso).toLocaleString()
-      : "Not available";
-  const formattedStatusLastErrorAt =
-    catalogStatus?.lastErrorAt && !Number.isNaN(Date.parse(catalogStatus.lastErrorAt))
-      ? new Date(catalogStatus.lastErrorAt).toLocaleString()
-      : null;
-  const catalogHasRows = Boolean(catalogStatus?.ok && catalogStatus.catalogueRowCount > 0);
-  const statusErrorMessage = catalogStatus?.lastErrorMessage;
-  const statusErrorStatus = catalogStatus?.lastErrorStatus;
-  const hasMissingPrices = costs.missingItems.length > 0;
+    null;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
 
@@ -373,97 +303,7 @@ export function LeftPanel() {
           </div>
           <div className="mt-2 text-xs text-slate-500 font-mono space-y-1">
             <div>Total Length: {(costs.totalLengthMm / 1000).toFixed(2)}m</div>
-            {pricingStatus === "ready" && (
-              <div>Pricing last updated: {formattedUpdatedAt}</div>
-            )}
-            {pricingStatus === "ready" && pricingNotice && (
-              <div className="text-amber-600">{pricingNotice}</div>
-            )}
-            {pricingStatus === "loading" && <div>Pricing catalog loading...</div>}
-            {pricingStatus === "error" && (
-              <div className="space-y-2 text-amber-600">
-                <div>
-                  Pricing catalog unavailable{pricingError ? `: ${pricingError}` : "."}
-                </div>
-                <Button size="sm" variant="outline" onClick={() => void loadPricingCatalog()}>
-                  Retry pricing load
-                </Button>
-              </div>
-            )}
-            {catalogStatus && (
-              <div className="space-y-1 text-slate-500">
-                {catalogHasRows ? (
-                  <>
-                    <div>Pricing source: {catalogStatus.source}</div>
-                    <div>Catalogue rows: {catalogStatus.catalogueRowCount}</div>
-                  </>
-                ) : (
-                  <div className="text-amber-600">
-                    Pricing catalog not loaded
-                    {statusErrorMessage ? `: ${statusErrorMessage}` : ""}
-                    {statusErrorStatus ? ` (${statusErrorStatus})` : ""}
-                  </div>
-                )}
-                {formattedStatusLastErrorAt && (
-                  <div className="text-amber-600">
-                    Last error at {formattedStatusLastErrorAt}
-                    {catalogStatus.lastErrorStatus
-                      ? ` (${catalogStatus.lastErrorStatus})`
-                      : ""}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
-          {hasMissingPrices && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <div className="font-semibold">Missing prices</div>
-              <ul className="mt-1 list-disc space-y-1 pl-4">
-                {costs.missingItems.map((item) => (
-                  <li key={`${item.name}-${item.sku ?? "missing"}`}>
-                    {item.name}
-                    {item.sku ? ` (${item.sku})` : ""} —{" "}
-                    {item.missingReason ?? "NOT_FOUND"}
-                    {item.catalogKey ? ` | Key: ${item.catalogKey}` : ""}
-                    {item.missingDiagnostics?.duplicates?.length
-                      ? ` | Duplicates: ${item.missingDiagnostics.duplicates
-                          .map((row) => row.sku)
-                          .join(", ")}`
-                      : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {import.meta.env.DEV && pricingIndex && (
-            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              <div className="font-semibold text-slate-700">Catalogue diagnostics</div>
-              <div>Total rows: {pricingIndex.rows.length}</div>
-              <div>Duplicate keys: {pricingIndex.diagnostics.duplicateKeys.length}</div>
-              <div>Missing category rows: {pricingIndex.diagnostics.rowsMissingCategory.length}</div>
-              <div>Missing price rows: {pricingIndex.diagnostics.rowsMissingPrice.length}</div>
-              {pricingIndex.diagnostics.duplicateKeys.length > 0 && (
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-slate-600">
-                    View duplicate keys
-                  </summary>
-                  <ul className="mt-1 space-y-1 pl-4">
-                    {pricingIndex.diagnostics.duplicateKeys.map((key) => (
-                      <li key={key}>
-                        <div>{key}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {pricingIndex.duplicates
-                            .get(key)
-                            ?.map((row) => row.sku)
-                            .join(", ")}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

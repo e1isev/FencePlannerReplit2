@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useAppStore } from "@/store/appStore";
 import { calculateCosts } from "@/lib/pricing";
-import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { getFenceColourMode } from "@/config/fenceColors";
 import type { QuoteLineItemViewModel, QuoteViewModel } from "@/hooks/useQuoteViewModel";
 
@@ -43,7 +42,6 @@ const addDays = (isoDate: string, days: number) => {
 
 export const useFenceQuoteViewModel = (): QuoteViewModel => {
   const user = useAuthStore((state) => state.user);
-  const { pricingIndex, catalogReady } = usePricingCatalog();
   const {
     fenceCategoryId,
     fenceStyleId,
@@ -66,8 +64,8 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       posts,
       gates,
       lines,
-      pricingIndex,
-      catalogReady,
+      pricingIndex: null,
+      catalogReady: false,
     });
 
     const createdDate = new Date().toISOString();
@@ -102,7 +100,7 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
         discountPercent: 0,
         totalAfterDiscount: lineTotal,
         gstAmount: lineTotal * taxRate,
-        displayNotes: item.missingReason ? [item.missingReason] : [],
+        displayNotes: [],
       };
     });
 
@@ -154,8 +152,6 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
     warnings,
     user?.email,
   ]);

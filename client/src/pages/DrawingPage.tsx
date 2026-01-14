@@ -12,7 +12,6 @@ import { getPostAngleDeg, getPostNeighbours } from "@/geometry/posts";
 import { FENCE_THICKNESS_MM } from "@/constants/geometry";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { getFenceColourMode } from "@/config/fenceColors";
-import { usePricingCatalog } from "@/pricing/usePricingCatalog";
 import { countBoardsPurchased } from "@/geometry/panels";
 
 export default function DrawingPage() {
@@ -30,7 +29,6 @@ export default function DrawingPage() {
     mmPerPixel,
   } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { pricingIndex, catalogReady } = usePricingCatalog();
 
   const costs = calculateCosts({
     fenceCategoryId,
@@ -41,8 +39,8 @@ export default function DrawingPage() {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
+    pricingIndex: null,
+    catalogReady: false,
   });
 
   const padding = 80;
