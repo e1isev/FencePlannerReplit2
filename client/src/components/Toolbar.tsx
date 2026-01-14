@@ -51,8 +51,6 @@ export function Toolbar() {
       posts,
       gates,
       lines,
-      pricingIndex: null,
-      catalogReady: false,
     });
   };
 
@@ -66,8 +64,6 @@ export function Toolbar() {
       posts,
       gates,
       lines,
-      pricingIndex: null,
-      catalogReady: false,
     });
   };
 

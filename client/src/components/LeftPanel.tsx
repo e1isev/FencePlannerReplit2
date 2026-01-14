@@ -15,7 +15,6 @@ import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { DEFAULT_FENCE_HEIGHT_M, FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
 import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { coerceFenceProjectType, fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
-import { getSupportedPanelHeights } from "@/pricing/skuRules";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
 import { useEffect, useMemo } from "react";
 
@@ -27,8 +26,6 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "sliding_4800", label: "Sliding 4800mm" },
   { type: "opening_custom", label: "Custom Opening" },
 ];
-
-const heightEquals = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 
 export function LeftPanel() {
   const {
@@ -53,14 +50,11 @@ export function LeftPanel() {
   const projectType = coerceFenceProjectType(activeProject?.projectType ?? null);
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
-  const supportedHeights = useMemo(
-    () => getSupportedPanelHeights(fenceStyleId, fenceColourMode, fenceCategoryId, null),
-    [fenceStyleId, fenceColourMode, fenceCategoryId]
-  );
+  const supportedHeights = useMemo(() => FENCE_HEIGHTS_M, []);
   const resolvedFenceHeightM = useMemo(() => {
     const currentHeight = Number(fenceHeightM);
     if (Number.isFinite(currentHeight)) {
-      const matches = supportedHeights.some((height) => heightEquals(height, currentHeight));
+      const matches = supportedHeights.includes(currentHeight);
       if (matches) return currentHeight as FenceHeightM;
     }
     return (supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
@@ -77,10 +71,10 @@ export function LeftPanel() {
   useEffect(() => {
     if (!supportedHeights.length) return;
     const currentHeight = Number(fenceHeightM);
-    if (Number.isFinite(currentHeight) && heightEquals(currentHeight, resolvedFenceHeightM)) {
+    if (Number.isFinite(currentHeight) && currentHeight === resolvedFenceHeightM) {
       return;
     }
-    if (heightEquals(resolvedFenceHeightM, currentHeight)) return;
+    if (resolvedFenceHeightM === currentHeight) return;
     setFenceHeightM(resolvedFenceHeightM);
   }, [supportedHeights, fenceHeightM, resolvedFenceHeightM, setFenceHeightM]);
 
@@ -125,8 +119,6 @@ export function LeftPanel() {
     posts,
     gates,
     lines,
-    pricingIndex: null,
-    catalogReady: false,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
   const resolvedFencingMode = fencingMode ?? "residential";
@@ -166,7 +158,7 @@ export function LeftPanel() {
             value={String(resolvedFenceHeightM)}
             onValueChange={(value) => {
               const parsed = Number(value) as FenceHeightM;
-              const matches = supportedHeights.some((height) => heightEquals(height, parsed));
+              const matches = supportedHeights.includes(parsed);
               if (!matches) return;
               setFenceHeightM(parsed);
             }}

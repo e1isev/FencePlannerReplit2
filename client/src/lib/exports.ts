@@ -3,7 +3,6 @@ import autoTable from "jspdf-autotable";
 import { FenceLine, Post, Gate, PanelSegment, FenceColourMode, FenceCategoryId } from "@/types/models";
 import { FenceStyleId } from "@/types/models";
 import { calculateCosts } from "./pricing";
-import type { CatalogIndex } from "@/pricing/catalogTypes";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 
 export function exportCuttingListCSV(args: {
@@ -15,8 +14,6 @@ export function exportCuttingListCSV(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingIndex: CatalogIndex | null;
-  catalogReady: boolean;
 }): void {
   const {
     fenceCategoryId,
@@ -27,8 +24,6 @@ export function exportCuttingListCSV(args: {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
   } = args;
   const costs = calculateCosts({
     fenceCategoryId,
@@ -39,8 +34,6 @@ export function exportCuttingListCSV(args: {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
   });
 
   const rows: string[][] = [["Item", "Quantity", "Unit Price", "Total Price"]];
@@ -85,8 +78,6 @@ export function exportPDF(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingIndex: CatalogIndex | null;
-  catalogReady: boolean;
 }): void {
   const {
     fenceCategoryId,
@@ -97,8 +88,6 @@ export function exportPDF(args: {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
   } = args;
   const doc = new jsPDF();
   const costs = calculateCosts({
@@ -110,8 +99,6 @@ export function exportPDF(args: {
     posts,
     gates,
     lines,
-    pricingIndex,
-    catalogReady,
   });
 
   doc.setFontSize(20);
