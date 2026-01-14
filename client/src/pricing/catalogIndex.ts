@@ -1,101 +1,200 @@
-import type { PricingCatalogItem } from "@/store/pricingStore";
+import type { CatalogIndex, CatalogLookupResult, CatalogRow } from "@/pricing/catalogTypes";
+import type { CatalogRawRow } from "@/pricing/catalogParse";
+import { buildKey } from "@/pricing/catalogKey";
+import {
+  parsePrice,
+  normCategory,
+  normColour,
+  normGateType,
+  inferProductType,
+  parseGateWidthM,
+  parseGateWidthRange,
+  parseHeightM,
+  normStyle,
+} from "@/pricing/catalogParse";
 
-export type PricingCatalogEntry = {
-  name: string;
-  unitPrice: number;
-  sku: string;
+const addUnique = <T>(list: T[], value: T) => {
+  if (!list.includes(value)) list.push(value);
 };
 
-export type PricingIndex = {
-  raw: Record<string, PricingCatalogEntry>;
-  dash: Map<string, string[]>;
-  compact: Map<string, string[]>;
+const ensureList = <T>(map: Record<string, T[]>, key: string) => {
+  if (!map[key]) map[key] = [] as T[];
+  return map[key];
 };
 
-export type PricingLookupDiagnostics = {
-  dashKey: string;
-  compactKey: string;
-  dashCandidates?: string[];
-  compactCandidates?: string[];
-};
+const normalizeStyleToken = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
 
-export type PricingLookupResult =
-  | { entry: PricingCatalogEntry; diagnostics: PricingLookupDiagnostics }
-  | { entry: null; reason: "SKU_NOT_FOUND" | "AMBIGUOUS_MATCH"; diagnostics: PricingLookupDiagnostics };
+const normalizeGateTypeValue = (value: string | null) => value ?? "";
 
-export const normalizeSkuDash = (sku: string) => {
-  const trimmed = sku.trim().toLowerCase();
-  const dashed = trimmed.replace(/[\s_]+/g, "-");
-  const filtered = dashed.replace(/[^a-z0-9./-]+/g, "");
-  const collapsed = filtered.replace(/-+/g, "-").replace(/^-+|-+$/g, "");
-  return collapsed;
-};
+const rowFromRaw = (raw: CatalogRawRow): CatalogRow | null => {
+  const sku = typeof raw.sku === "string" ? raw.sku.trim() : "";
+  if (!sku) return null;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  const category = normCategory(raw.category);
+  if (!category) return null;
+  const style = normStyle(raw.style);
+  const colour = normColour(raw.colour);
+  const gateType = normGateType(raw.gateType);
+  const productType = inferProductType(sku);
+  const heightM = parseHeightM(raw.height, sku);
+  const gateWidthRange = parseGateWidthRange(sku);
+  const gateWidthM = parseGateWidthM(raw.gateWidth, sku);
+  const postType = typeof raw.postType === "string" && raw.postType.trim() ? raw.postType.trim().toLowerCase() : null;
+  const unitPrice = parsePrice(raw.unitPrice);
 
-export const normalizeSkuCompact = (sku: string) => {
-  return sku.toLowerCase().replace(/[^a-z0-9.]+/g, "");
-};
-
-const pushKey = (map: Map<string, string[]>, key: string, sku: string) => {
-  const existing = map.get(key);
-  if (existing) {
-    existing.push(sku);
-  } else {
-    map.set(key, [sku]);
-  }
-};
-
-export const buildPricingIndex = (items: PricingCatalogItem[]): PricingIndex => {
-  const raw: Record<string, PricingCatalogEntry> = {};
-  const dash = new Map<string, string[]>();
-  const compact = new Map<string, string[]>();
-
-  items.forEach((item) => {
-    const entry: PricingCatalogEntry = {
-      name: item.name,
-      unitPrice: item.unitPrice,
-      sku: item.sku,
-    };
-    raw[item.sku] = entry;
-    pushKey(dash, normalizeSkuDash(item.sku), item.sku);
-    pushKey(compact, normalizeSkuCompact(item.sku), item.sku);
-  });
-
-  return { raw, dash, compact };
-};
-
-export const lookupPricingEntry = (
-  index: PricingIndex,
-  sku: string
-): PricingLookupResult => {
-  const diagnostics: PricingLookupDiagnostics = {
-    dashKey: normalizeSkuDash(sku),
-    compactKey: normalizeSkuCompact(sku),
+  const baseRow = {
+    name,
+    sku,
+    unitPrice,
+    category,
+    style,
+    colour,
+    heightM,
+    postType,
+    gateType,
+    gateWidthM,
+    gateWidthRange,
+    productType,
   };
 
-  const rawMatch = index.raw[sku];
-  if (rawMatch) {
-    return { entry: rawMatch, diagnostics };
+  return {
+    ...baseRow,
+    key: buildKey(baseRow),
+  };
+};
+
+export const buildCatalogIndex = (rows: CatalogRawRow[]): CatalogIndex => {
+  const byKey = new Map<string, CatalogRow>();
+  const duplicates = new Map<string, CatalogRow[]>();
+  const normalizedRows: CatalogRow[] = [];
+  const optionSets: CatalogIndex["optionSets"] = {
+    categories: [],
+    stylesByCategory: { residential: [], rural: [] },
+    coloursByCategoryStyle: {},
+    heightsByCategoryStyleColourType: {},
+    gateOptionsByCategoryStyle: {},
+  };
+  const rowsMissingCategory: CatalogRow[] = [];
+  const rowsMissingPrice: CatalogRow[] = [];
+
+  rows.forEach((raw) => {
+    const row = rowFromRaw(raw);
+    if (!row) {
+      if (typeof raw.sku === "string" && raw.sku.trim()) {
+        const placeholder = {
+          name: typeof raw.name === "string" ? raw.name.trim() : "",
+          sku: raw.sku.trim(),
+          unitPrice: parsePrice(raw.unitPrice),
+          category: "residential" as const,
+          style: typeof raw.style === "string" ? raw.style.trim() : null,
+          colour: normColour(raw.colour),
+          heightM: parseHeightM(raw.height, raw.sku.trim()),
+          postType: typeof raw.postType === "string" ? raw.postType.trim() : null,
+          gateType: normGateType(raw.gateType),
+          gateWidthM: parseGateWidthM(raw.gateWidth, raw.sku.trim()),
+          gateWidthRange: parseGateWidthRange(raw.sku.trim()),
+          productType: inferProductType(raw.sku.trim()),
+          key: "",
+        } satisfies CatalogRow;
+        rowsMissingCategory.push(placeholder);
+      }
+      return;
+    }
+
+    normalizedRows.push(row);
+
+    if (!Number.isFinite(row.unitPrice ?? NaN)) {
+      rowsMissingPrice.push(row);
+    }
+
+    const key = row.key;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, row);
+    } else {
+      const existingGroup = duplicates.get(key) ?? [existing];
+      existingGroup.push(row);
+      duplicates.set(key, existingGroup);
+      byKey.set(key, row);
+    }
+
+    addUnique(optionSets.categories, row.category);
+
+    if (row.style) {
+      const styles = optionSets.stylesByCategory[row.category];
+      const normalizedStyles = styles.map(normalizeStyleToken);
+      if (!normalizedStyles.includes(normalizeStyleToken(row.style))) {
+        styles.push(row.style);
+      }
+
+      if (row.colour) {
+        const colourKey = `${row.category}|${row.style}`;
+        addUnique(ensureList(optionSets.coloursByCategoryStyle, colourKey), row.colour);
+      }
+    }
+
+    if (row.productType === "panel" && row.style && row.colour && row.heightM !== null) {
+      const heightKey = `${row.category}|${row.style}|${row.colour}|${row.productType}`;
+      addUnique(ensureList(optionSets.heightsByCategoryStyleColourType, heightKey), row.heightM);
+    }
+
+    if (row.productType === "gate" && row.style) {
+      const gateKey = `${row.category}|${row.style}`;
+      const gateOptions = optionSets.gateOptionsByCategoryStyle[gateKey] ?? {
+        types: [],
+        widths: [],
+        widthRanges: [],
+        heights: [],
+      };
+      const gateType = normalizeGateTypeValue(row.gateType);
+      if (gateType) addUnique(gateOptions.types, gateType);
+      if (row.heightM !== null) addUnique(gateOptions.heights, row.heightM);
+      if (row.gateWidthRange) addUnique(gateOptions.widthRanges, row.gateWidthRange);
+      if (row.gateWidthM !== null) addUnique(gateOptions.widths, row.gateWidthM);
+      optionSets.gateOptionsByCategoryStyle[gateKey] = gateOptions;
+    }
+  });
+
+  Object.values(optionSets.coloursByCategoryStyle).forEach((values) => values.sort());
+  Object.values(optionSets.heightsByCategoryStyleColourType).forEach((values) =>
+    values.sort((a, b) => a - b)
+  );
+  Object.values(optionSets.gateOptionsByCategoryStyle).forEach((gateOptions) => {
+    gateOptions.widths.sort((a, b) => a - b);
+    gateOptions.widthRanges.sort();
+    gateOptions.heights.sort((a, b) => a - b);
+  });
+
+  return {
+    byKey,
+    duplicates,
+    rows: normalizedRows,
+    optionSets,
+    diagnostics: {
+      duplicateKeys: Array.from(duplicates.keys()),
+      rowsMissingCategory,
+      rowsMissingPrice,
+    },
+  };
+};
+
+export const resolveCatalogKey = (index: CatalogIndex, key: string): CatalogLookupResult => {
+  if (index.duplicates.has(key)) {
+    return { ok: false, reason: "DUPLICATE", key, duplicates: index.duplicates.get(key) };
   }
 
-  const dashCandidates = index.dash.get(diagnostics.dashKey) ?? [];
-  if (dashCandidates.length === 1) {
-    return { entry: index.raw[dashCandidates[0]], diagnostics };
-  }
-  if (dashCandidates.length > 1) {
-    diagnostics.dashCandidates = dashCandidates.slice(0, 5);
+  const row = index.byKey.get(key);
+  if (!row) {
+    return { ok: false, reason: "NOT_FOUND", key };
   }
 
-  const compactCandidates = index.compact.get(diagnostics.compactKey) ?? [];
-  if (compactCandidates.length === 1) {
-    return { entry: index.raw[compactCandidates[0]], diagnostics };
-  }
-  if (compactCandidates.length > 1) {
-    diagnostics.compactCandidates = compactCandidates.slice(0, 5);
+  if (!Number.isFinite(row.unitPrice ?? NaN)) {
+    return { ok: false, reason: "NO_PRICE", key };
   }
 
-  if (dashCandidates.length > 1 || compactCandidates.length > 1) {
-    return { entry: null, reason: "AMBIGUOUS_MATCH", diagnostics };
-  }
-
-  return { entry: null, reason: "SKU_NOT_FOUND", diagnostics };
+  return { ok: true, row };
 };

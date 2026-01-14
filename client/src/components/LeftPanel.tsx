@@ -65,8 +65,14 @@ export function LeftPanel() {
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
   const supportedHeights = useMemo(
-    () => getSupportedPanelHeights(fenceStyleId, fenceColourMode),
-    [fenceStyleId, fenceColourMode]
+    () =>
+      getSupportedPanelHeights(
+        fenceStyleId,
+        fenceColourMode,
+        fenceCategoryId,
+        pricingIndex
+      ),
+    [fenceStyleId, fenceColourMode, fenceCategoryId, pricingIndex]
   );
   const resolvedProjectType = projectType ?? "residential";
   const fencingMode = fencingModeFromProjectType(resolvedProjectType);
@@ -81,6 +87,13 @@ export function LeftPanel() {
     if (heightEquals(nextHeight, currentHeight)) return;
     setFenceHeightM(nextHeight);
   }, [supportedHeights, fenceHeightM, setFenceHeightM]);
+
+  useEffect(() => {
+    if (!availableColours.length) return;
+    const hasColour = availableColours.some((color) => color.id === fenceColorId);
+    if (hasColour) return;
+    setFenceColorId(availableColours[0].id);
+  }, [availableColours, fenceColorId, setFenceColorId]);
 
   if (!hasBootstrapped) {
     return (
@@ -123,6 +136,26 @@ export function LeftPanel() {
     resolvedFencingMode === "rural"
       ? plannerOptions.rural.fenceCategories
       : plannerOptions.residential.fenceCategories;
+  const catalogStyle = getCatalogStyleForFenceStyle(fenceStyleId, "panel");
+  const availableStyles =
+    catalogReady && pricingIndex
+      ? pricingIndex.optionSets.stylesByCategory[resolvedFencingMode]
+      : null;
+  const availableColours = useMemo(() => {
+    if (!catalogReady || !pricingIndex || !catalogStyle) return FENCE_COLORS;
+    const colours =
+      pricingIndex.optionSets.coloursByCategoryStyle[
+        `${fenceCategoryId}|${catalogStyle}`
+      ] ?? [];
+    if (colours.length === 0) return FENCE_COLORS;
+    const normalized = new Set(colours.map((colour) => colour.toLowerCase()));
+    return FENCE_COLORS.filter((colorOption) => {
+      if (normalized.has(colorOption.id)) return true;
+      if (normalized.has("white") && colorOption.id === "white") return true;
+      if (normalized.has("colour") && colorOption.id !== "white") return true;
+      return false;
+    });
+  }, [catalogReady, pricingIndex, fenceCategoryId, catalogStyle]);
   const formattedUpdatedAt =
     updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
       ? new Date(updatedAtIso).toLocaleString()
@@ -154,7 +187,10 @@ export function LeftPanel() {
           <Label className="text-sm font-medium uppercase tracking-wide text-slate-600 mb-3 block">
             Fence Style
           </Label>
-          <FenceStylePicker availableCategories={availableCategories} />
+          <FenceStylePicker
+            availableCategories={availableCategories}
+            availableStyles={availableStyles ?? undefined}
+          />
         </div>
 
         <div>
@@ -190,7 +226,7 @@ export function LeftPanel() {
             Colour
           </Label>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-7">
-            {FENCE_COLORS.map((colorOption) => (
+            {availableColours.map((colorOption) => (
               <button
                 key={colorOption.id}
                 type="button"
@@ -357,10 +393,45 @@ export function LeftPanel() {
                   <li key={`${item.name}-${item.sku ?? "missing"}`}>
                     {item.name}
                     {item.sku ? ` (${item.sku})` : ""} —{" "}
-                    {item.missingReason ?? "SKU_NOT_FOUND"}
+                    {item.missingReason ?? "NOT_FOUND"}
+                    {item.catalogKey ? ` | Key: ${item.catalogKey}` : ""}
+                    {item.missingDiagnostics?.duplicates?.length
+                      ? ` | Duplicates: ${item.missingDiagnostics.duplicates
+                          .map((row) => row.sku)
+                          .join(", ")}`
+                      : ""}
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {import.meta.env.DEV && pricingIndex && (
+            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <div className="font-semibold text-slate-700">Catalogue diagnostics</div>
+              <div>Total rows: {pricingIndex.rows.length}</div>
+              <div>Duplicate keys: {pricingIndex.diagnostics.duplicateKeys.length}</div>
+              <div>Missing category rows: {pricingIndex.diagnostics.rowsMissingCategory.length}</div>
+              <div>Missing price rows: {pricingIndex.diagnostics.rowsMissingPrice.length}</div>
+              {pricingIndex.diagnostics.duplicateKeys.length > 0 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-slate-600">
+                    View duplicate keys
+                  </summary>
+                  <ul className="mt-1 space-y-1 pl-4">
+                    {pricingIndex.diagnostics.duplicateKeys.map((key) => (
+                      <li key={key}>
+                        <div>{key}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {pricingIndex.duplicates
+                            .get(key)
+                            ?.map((row) => row.sku)
+                            .join(", ")}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
         </div>

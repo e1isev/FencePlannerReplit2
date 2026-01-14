@@ -5,7 +5,14 @@ import path from "path";
 type PricingCatalogItem = {
   name: string;
   sku: string;
-  unitPrice: number;
+  unitPrice: number | string;
+  category?: string;
+  style?: string;
+  colour?: string;
+  height?: string | number;
+  postType?: string;
+  gateType?: string;
+  gateWidth?: string | number;
 };
 
 type PricingCatalogResponse = {
@@ -112,18 +119,47 @@ const parseCsvRows = (csvText: string): string[][] => {
   return rows;
 };
 
+const normalizeHeader = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
 const parsePricingItems = (csvText: string): PricingCatalogItem[] => {
   const rows = parseCsvRows(csvText);
+  if (rows.length === 0) return [];
+
+  const headerRow = rows[0] ?? [];
+  const headers = headerRow.map((cell) => normalizeHeader(cell));
+  const headerMap = new Map<string, number>();
+  headers.forEach((header, index) => headerMap.set(header, index));
+
+  const getCell = (row: string[], keys: string[]) => {
+    for (const key of keys) {
+      const normalizedKey = normalizeHeader(key);
+      const idx = headerMap.get(normalizedKey);
+      if (idx !== undefined) {
+        return row[idx] ?? "";
+      }
+    }
+    return "";
+  };
 
   return rows
+    .slice(1)
     .map((row) => {
-      const name = (row[0] ?? "").trim();
-      const sku = (row[1] ?? "").trim();
-      const rawPrice = (row[2] ?? "").trim();
-      const normalizedPrice = rawPrice.replace(/[$,\s]/g, "");
-      const unitPrice = Number.parseFloat(normalizedPrice);
+      const name = getCell(row, ["[Line Items] Name", "Line Items Name", "Name"]).trim();
+      const sku = getCell(row, ["[Line Items] SKU", "Line Items SKU", "SKU"]).trim();
+      const rawPrice = getCell(row, [
+        "[Line Items] Unit price",
+        "Line Items Unit price",
+        "Unit price",
+        "Unit Price",
+        "Price",
+      ]).trim();
+      const unitPrice = rawPrice ? rawPrice : "";
 
-      if (!sku || !Number.isFinite(unitPrice)) {
+      if (!sku && !rawPrice && !name) {
         return null;
       }
 
@@ -131,9 +167,17 @@ const parsePricingItems = (csvText: string): PricingCatalogItem[] => {
         name,
         sku,
         unitPrice,
-      };
+        category: getCell(row, ["Category"]),
+        style: getCell(row, ["Style"]),
+        colour: getCell(row, ["Colour", "Color"]),
+        height: getCell(row, ["Height"]),
+        postType: getCell(row, ["PostType", "Post Type"]),
+        gateType: getCell(row, ["Gate type", "Gate Type", "GateType"]),
+        gateWidth: getCell(row, ["Gate width", "Gate Width", "GateWidth"]),
+      } satisfies PricingCatalogItem;
     })
-    .filter((item): item is PricingCatalogItem => item !== null);
+    .filter((item): item is PricingCatalogItem => item !== null)
+    .filter((item) => item.sku && item.unitPrice !== "");
 };
 
 const validateCatalogue = (catalogue: unknown): PricingCatalogValidationResult => {
@@ -155,7 +199,11 @@ const validateCatalogue = (catalogue: unknown): PricingCatalogValidationResult =
     const rawUnitPrice = (row as { unitPrice?: unknown }).unitPrice;
     const rawUnitPriceText =
       typeof rawUnitPrice === "string" ? rawUnitPrice.trim() : rawUnitPrice;
-    const unitPrice = Number.parseFloat(String(rawUnitPrice ?? ""));
+    const normalizedUnitPrice =
+      typeof rawUnitPrice === "string"
+        ? rawUnitPrice.replace(/[$,\s]/g, "")
+        : rawUnitPrice;
+    const unitPrice = Number.parseFloat(String(normalizedUnitPrice ?? ""));
     const hasUnitPrice = Number.isFinite(
       typeof rawUnitPrice === "number" ? rawUnitPrice : unitPrice
     );
@@ -200,11 +248,18 @@ const loadSeedCatalog = async (): Promise<PricingCatalogResponse | null> => {
     if (!parsed?.items || !Array.isArray(parsed.items)) {
       return null;
     }
-    const normalizedItems = parsed.items.map((item) => ({
-      name: typeof item.name === "string" ? item.name : "",
-      sku: typeof item.sku === "string" ? item.sku.trim() : "",
-      unitPrice: Number.parseFloat(String((item as { unitPrice?: unknown }).unitPrice ?? "")),
-    }));
+    const normalizedItems = parsed.items.map((item) => {
+      const rawUnitPrice = (item as { unitPrice?: unknown }).unitPrice;
+      const normalizedUnitPrice =
+        typeof rawUnitPrice === "string"
+          ? rawUnitPrice.replace(/[$,\s]/g, "")
+          : rawUnitPrice;
+      return {
+        name: typeof item.name === "string" ? item.name : "",
+        sku: typeof item.sku === "string" ? item.sku.trim() : "",
+        unitPrice: Number.parseFloat(String(normalizedUnitPrice ?? "")),
+      };
+    });
     const normalized = {
       updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),
       items: normalizedItems,

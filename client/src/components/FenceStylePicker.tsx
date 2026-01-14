@@ -6,14 +6,17 @@ import {
   FENCE_CATEGORIES,
   getFenceStylesByCategory,
 } from "@/config/fenceStyles";
+import { normalizeStyleToken } from "@/pricing/catalogStyle";
 import { FenceCategoryId } from "@/types/models";
 
 type FenceStylePickerProps = {
   availableCategories?: FenceCategoryId[];
+  availableStyles?: string[];
 };
 
 export const FenceStylePicker = React.memo(function FenceStylePicker({
   availableCategories,
+  availableStyles,
 }: FenceStylePickerProps) {
   const fenceStyleId = useAppStore((state) => state.fenceStyleId);
   const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
@@ -28,11 +31,33 @@ export const FenceStylePicker = React.memo(function FenceStylePicker({
     );
   }, [availableCategories]);
 
+  const normalizedAvailableStyles = React.useMemo(() => {
+    if (!availableStyles?.length) return null;
+    return new Set(availableStyles.map((style) => normalizeStyleToken(style)));
+  }, [availableStyles]);
+
   React.useEffect(() => {
     if (!categories.length) return;
     if (categories.some((category) => category.id === fenceCategoryId)) return;
     setFenceCategory(categories[0].id);
   }, [categories, fenceCategoryId, setFenceCategory]);
+
+  React.useEffect(() => {
+    if (!normalizedAvailableStyles) return;
+    const styles = getFenceStylesByCategory(fenceCategoryId);
+    const hasActiveStyle = styles.some(
+      (style) =>
+        style.id === fenceStyleId &&
+        normalizedAvailableStyles.has(normalizeStyleToken(style.label))
+    );
+    if (hasActiveStyle) return;
+    const nextStyle = styles.find((style) =>
+      normalizedAvailableStyles.has(normalizeStyleToken(style.label))
+    );
+    if (nextStyle) {
+      setFenceStyle(nextStyle.id);
+    }
+  }, [fenceCategoryId, fenceStyleId, normalizedAvailableStyles, setFenceStyle]);
 
   return (
     <Tabs
@@ -57,7 +82,14 @@ export const FenceStylePicker = React.memo(function FenceStylePicker({
       {categories.map((category) => (
         <TabsContent key={category.id} value={category.id} className="m-0">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {getFenceStylesByCategory(category.id).map((style) => (
+            {getFenceStylesByCategory(category.id)
+              .filter((style) => {
+                if (!normalizedAvailableStyles) return true;
+                return normalizedAvailableStyles.has(
+                  normalizeStyleToken(style.label)
+                );
+              })
+              .map((style) => (
               <button
                 key={style.id}
                 type="button"

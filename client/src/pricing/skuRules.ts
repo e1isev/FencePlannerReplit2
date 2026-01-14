@@ -1,5 +1,7 @@
 import type { FenceCategoryId, FenceColourMode, FenceStyleId } from "@/types/models";
 import { FENCE_HEIGHTS_M } from "@/config/fenceHeights";
+import type { CatalogIndex } from "@/pricing/catalogTypes";
+import { getCatalogColourForFenceColourMode, getCatalogStyleForFenceStyle } from "@/pricing/catalogStyle";
 
 export type LineItemType =
   | "panel"
@@ -75,8 +77,21 @@ const RESIDENTIAL_PANEL_SKU_BASE: Partial<Record<FenceStyleId, string>> = {
 
 export const getSupportedPanelHeights = (
   styleId: FenceStyleId,
-  colourMode: FenceColourMode
-) => PANEL_HEIGHTS_BY_STYLE[styleId]?.[colourMode] ?? [...FENCE_HEIGHTS_M];
+  colourMode: FenceColourMode,
+  fenceCategoryId?: FenceCategoryId,
+  catalogIndex?: CatalogIndex | null
+) => {
+  if (catalogIndex && fenceCategoryId) {
+    const style = getCatalogStyleForFenceStyle(styleId, "panel");
+    if (style) {
+      const colour = getCatalogColourForFenceColourMode(colourMode);
+      const key = `${fenceCategoryId}|${style}|${colour}|panel`;
+      const heights = catalogIndex.optionSets.heightsByCategoryStyleColourType[key];
+      if (heights?.length) return heights;
+    }
+  }
+  return PANEL_HEIGHTS_BY_STYLE[styleId]?.[colourMode] ?? [...FENCE_HEIGHTS_M];
+};
 
 const supportsPanelHeight = (
   styleId: FenceStyleId,
