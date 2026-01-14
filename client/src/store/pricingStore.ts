@@ -1,13 +1,15 @@
 import { create } from "zustand";
-import { buildPricingIndex, type PricingIndex } from "@/pricing/catalogIndex";
+import { buildCatalogIndex } from "@/pricing/catalogIndex";
+import type { CatalogIndex } from "@/pricing/catalogTypes";
+import type { CatalogRawRow } from "@/pricing/catalogParse";
 
 export type PricingStatus = "idle" | "loading" | "ready" | "error";
 export type PricingSource = "network" | "cache" | null;
 
-export type PricingCatalogItem = {
-  name: string;
-  sku: string;
-  unitPrice: number;
+export type PricingCatalogItem = CatalogRawRow & {
+  name?: string;
+  sku?: string;
+  unitPrice?: number | string | null;
 };
 
 export type PricingCatalogStatus = {
@@ -28,7 +30,7 @@ export type PricingCatalogStatus = {
 };
 
 type PricingState = {
-  pricingIndex: PricingIndex | null;
+  pricingIndex: CatalogIndex | null;
   pricingStatus: PricingStatus;
   pricingSource: PricingSource;
   updatedAtIso: string | null;
@@ -54,7 +56,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
 
     try {
       const data = await fetchPricingCatalogWithRetry();
-      const pricingIndex = buildPricingIndex(data.items);
+      const pricingIndex = buildCatalogIndex(data.items);
 
       localStorage.setItem("pricingCatalogSnapshot", JSON.stringify(data));
 
@@ -68,7 +70,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
     } catch (error) {
       const cached = loadCachedCatalog();
       if (cached) {
-        const pricingIndex = buildPricingIndex(cached.items);
+        const pricingIndex = buildCatalogIndex(cached.items);
         const formattedUpdatedAt = formatUpdatedAt(cached.updatedAtIso);
         set({
           pricingIndex,

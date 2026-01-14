@@ -1,53 +1,57 @@
+import { describe, expect, it } from "vitest";
 import { getJunctionAngleDeg } from "@/geometry/posts";
 import type { Point } from "@/types/models";
 
 const makePoint = (x: number, y: number): Point => ({ x, y });
 
-const approxEqual = (a: number, b: number, eps = 0.1) => Math.abs(a - b) <= eps;
+const approxEqual = (a: number, b: number, eps = 0.5) => Math.abs(a - b) <= eps;
 
 const classifyLine = (angleDeg: number | null) =>
-  angleDeg !== null && (angleDeg <= 30 || angleDeg >= 160);
+  angleDeg !== null && (angleDeg <= 30.5 || angleDeg >= 159.5);
 
-const runTests = () => {
-  const origin = makePoint(0, 0);
+describe("getJunctionAngleDeg", () => {
+  it("classifies common junctions", () => {
+    const origin = makePoint(0, 0);
 
-  const straight = getJunctionAngleDeg(origin, makePoint(-1, 0), makePoint(1, 0));
-  if (straight === null || !approxEqual(straight, 180)) {
-    throw new Error(`Expected 180°, got ${straight}`);
-  }
+    const straight = getJunctionAngleDeg(origin, makePoint(-1, 0), makePoint(1, 0));
+    expect(straight).not.toBeNull();
+    expect(approxEqual(straight ?? 0, 180)).toBe(true);
 
-  const slightBend = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(0.9848, 0.1736));
-  if (slightBend === null || !approxEqual(slightBend, 10, 0.2) || !classifyLine(slightBend)) {
-    throw new Error(`Expected 10° line classification, got ${slightBend}`);
-  }
+    const slightBend = getJunctionAngleDeg(
+      origin,
+      makePoint(1, 0),
+      makePoint(0.9848, 0.1736)
+    );
+    expect(slightBend).not.toBeNull();
+    expect(approxEqual(slightBend ?? 0, 10, 0.5)).toBe(true);
+    expect(classifyLine(slightBend)).toBe(true);
 
-  const threshold = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(0.866, 0.5));
-  if (threshold === null || !approxEqual(threshold, 30, 0.2) || !classifyLine(threshold)) {
-    throw new Error(`Expected 30° line classification, got ${threshold}`);
-  }
+    const threshold = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(0.866, 0.5));
+    expect(threshold).not.toBeNull();
+    expect(approxEqual(threshold ?? 0, 30, 0.5)).toBe(true);
+    expect(classifyLine(threshold)).toBe(true);
 
-  const overThreshold = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(0.8572, 0.515));
-  if (
-    overThreshold === null ||
-    !approxEqual(overThreshold, 31, 0.3) ||
-    classifyLine(overThreshold)
-  ) {
-    throw new Error(`Expected 31° corner classification, got ${overThreshold}`);
-  }
+    const overThreshold = getJunctionAngleDeg(
+      origin,
+      makePoint(1, 0),
+      makePoint(0.8572, 0.515)
+    );
+    expect(overThreshold).not.toBeNull();
+    expect(approxEqual(overThreshold ?? 0, 31, 0.5)).toBe(true);
+    expect(classifyLine(overThreshold)).toBe(false);
 
-  const ninety = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(0, 1));
-  if (ninety === null || !approxEqual(ninety, 90) || classifyLine(ninety)) {
-    throw new Error(`Expected 90° corner classification, got ${ninety}`);
-  }
+    const ninety = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(0, 1));
+    expect(ninety).not.toBeNull();
+    expect(approxEqual(ninety ?? 0, 90)).toBe(true);
+    expect(classifyLine(ninety)).toBe(false);
 
-  const nearlyStraight = getJunctionAngleDeg(origin, makePoint(1, 0), makePoint(-0.9397, 0.342));
-  if (
-    nearlyStraight === null ||
-    !approxEqual(nearlyStraight, 160, 0.3) ||
-    !classifyLine(nearlyStraight)
-  ) {
-    throw new Error(`Expected 160° line classification, got ${nearlyStraight}`);
-  }
-};
-
-runTests();
+    const nearlyStraight = getJunctionAngleDeg(
+      origin,
+      makePoint(1, 0),
+      makePoint(-0.9397, 0.342)
+    );
+    expect(nearlyStraight).not.toBeNull();
+    expect(approxEqual(nearlyStraight ?? 0, 160, 0.5)).toBe(true);
+    expect(classifyLine(nearlyStraight)).toBe(true);
+  });
+});

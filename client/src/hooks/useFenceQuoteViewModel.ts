@@ -43,7 +43,7 @@ const addDays = (isoDate: string, days: number) => {
 
 export const useFenceQuoteViewModel = (): QuoteViewModel => {
   const user = useAuthStore((state) => state.user);
-  const { pricingIndex } = usePricingCatalog();
+  const { pricingIndex, catalogReady } = usePricingCatalog();
   const {
     fenceCategoryId,
     fenceStyleId,
@@ -67,6 +67,7 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       gates,
       lines,
       pricingIndex,
+      catalogReady,
     });
 
     const createdDate = new Date().toISOString();
@@ -81,9 +82,11 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       const lineTotal = Number.isFinite(item.lineTotal) ? item.lineTotal ?? 0 : 0;
       const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
       const gateWidthLabel =
-        item.itemType === "gate" && item.gateWidthM
-          ? `Gate width: ${item.gateWidthM.toFixed(2)} m`
-          : null;
+        item.itemType === "gate" && item.gateWidthRange
+          ? `Gate width range: ${item.gateWidthRange} m`
+          : item.itemType === "gate" && item.gateWidthM
+            ? `Gate width: ${item.gateWidthM.toFixed(2)} m`
+            : null;
       return {
         id: `${item.sku ?? item.name}-${index}`,
         title: item.name,
@@ -152,6 +155,7 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
     gates,
     lines,
     pricingIndex,
+    catalogReady,
     warnings,
     user?.email,
   ]);

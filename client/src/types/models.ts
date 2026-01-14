@@ -106,6 +106,7 @@ export interface Gate {
   runId: string;
   slidingReturnDirection: "left" | "right";
   slidingReturnSide?: SlidingReturnSide;
+  widthRange?: string | null;
   leaf_count?: number;
   leaf_width_mm?: number;
   panel_width_mm?: number;

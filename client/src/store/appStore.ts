@@ -22,6 +22,7 @@ import {
 import { DEFAULT_FENCE_HEIGHT_M, FenceHeightM } from "@/config/fenceHeights";
 import { DEFAULT_FENCE_COLOR, FenceColorId, getFenceColourMode } from "@/config/fenceColors";
 import { getSupportedPanelHeights } from "@/pricing/skuRules";
+import { usePricingStore } from "@/store/pricingStore";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
 import { generatePosts } from "@/geometry/posts";
@@ -601,7 +602,8 @@ interface AppState {
   updateGateReturnSide: (gateId: string, side: "a" | "b") => void;
   updateGateWidth: (
     gateId: string,
-    widthMm: number
+    widthMm: number,
+    options?: { widthRange?: string | null }
   ) => { ok: boolean; widthMm: number; error?: string };
   
   recalculate: () => void;
@@ -654,7 +656,13 @@ export const useAppStore = create<AppState>()(
           : getDefaultFenceStyleId(categoryId);
         const nextColorId = DEFAULT_FENCE_COLOR;
         const nextColourMode = getFenceColourMode(nextColorId);
-        const supportedHeights = getSupportedPanelHeights(nextStyleId, nextColourMode);
+        const pricingIndex = usePricingStore.getState().pricingIndex;
+        const supportedHeights = getSupportedPanelHeights(
+          nextStyleId,
+          nextColourMode,
+          categoryId,
+          pricingIndex
+        );
         const nextHeight = supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
 
         set({
@@ -675,7 +683,13 @@ export const useAppStore = create<AppState>()(
         if (fenceStyleId === styleId) return;
 
         const fenceColourMode = getFenceColourMode(fenceColorId);
-        const supportedHeights = getSupportedPanelHeights(styleId, fenceColourMode);
+        const pricingIndex = usePricingStore.getState().pricingIndex;
+        const supportedHeights = getSupportedPanelHeights(
+          styleId,
+          fenceColourMode,
+          getFenceStyleCategory(styleId),
+          pricingIndex
+        );
         const nextHeight = supportedHeights.includes(fenceHeightM)
           ? fenceHeightM
           : supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
@@ -987,6 +1001,7 @@ export const useAppStore = create<AppState>()(
           runId,
           slidingReturnDirection: "left",
           slidingReturnSide: "a",
+          widthRange: null,
           leaf_count: leafCount,
           leaf_width_mm: opening_mm / leafCount,
           panel_width_mm: opening_mm,
@@ -1142,7 +1157,7 @@ export const useAppStore = create<AppState>()(
         get().recalculate();
       },
 
-      updateGateWidth: (gateId, widthMm) => {
+      updateGateWidth: (gateId, widthMm, options) => {
         const { gates, lines, mmPerPixel } = get();
         const gate = gates.find((g) => g.id === gateId);
         if (!gate) {
@@ -1247,17 +1262,21 @@ export const useAppStore = create<AppState>()(
         });
 
         const leafCount = gate.type.startsWith("double") ? 2 : 1;
-        const updatedGates = gates.map((g) =>
-          g.id === gateId
-            ? {
-                ...g,
-                opening_mm: finalWidthMm,
-                leaf_count: leafCount,
-                leaf_width_mm: finalWidthMm / leafCount,
-                panel_width_mm: finalWidthMm,
-              }
-            : g
-        );
+        const updatedGates = gates.map((g) => {
+          if (g.id !== gateId) return g;
+          const nextWidthRange =
+            g.type.startsWith("sliding") && options?.widthRange !== undefined
+              ? options.widthRange
+              : g.widthRange ?? null;
+          return {
+            ...g,
+            opening_mm: finalWidthMm,
+            widthRange: nextWidthRange,
+            leaf_count: leafCount,
+            leaf_width_mm: finalWidthMm / leafCount,
+            panel_width_mm: finalWidthMm,
+          };
+        });
 
         set({
           lines: updatedLines,

@@ -1,16 +1,11 @@
 import type { FenceCategoryId, FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
 import type { FenceLine } from "@/types/models";
 import { countBoardsPurchased } from "@/geometry/panels";
-import {
-  resolveSkuForLineItem,
-  roundToTenth,
-  formatHeightM,
-  type LineItemType,
-  type GateSkuType,
-  type SkuResolveReason,
-} from "@/pricing/skuRules";
+import { formatHeightM, roundToTenth, type LineItemType } from "@/pricing/skuRules";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
-import { lookupPricingEntry, type PricingIndex, type PricingLookupDiagnostics } from "@/pricing/catalogIndex";
+import type { CatalogIndex, CatalogRow } from "@/pricing/catalogTypes";
+import { resolveCatalogKey } from "@/pricing/catalogIndex";
+import { buildGateKey, buildPanelKey, buildPostKeys } from "@/pricing/catalogQuery";
 
 export type PricingCatalogEntry = { name: string; unitPrice: number; sku: string };
 
@@ -21,9 +16,11 @@ export type QuoteLineItem = {
   unitPrice: number | null;
   lineTotal: number | null;
   missingReason?: MissingReason;
-  missingDiagnostics?: PricingLookupDiagnostics;
+  missingDiagnostics?: CatalogDiagnostics;
+  catalogKey?: string | null;
   itemType: LineItemType;
   gateWidthM?: number;
+  gateWidthRange?: string | null;
 };
 
 export type QuoteSummary = {
@@ -35,63 +32,27 @@ export type QuoteSummary = {
 };
 
 export type MissingReason =
-  | SkuResolveReason
   | "CATALOGUE_NOT_LOADED"
-  | "SKU_NOT_FOUND"
-  | "AMBIGUOUS_MATCH";
+  | "NOT_FOUND"
+  | "DUPLICATE"
+  | "NO_PRICE"
+  | "STYLE_NOT_MAPPED"
+  | "AMBIGUOUS_RANGE";
+
+export type CatalogDiagnostics = {
+  key: string;
+  reason: MissingReason;
+  duplicates?: CatalogRow[];
+};
 
 const toCurrency = (value: number) => Math.round(value * 100) / 100;
 
-const getGateSkuType = (gate: Gate): GateSkuType | null => {
-  if (gate.type.startsWith("double")) return "Double";
-  if (gate.type.startsWith("single")) return "Single";
-  return null;
-};
-
 const formatGateLabel = (gate: Gate, widthM: number) => {
   const roundedWidth = roundToTenth(widthM).toFixed(1);
-  const gateType = getGateSkuType(gate);
-  if (gateType) {
-    return `${gateType} Gate ${roundedWidth}m`;
-  }
+  if (gate.type.startsWith("double")) return `Double Gate ${roundedWidth}m`;
+  if (gate.type.startsWith("single")) return `Single Gate ${roundedWidth}m`;
+  if (gate.type.startsWith("sliding")) return `Sliding Gate ${roundedWidth}m`;
   return `Gate ${roundedWidth}m`;
-};
-
-const resolveLineItemPricing = (
-  item: QuoteLineItem,
-  pricingIndex: PricingIndex | null,
-  catalogReady: boolean
-): QuoteLineItem => {
-  if (!catalogReady || !pricingIndex) {
-    return {
-      ...item,
-      unitPrice: null,
-      lineTotal: null,
-      missingReason: item.missingReason ?? "CATALOGUE_NOT_LOADED",
-    };
-  }
-
-  if (!item.sku) {
-    return item;
-  }
-
-  const lookup = lookupPricingEntry(pricingIndex, item.sku);
-  if (!lookup.entry) {
-    return {
-      ...item,
-      unitPrice: null,
-      lineTotal: null,
-      missingReason: item.missingReason ?? lookup.reason,
-      missingDiagnostics: lookup.diagnostics,
-    };
-  }
-
-  const unitPrice = lookup.entry.unitPrice;
-  return {
-    ...item,
-    unitPrice,
-    lineTotal: toCurrency(unitPrice * item.quantity),
-  };
 };
 
 export function calculateCosts(args: {
@@ -103,7 +64,7 @@ export function calculateCosts(args: {
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
-  pricingIndex: PricingIndex | null;
+  pricingIndex: CatalogIndex | null;
   catalogReady: boolean;
 }): QuoteSummary {
   const {
@@ -120,25 +81,45 @@ export function calculateCosts(args: {
   } = args;
 
   const lineItems: QuoteLineItem[] = [];
+  const canPrice = catalogReady && pricingIndex !== null;
 
   const totalLengthMm = lines.reduce((sum, line) => sum + line.length_mm, 0);
 
   const panelQuantity = countBoardsPurchased(panels);
   if (panelQuantity > 0) {
-    const skuResult = resolveSkuForLineItem({
+    const panelKey = buildPanelKey({
       fenceCategoryId,
       fenceStyleId,
-      fenceHeightM,
       fenceColourMode,
-      lineItemType: "panel",
+      fenceHeightM,
     });
+    let rowResult: ReturnType<typeof resolveCatalogKey> | null = null;
+    if (panelKey && canPrice && pricingIndex) {
+      rowResult = resolveCatalogKey(pricingIndex, panelKey);
+    }
+    const row = rowResult && rowResult.ok ? rowResult.row : null;
+    const missingReason: MissingReason | undefined = !canPrice
+      ? "CATALOGUE_NOT_LOADED"
+      : !panelKey
+      ? "STYLE_NOT_MAPPED"
+      : rowResult && !rowResult.ok
+        ? rowResult.reason
+        : undefined;
+    const diagnostics =
+      panelKey && rowResult && !rowResult.ok
+        ? { key: panelKey, reason: rowResult.reason, duplicates: rowResult.duplicates }
+        : panelKey && missingReason === "STYLE_NOT_MAPPED"
+          ? { key: panelKey, reason: missingReason }
+          : undefined;
     lineItems.push({
       name: `${getFenceStyleLabel(fenceStyleId)} Panel ${formatHeightM(fenceHeightM)}`,
       quantity: panelQuantity,
-      sku: skuResult.sku,
-      unitPrice: null,
-      lineTotal: null,
-      missingReason: skuResult.reason,
+      sku: row?.sku ?? null,
+      unitPrice: row?.unitPrice ?? null,
+      lineTotal: row?.unitPrice ? toCurrency(row.unitPrice * panelQuantity) : null,
+      missingReason,
+      missingDiagnostics: diagnostics,
+      catalogKey: panelKey,
       itemType: "panel",
     });
   }
@@ -160,20 +141,74 @@ export function calculateCosts(args: {
 
   postItems.forEach((postItem) => {
     if (postItem.quantity <= 0) return;
-    const skuResult = resolveSkuForLineItem({
+    const postType = postItem.itemType.replace("post_", "");
+    const postKeys = buildPostKeys({
       fenceCategoryId,
       fenceStyleId,
-      fenceHeightM,
       fenceColourMode,
-      lineItemType: postItem.itemType,
+      fenceHeightM,
+      postType,
     });
+    let resolvedRow: CatalogRow | null = null;
+    let resolvedKey: string | null = null;
+    let failure: MissingReason | undefined;
+    let diagnostics: CatalogDiagnostics | undefined;
+
+    if (!canPrice) {
+      failure = "CATALOGUE_NOT_LOADED";
+    } else {
+      const results = postKeys.map((key) => ({
+        key,
+        result: resolveCatalogKey(pricingIndex, key),
+      }));
+      const okMatch = results.find((result) => result.result.ok);
+      if (okMatch?.result.ok) {
+        resolvedRow = okMatch.result.row;
+        resolvedKey = okMatch.key;
+      } else {
+        const duplicateMatch = results.find((result) => !result.result.ok && result.result.reason === "DUPLICATE");
+        if (duplicateMatch && !duplicateMatch.result.ok) {
+          failure = "DUPLICATE";
+          diagnostics = {
+            key: duplicateMatch.key,
+            reason: duplicateMatch.result.reason,
+            duplicates: duplicateMatch.result.duplicates,
+          };
+          resolvedKey = duplicateMatch.key;
+        } else {
+          const noPriceMatch = results.find((result) => !result.result.ok && result.result.reason === "NO_PRICE");
+          if (noPriceMatch && !noPriceMatch.result.ok) {
+            failure = "NO_PRICE";
+            diagnostics = {
+              key: noPriceMatch.key,
+              reason: noPriceMatch.result.reason,
+              duplicates: noPriceMatch.result.duplicates,
+            };
+            resolvedKey = noPriceMatch.key;
+          } else {
+            const notFoundMatch = results[0];
+            failure = "NOT_FOUND";
+            diagnostics = {
+              key: notFoundMatch.key,
+              reason: "NOT_FOUND",
+            };
+            resolvedKey = notFoundMatch.key;
+          }
+        }
+      }
+    }
+
     lineItems.push({
       name: postItem.label,
       quantity: postItem.quantity,
-      sku: skuResult.sku,
-      unitPrice: null,
-      lineTotal: null,
-      missingReason: skuResult.reason,
+      sku: resolvedRow?.sku ?? null,
+      unitPrice: resolvedRow?.unitPrice ?? null,
+      lineTotal: resolvedRow?.unitPrice
+        ? toCurrency(resolvedRow.unitPrice * postItem.quantity)
+        : null,
+      missingReason: failure,
+      missingDiagnostics: diagnostics,
+      catalogKey: resolvedKey,
       itemType: postItem.itemType,
     });
   });
@@ -182,7 +217,14 @@ export function calculateCosts(args: {
     string,
     {
       quantity: number;
-      skuResult: { sku: string | null; reason?: string };
+      skuResult: {
+        sku: string | null;
+        reason?: MissingReason;
+        diagnostics?: CatalogDiagnostics;
+        key?: string | null;
+        widthRange?: string | null;
+        unitPrice?: number | null;
+      };
       name: string;
       gateWidthM: number;
     }
@@ -190,23 +232,52 @@ export function calculateCosts(args: {
 
   gates.forEach((gate) => {
     const gateWidthM = gate.opening_mm / 1000;
-    const gateType = getGateSkuType(gate);
-    const skuResult = resolveSkuForLineItem({
-      fenceCategoryId,
-      fenceStyleId,
-      fenceHeightM,
-      fenceColourMode,
-      lineItemType: "gate",
-      gateWidthM,
-      gateType,
-    });
+    const gateKeyInfo = canPrice && pricingIndex
+      ? buildGateKey({
+          index: pricingIndex,
+          fenceCategoryId,
+          fenceStyleId,
+          fenceHeightM,
+          gate,
+        })
+      : { key: null, rangeAmbiguous: false };
+    const gateKey = gateKeyInfo.key;
+    const lookup = gateKey && canPrice ? resolveCatalogKey(pricingIndex, gateKey) : null;
+    const gateRow = lookup && lookup.ok ? lookup.row : null;
+    const missingReason: MissingReason | undefined = !canPrice
+      ? "CATALOGUE_NOT_LOADED"
+      : gateKeyInfo.rangeAmbiguous
+        ? "AMBIGUOUS_RANGE"
+        : !gateKey
+          ? "STYLE_NOT_MAPPED"
+          : lookup && !lookup.ok
+            ? lookup.reason
+            : undefined;
+    const diagnostics =
+      gateKey && lookup && !lookup.ok
+        ? { key: gateKey, reason: lookup.reason, duplicates: lookup.duplicates }
+        : gateKey && missingReason === "AMBIGUOUS_RANGE"
+          ? { key: gateKey, reason: missingReason }
+          : undefined;
     const name = formatGateLabel(gate, gateWidthM);
-    const key = `${name}|${skuResult.sku ?? skuResult.reason ?? "missing"}`;
+    const key = `${name}|${gateRow?.sku ?? missingReason ?? "missing"}`;
     const existing = gateGroups.get(key);
     if (existing) {
       existing.quantity += 1;
     } else {
-      gateGroups.set(key, { quantity: 1, skuResult, name, gateWidthM });
+      gateGroups.set(key, {
+        quantity: 1,
+        skuResult: {
+          sku: gateRow?.sku ?? null,
+          reason: missingReason,
+          diagnostics,
+          key: gateKey,
+          widthRange: gateKeyInfo.rangeUsed ?? gate.widthRange ?? null,
+          unitPrice: gateRow?.unitPrice ?? null,
+        },
+        name,
+        gateWidthM,
+      });
     }
   });
 
@@ -214,18 +285,40 @@ export function calculateCosts(args: {
     lineItems.push({
       name: group.name,
       quantity: group.quantity,
-      sku: group.skuResult.sku,
-      unitPrice: null,
-      lineTotal: null,
+      sku: group.skuResult.sku ?? null,
+      unitPrice: group.skuResult.unitPrice ?? null,
+      lineTotal: group.skuResult.unitPrice
+        ? toCurrency(group.skuResult.unitPrice * group.quantity)
+        : null,
       missingReason: group.skuResult.reason,
+      missingDiagnostics: group.skuResult.diagnostics,
+      catalogKey: group.skuResult.key,
       itemType: "gate",
       gateWidthM: group.gateWidthM,
+      gateWidthRange: group.skuResult.widthRange,
     });
   });
 
-  const pricedLineItems = lineItems.map((item) =>
-    resolveLineItemPricing(item, pricingIndex, catalogReady)
-  );
+  const pricedLineItems = lineItems.map((item) => {
+    if (!canPrice) {
+      return {
+        ...item,
+        unitPrice: null,
+        lineTotal: null,
+        missingReason: item.missingReason ?? "CATALOGUE_NOT_LOADED",
+      };
+    }
+    if (!item.sku) {
+      return item;
+    }
+    if (item.unitPrice !== null) {
+      return {
+        ...item,
+        lineTotal: item.unitPrice ? toCurrency(item.unitPrice * item.quantity) : null,
+      };
+    }
+    return item;
+  });
 
   const missingItems = pricedLineItems.filter(
     (item) => !item.sku || item.unitPrice === null
@@ -239,6 +332,7 @@ export function calculateCosts(args: {
         sku: item.sku,
         reason: item.missingReason,
         diagnostics: item.missingDiagnostics,
+        key: item.catalogKey,
       });
     });
   }

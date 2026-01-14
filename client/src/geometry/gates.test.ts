@@ -1,5 +1,4 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { describe, expect, it } from "vitest";
 
 import { computeSlidingGateReturn } from "@/geometry/gates";
 import type { FenceLine } from "@/types/models";
@@ -13,18 +12,20 @@ const baseLine: FenceLine = {
   even_spacing: false,
 };
 
-test("computeSlidingGateReturn anchors to side A and extends away from the opening", () => {
-  const result = computeSlidingGateReturn(baseLine, "a", 10);
-  assert.deepEqual(result.start, baseLine.a);
-  assert.equal(result.end.x, -10);
-  assert.equal(result.end.y, 0);
-  assert.equal(result.center.x, -5);
-});
+describe("computeSlidingGateReturn", () => {
+  it("anchors to side A and extends away from the opening", () => {
+    const result = computeSlidingGateReturn(baseLine, "a", 10);
+    expect(result.start).toEqual(baseLine.a);
+    expect(result.end.x).toBe(-10);
+    expect(result.end.y).toBe(0);
+    expect(result.center.x).toBe(-5);
+  });
 
-test("computeSlidingGateReturn anchors to side B and extends away from the opening", () => {
-  const result = computeSlidingGateReturn(baseLine, "b", 10);
-  assert.deepEqual(result.start, baseLine.b);
-  assert.equal(result.end.x, 20);
-  assert.equal(result.end.y, 0);
-  assert.equal(result.center.x, 15);
+  it("anchors to side B and extends away from the opening", () => {
+    const result = computeSlidingGateReturn(baseLine, "b", 10);
+    expect(result.start).toEqual(baseLine.b);
+    expect(result.end.x).toBe(20);
+    expect(result.end.y).toBe(0);
+    expect(result.center.x).toBe(15);
+  });
 });
