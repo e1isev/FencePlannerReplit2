@@ -29,6 +29,8 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "opening_custom", label: "Custom Opening" },
 ];
 
+const heightEquals = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+
 export function LeftPanel() {
   const {
     fenceCategoryId,
@@ -54,11 +56,9 @@ export function LeftPanel() {
     catalogReady,
     loadPricingCatalog,
   } = usePricingCatalog();
-  const { activeProjectId, projectsById } = useProjectSessionStore((state) => ({
-    activeProjectId: state.activeProjectId,
-    projectsById: state.projectsById,
-  }));
-  const activeProject = activeProjectId ? projectsById[activeProjectId] : null;
+  const activeProject = useProjectSessionStore((state) =>
+    state.activeProjectId ? state.projectsById[state.activeProjectId] : null
+  );
   const projectType = activeProject?.projectType ?? null;
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
@@ -66,6 +66,25 @@ export function LeftPanel() {
     () => getSupportedPanelHeights(fenceStyleId, fenceColourMode),
     [fenceStyleId, fenceColourMode]
   );
+  const fencingMode = projectType ? fencingModeFromProjectType(projectType) : null;
+  useEffect(() => {
+    if (!supportedHeights.length) return;
+    const currentHeight = Number(fenceHeightM);
+    const matches = supportedHeights.some((height) => heightEquals(height, currentHeight));
+    if (matches) return;
+    const nextHeight = Number(supportedHeights[0]) as FenceHeightM;
+    if (heightEquals(nextHeight, currentHeight)) return;
+    setFenceHeightM(nextHeight);
+  }, [supportedHeights, fenceHeightM, setFenceHeightM]);
+
+  if (!activeProject || !projectType || !fencingMode) {
+    return (
+      <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
+        <div className="text-sm text-slate-500">Loading project…</div>
+      </div>
+    );
+  }
+
   const costs = calculateCosts({
     fenceCategoryId,
     fenceStyleId,
@@ -79,7 +98,6 @@ export function LeftPanel() {
     catalogReady,
   });
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
-  const fencingMode = projectType ? fencingModeFromProjectType(projectType) : null;
   const availableCategories =
     fencingMode === "rural"
       ? plannerOptions.rural.fenceCategories
@@ -98,20 +116,6 @@ export function LeftPanel() {
   const hasMissingPrices = costs.missingItems.length > 0;
   const formatMoney = (value: number | null) =>
     value === null ? "—" : `$${value.toFixed(2)}`;
-
-  useEffect(() => {
-    if (!supportedHeights.length) return;
-    if (supportedHeights.includes(fenceHeightM)) return;
-    setFenceHeightM(supportedHeights[0] as FenceHeightM);
-  }, [supportedHeights, fenceHeightM, setFenceHeightM]);
-
-  if (!activeProject || !projectType || !fencingMode) {
-    return (
-      <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
-        <div className="text-sm text-slate-500">Loading project…</div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
@@ -135,7 +139,8 @@ export function LeftPanel() {
             value={String(fenceHeightM)}
             onValueChange={(value) => {
               const parsed = Number(value) as FenceHeightM;
-              if (!supportedHeights.includes(parsed)) return;
+              const matches = supportedHeights.some((height) => heightEquals(height, parsed));
+              if (!matches) return;
               setFenceHeightM(parsed);
             }}
           >
