@@ -78,6 +78,27 @@ export function LeftPanel() {
   const fencingMode = fencingModeFromProjectType(resolvedProjectType);
   const showProjectTypeWarning = !projectType;
   const showFencingModeWarning = !fencingMode;
+  const catalogStyle = getCatalogStyleForFenceStyle(fenceStyleId, "panel");
+  const availableColours = useMemo(() => {
+    if (!catalogReady || !pricingIndex || !catalogStyle) return FENCE_COLORS;
+    const colours =
+      pricingIndex.optionSets.coloursByCategoryStyle[
+        `${fenceCategoryId}|${catalogStyle}`
+      ] ?? [];
+    if (colours.length === 0) return FENCE_COLORS;
+    const normalized = new Set(colours.map((colour) => colour.toLowerCase()));
+    return FENCE_COLORS.filter((colorOption) => {
+      if (normalized.has(colorOption.id)) return true;
+      if (normalized.has("white") && colorOption.id === "white") return true;
+      if (normalized.has("colour") && colorOption.id !== "white") return true;
+      return false;
+    });
+  }, [catalogReady, pricingIndex, fenceCategoryId, catalogStyle]);
+  const defaultColourId = availableColours[0]?.id ?? null;
+  const hasColour = useMemo(
+    () => availableColours.some((color) => color.id === fenceColorId),
+    [availableColours, fenceColorId]
+  );
   useEffect(() => {
     if (!supportedHeights.length) return;
     const currentHeight = Number(fenceHeightM);
@@ -89,11 +110,11 @@ export function LeftPanel() {
   }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
   useEffect(() => {
-    if (!availableColours.length) return;
-    const hasColour = availableColours.some((color) => color.id === fenceColorId);
     if (hasColour) return;
-    setFenceColorId(availableColours[0].id);
-  }, [availableColours, fenceColorId, setFenceColorId]);
+    if (defaultColourId === null) return;
+    if (fenceColorId === defaultColourId) return;
+    setFenceColorId(defaultColourId);
+  }, [hasColour, defaultColourId, fenceColorId, setFenceColorId]);
 
   if (!hasBootstrapped) {
     return (
@@ -136,26 +157,10 @@ export function LeftPanel() {
     resolvedFencingMode === "rural"
       ? plannerOptions.rural.fenceCategories
       : plannerOptions.residential.fenceCategories;
-  const catalogStyle = getCatalogStyleForFenceStyle(fenceStyleId, "panel");
   const availableStyles =
     catalogReady && pricingIndex
       ? pricingIndex.optionSets.stylesByCategory[resolvedFencingMode]
       : null;
-  const availableColours = useMemo(() => {
-    if (!catalogReady || !pricingIndex || !catalogStyle) return FENCE_COLORS;
-    const colours =
-      pricingIndex.optionSets.coloursByCategoryStyle[
-        `${fenceCategoryId}|${catalogStyle}`
-      ] ?? [];
-    if (colours.length === 0) return FENCE_COLORS;
-    const normalized = new Set(colours.map((colour) => colour.toLowerCase()));
-    return FENCE_COLORS.filter((colorOption) => {
-      if (normalized.has(colorOption.id)) return true;
-      if (normalized.has("white") && colorOption.id === "white") return true;
-      if (normalized.has("colour") && colorOption.id !== "white") return true;
-      return false;
-    });
-  }, [catalogReady, pricingIndex, fenceCategoryId, catalogStyle]);
   const formattedUpdatedAt =
     updatedAtIso && !Number.isNaN(Date.parse(updatedAtIso))
       ? new Date(updatedAtIso).toLocaleString()
