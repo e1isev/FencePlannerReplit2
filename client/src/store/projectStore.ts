@@ -401,32 +401,26 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
       set({ pricingSummary: null });
       return;
     }
-    try {
-      const response = await fetch("/api/pricing/resolve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bomLines }),
-      });
-      if (!response.ok) {
-        throw new Error("Unable to resolve pricing.");
-      }
-      const data = (await response.json()) as {
-        pricedLines: PricingLine[];
-        totals: PricingTotals;
-        warnings: string[];
-      };
-      set({
-        pricingSummary: {
-          lines: data.pricedLines,
-          totals: data.totals,
-          warnings: data.warnings ?? [],
-        },
-        warnings: data.warnings ?? [],
-      });
-    } catch (error) {
-      set({
-        errorMessage: error instanceof Error ? error.message : "Unable to resolve pricing.",
-      });
-    }
+    const pricedLines: PricingLine[] = bomLines.map((line) => ({
+      sku: line.sku,
+      qty: line.qty,
+      uom: line.uom,
+      unitPrice: 0,
+      lineTotal: 0,
+    }));
+    const totals: PricingTotals = {
+      subtotal: 0,
+      tax: 0,
+      total: 0,
+      currency: "AUD",
+    };
+    set({
+      pricingSummary: {
+        lines: pricedLines,
+        totals,
+        warnings: [],
+      },
+      warnings: [],
+    });
   },
 }));
