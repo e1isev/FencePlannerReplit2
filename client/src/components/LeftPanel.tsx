@@ -128,9 +128,6 @@ export function LeftPanel() {
       : plannerOptions.residential.fenceCategories;
   const availableStyles =
     null;
-  const formatMoney = (value: number | null) =>
-    value === null ? "—" : `$${value.toFixed(2)}`;
-
   return (
     <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-slate-200 bg-white p-4 md:p-6 overflow-y-auto max-h-64 md:max-h-none md:h-full">
       <div className="space-y-6">
@@ -252,19 +249,13 @@ export function LeftPanel() {
                   <th className="px-3 py-2 text-right font-semibold text-slate-700">
                     Qty
                   </th>
-                  <th className="px-3 py-2 text-right font-semibold text-slate-700">
-                    Unit
-                  </th>
-                  <th className="px-3 py-2 text-right font-semibold text-slate-700">
-                    Total
-                  </th>
                 </tr>
               </thead>
               <tbody className="font-mono">
                 {costs.lineItems.length === 0 && (
                   <tr className="border-b border-slate-100">
-                    <td className="px-3 py-2 text-slate-400" colSpan={5}>
-                      Add fence segments to see priced items.
+                    <td className="px-3 py-2 text-slate-400" colSpan={3}>
+                      Add fence segments to see items.
                     </td>
                   </tr>
                 )}
@@ -278,26 +269,8 @@ export function LeftPanel() {
                       {item.sku ?? "—"}
                     </td>
                     <td className="px-3 py-2 text-right">{item.quantity}</td>
-                    <td className="px-3 py-2 text-right">
-                      {formatMoney(item.unitPrice)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {formatMoney(item.lineTotal)}
-                    </td>
                   </tr>
                 ))}
-                <tr className="bg-slate-100 border-t-2 border-slate-300">
-                  <td
-                    className="px-3 py-2 font-semibold"
-                    colSpan={4}
-                    data-testid="text-total-label"
-                  >
-                    Total
-                  </td>
-                  <td className="px-3 py-2 text-right font-semibold" data-testid="text-total-price">
-                    {formatMoney(costs.grandTotal)}
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
