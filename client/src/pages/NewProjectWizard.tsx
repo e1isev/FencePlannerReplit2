@@ -10,6 +10,7 @@ const PROJECT_TYPES: Array<{
   label: string;
   description: string;
   available: boolean;
+  badge?: string;
 }> = [
   {
     type: "decking",
@@ -26,14 +27,16 @@ const PROJECT_TYPES: Array<{
   {
     type: "rural",
     label: "Rural fencing",
-    description: "Rural fence styles without residential options.",
-    available: true,
+    description: "Temporarily unavailable while we resolve issues.",
+    available: false,
+    badge: "Temporarily unavailable",
   },
   {
     type: "titan_rail",
     label: "Titan Rail",
     description: "Coming soon for rail planning.",
     available: false,
+    badge: "Coming soon",
   },
 ];
 
@@ -97,18 +100,19 @@ export default function NewProjectWizard() {
             <button
               key={option.type}
               type="button"
-              onClick={() => setSelectedType(option.type)}
+              onClick={() => option.available && setSelectedType(option.type)}
+              disabled={!option.available}
               className={`rounded-2xl border p-4 text-left transition ${
                 selectedType === option.type
                   ? "border-primary bg-primary/5"
                   : "border-slate-200 bg-white hover:border-slate-300"
-              }`}
+              } ${option.available ? "" : "cursor-not-allowed opacity-60"}`}
             >
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-slate-900">{option.label}</h3>
                 {!option.available && (
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                    Coming soon
+                    {option.badge ?? "Unavailable"}
                   </span>
                 )}
               </div>
@@ -128,7 +132,9 @@ export default function NewProjectWizard() {
           </div>
           {chosenType && !chosenType.available && (
             <p className="text-sm text-amber-600">
-              {chosenType.label} planning is coming soon.
+              {chosenType.badge
+                ? `${chosenType.label} is ${chosenType.badge.toLowerCase()}.`
+                : `${chosenType.label} is unavailable right now.`}
             </p>
           )}
         </div>

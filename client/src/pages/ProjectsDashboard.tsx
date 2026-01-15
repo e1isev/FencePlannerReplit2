@@ -62,6 +62,9 @@ export default function ProjectsDashboard() {
       setLocation(`/decking/${project.id}`);
       return;
     }
+    if (project.projectType === "rural") {
+      return;
+    }
     if (project.projectType === "titan_rail") {
       setLocation("/coming-soon/titan-rail");
       return;
@@ -93,6 +96,9 @@ export default function ProjectsDashboard() {
   const handleGuestOpen = (projectId: string, projectType: ProjectType) => {
     if (projectType === "decking") {
       setLocation(`/decking/new?localId=${projectId}`);
+      return;
+    }
+    if (projectType === "rural") {
       return;
     }
     setLocation(`/planner/new?localId=${projectId}`);
@@ -168,10 +174,19 @@ export default function ProjectsDashboard() {
                         {formatType(project.projectType)} • Updated{" "}
                         {new Date(project.updatedAt).toLocaleString()}
                       </p>
+                      {project.projectType === "rural" && (
+                        <p className="mt-1 text-xs text-amber-600">
+                          Rural planner is temporarily unavailable.
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Button size="sm" onClick={() => openProject(project)}>
-                        Open
+                      <Button
+                        size="sm"
+                        onClick={() => openProject(project)}
+                        disabled={project.projectType === "rural"}
+                      >
+                        {project.projectType === "rural" ? "Unavailable" : "Open"}
                       </Button>
                       <div className="flex items-center gap-2">
                         <Input
@@ -225,13 +240,19 @@ export default function ProjectsDashboard() {
                       {formatType(project.projectType)} • Updated{" "}
                       {new Date(project.updatedAt).toLocaleString()}
                     </p>
+                    {project.projectType === "rural" && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        Rural planner is temporarily unavailable.
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Button
                       size="sm"
                       onClick={() => handleGuestOpen(project.id, project.projectType)}
+                      disabled={project.projectType === "rural"}
                     >
-                      Open
+                      {project.projectType === "rural" ? "Unavailable" : "Open"}
                     </Button>
                     {user && (
                       <Button
