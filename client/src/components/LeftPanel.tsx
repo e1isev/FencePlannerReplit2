@@ -51,16 +51,15 @@ export function LeftPanel() {
   const projectType = coerceFenceProjectType(activeProject?.projectType ?? null);
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
-  const supportedHeights = useMemo(
-    () =>
-      getSupportedPanelHeights(
-        fenceStyleId,
-        fenceColourMode,
-        fenceCategoryId,
-        residentialIndex
-      ),
-    [fenceStyleId, fenceColourMode, fenceCategoryId]
-  );
+  const supportedHeights = useMemo(() => {
+    const heights = getSupportedPanelHeights(
+      fenceStyleId,
+      fenceColourMode,
+      fenceCategoryId,
+      residentialIndex
+    );
+    return [...heights].sort((a, b) => a - b);
+  }, [fenceStyleId, fenceColourMode, fenceCategoryId, residentialIndex]);
   const supportedHeightsKey = useMemo(
     () => supportedHeights.map((height) => height.toFixed(3)).join("|"),
     [supportedHeights]
@@ -91,7 +90,6 @@ export function LeftPanel() {
   );
   useEffect(() => {
     if (!supportedHeights.length) return;
-    defaultSetterGuard?.();
     const currentHeight = Number(fenceHeightM);
     const isValidHeight =
       Number.isFinite(currentHeight) &&
@@ -99,12 +97,12 @@ export function LeftPanel() {
     if (isValidHeight) return;
     const nextHeight = (supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
     if (lastHeightReset.current === nextHeight) return;
+    defaultSetterGuard?.();
     lastHeightReset.current = nextHeight;
     setFenceHeightM(nextHeight);
-  }, [defaultSetterGuard, supportedHeightsKey, fenceHeightM, setFenceHeightM]);
+  }, [supportedHeightsKey, fenceHeightM, setFenceHeightM, defaultSetterGuard]);
 
   useEffect(() => {
-    defaultSetterGuard?.();
     const availableIds = new Set(availableColours.map((color) => color.id));
     const currentValid = fenceColorId && availableIds.has(fenceColorId);
     if (currentValid) return;
@@ -113,6 +111,7 @@ export function LeftPanel() {
       : availableColours[0]?.id;
     if (!nextId) return;
     if (lastColorReset.current === nextId) return;
+    defaultSetterGuard?.();
     lastColorReset.current = nextId;
     if (nextId !== fenceColorId) setFenceColorId(nextId);
   }, [defaultSetterGuard, availableColoursKey, fenceColorId, setFenceColorId]);
@@ -196,7 +195,7 @@ export function LeftPanel() {
             value={String(resolvedFenceHeightM)}
             onValueChange={(value) => {
               const parsed = Number(value) as FenceHeightM;
-              const matches = supportedHeights.includes(parsed);
+              const matches = supportedHeights.some((height) => Math.abs(height - parsed) < 1e-6);
               if (!matches) return;
               setFenceHeightM(parsed);
             }}
