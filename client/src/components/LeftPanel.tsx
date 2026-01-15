@@ -64,10 +64,10 @@ export function LeftPanel() {
   );
   const resolvedFenceHeightM = useMemo(() => {
     const currentHeight = Number(fenceHeightM);
-    const isValidHeight =
-      Number.isFinite(currentHeight) &&
-      supportedHeights.some((height) => Math.abs(height - currentHeight) < 1e-6);
-    if (isValidHeight) return currentHeight as FenceHeightM;
+    if (Number.isFinite(currentHeight)) {
+      const matches = supportedHeights.includes(currentHeight as FenceHeightM);
+      if (matches) return currentHeight as FenceHeightM;
+    }
     return (supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
   }, [fenceHeightM, supportedHeights]);
   const resolvedProjectType = projectType ?? "residential";
