@@ -4,7 +4,7 @@ import { FENCE_HEIGHTS_M } from "@/config/fenceHeights";
 import type { FenceStyleCatalogItem } from "@/data/fenceStyles/types";
 
 const availableColours = FENCE_COLORS.map((color) => color.id);
-const availableHeights = FENCE_HEIGHTS_M;
+const availableHeights = [...FENCE_HEIGHTS_M];
 
 export const ruralStyles: FenceStyleCatalogItem[] = [
   {

@@ -145,39 +145,44 @@ const parsePricingItems = (csvText: string): PricingCatalogItem[] => {
     return "";
   };
 
-  return rows
-    .slice(1)
-    .map((row) => {
-      const name = getCell(row, ["[Line Items] Name", "Line Items Name", "Name"]).trim();
-      const sku = getCell(row, ["[Line Items] SKU", "Line Items SKU", "SKU"]).trim();
-      const rawPrice = getCell(row, [
-        "[Line Items] Unit price",
-        "Line Items Unit price",
-        "Unit price",
-        "Unit Price",
-        "Price",
-      ]).trim();
-      const unitPrice = rawPrice ? rawPrice : "";
+  const items: PricingCatalogItem[] = [];
+  rows.slice(1).forEach((row) => {
+    const name = getCell(row, ["[Line Items] Name", "Line Items Name", "Name"]).trim();
+    const sku = getCell(row, ["[Line Items] SKU", "Line Items SKU", "SKU"]).trim();
+    const rawPrice = getCell(row, [
+      "[Line Items] Unit price",
+      "Line Items Unit price",
+      "Unit price",
+      "Unit Price",
+      "Price",
+    ]).trim();
+    const unitPrice = rawPrice ? rawPrice : "";
 
-      if (!sku && !rawPrice && !name) {
-        return null;
-      }
+    if (!sku && !rawPrice && !name) {
+      return;
+    }
 
-      return {
-        name,
-        sku,
-        unitPrice,
-        category: getCell(row, ["Category"]),
-        style: getCell(row, ["Style"]),
-        colour: getCell(row, ["Colour", "Color"]),
-        height: getCell(row, ["Height"]),
-        postType: getCell(row, ["PostType", "Post Type"]),
-        gateType: getCell(row, ["Gate type", "Gate Type", "GateType"]),
-        gateWidth: getCell(row, ["Gate width", "Gate Width", "GateWidth"]),
-      } satisfies PricingCatalogItem;
-    })
-    .filter((item): item is PricingCatalogItem => item !== null)
-    .filter((item) => item.sku && item.unitPrice !== "");
+    const item: PricingCatalogItem = {
+      name,
+      sku,
+      unitPrice,
+      category: getCell(row, ["Category"]),
+      style: getCell(row, ["Style"]),
+      colour: getCell(row, ["Colour", "Color"]),
+      height: getCell(row, ["Height"]),
+      postType: getCell(row, ["PostType", "Post Type"]),
+      gateType: getCell(row, ["Gate type", "Gate Type", "GateType"]),
+      gateWidth: getCell(row, ["Gate width", "Gate Width", "GateWidth"]),
+    };
+
+    if (!item.sku || item.unitPrice === "") {
+      return;
+    }
+
+    items.push(item);
+  });
+
+  return items;
 };
 
 const validateCatalogue = (catalogue: unknown): PricingCatalogValidationResult => {
@@ -454,7 +459,7 @@ export const getPricingCatalogStatus = (): PricingCatalogStatus => {
     lastErrorStatus: catalogCache.lastErrorStatus,
     lastErrorMessage: catalogCache.lastErrorMessage,
     lastValidationError: catalogCache.lastValidationError,
-    catalogueRowCount: ok ? validation.rows : 0,
+    catalogueRowCount: validation && validation.ok ? validation.rows : 0,
     upstreamHost: getUpstreamHost(),
   };
 };
