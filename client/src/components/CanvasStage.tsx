@@ -260,17 +260,18 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
       maxY = Math.max(maxY, point.y);
     });
 
-    const map = mapRef.current;
-    if (!map) return;
-
+    const boundsWidth = Math.max(maxX - minX, 1);
+    const boundsHeight = Math.max(maxY - minY, 1);
     const padding = 80;
-    map.fitBounds(
-      [
-        [minX, minY],
-        [maxX, maxY],
-      ],
-      { padding, duration: 0 }
-    );
+    const availableWidth = Math.max(dimensions.width - padding * 2, 1);
+    const availableHeight = Math.max(dimensions.height - padding * 2, 1);
+    const nextScale = Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight);
+    const safeScale = Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    setMapScale(safeScale);
+    setMapPanOffset({ x: centerX * safeScale, y: centerY * safeScale });
   }, [dimensions.height, dimensions.width, lines, posts, readOnly]);
 
   useEffect(() => {

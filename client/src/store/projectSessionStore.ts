@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { shallow } from "zustand/shallow";
 import type { ProjectSnapshotV1, ProjectType } from "@shared/projectSnapshot";
 import {
   buildPlannerSnapshot,
@@ -453,10 +454,19 @@ const persistDebounced = debounce(() => {
   writePersistedProjects({ projectsById, activeProjectId });
 }, 400);
 
-useProjectSessionStore.subscribe(() => {
-  if (typeof window === "undefined") return;
-  persistDebounced();
-});
+useProjectSessionStore.subscribe(
+  (state) => ({
+    projectsById: state.projectsById,
+    activeProjectId: state.activeProjectId,
+  }),
+  () => {
+    if (typeof window === "undefined") return;
+    persistDebounced();
+  },
+  {
+    equalityFn: shallow,
+  }
+);
 
 if (typeof window !== "undefined") {
   useProjectSessionStore.getState().ensureActiveProjectIntegrity();

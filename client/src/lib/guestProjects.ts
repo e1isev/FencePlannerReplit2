@@ -3,7 +3,7 @@ import type { ProjectSnapshotV1 } from "@shared/projectSnapshot";
 export type GuestProject = {
   localId: string;
   name: string;
-  projectType: ProjectSnapshotV1["projectType"];
+  type: ProjectSnapshotV1["type"];
   updatedAt: string;
   snapshot: ProjectSnapshotV1;
 };
