@@ -14,10 +14,10 @@ import { calculateCosts } from "@/lib/pricing";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
 import { DEFAULT_FENCE_HEIGHT_M, FENCE_HEIGHTS_M, FenceHeightM } from "@/config/fenceHeights";
-import { FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
+import { DEFAULT_FENCE_COLOR, FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { coerceFenceProjectType, fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
   { type: "single_900", label: "Single 900mm" },
@@ -79,22 +79,31 @@ export function LeftPanel() {
     () => availableColours.map((color) => color.id).join("|"),
     [availableColours]
   );
+  const lastHeightReset = useRef<FenceHeightM | null>(null);
+  const lastColorReset = useRef<string | null>(null);
   useEffect(() => {
     if (!supportedHeights.length) return;
     const currentHeight = Number(fenceHeightM);
-    if (Number.isFinite(currentHeight) && currentHeight === resolvedFenceHeightM) {
-      return;
-    }
-    if (resolvedFenceHeightM === currentHeight) return;
-    setFenceHeightM(resolvedFenceHeightM);
-  }, [supportedHeights, fenceHeightM, resolvedFenceHeightM, setFenceHeightM]);
+    const isValidHeight =
+      Number.isFinite(currentHeight) &&
+      supportedHeights.some((height) => Math.abs(height - currentHeight) < 1e-6);
+    if (isValidHeight) return;
+    const nextHeight = (supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
+    if (lastHeightReset.current === nextHeight) return;
+    lastHeightReset.current = nextHeight;
+    setFenceHeightM(nextHeight);
+  }, [supportedHeights, fenceHeightM, setFenceHeightM]);
 
   useEffect(() => {
     const availableIds = new Set(availableColours.map((color) => color.id));
     const currentValid = fenceColorId && availableIds.has(fenceColorId);
     if (currentValid) return;
-    const nextId = availableColours[0]?.id;
+    const nextId = availableIds.has(DEFAULT_FENCE_COLOR)
+      ? DEFAULT_FENCE_COLOR
+      : availableColours[0]?.id;
     if (!nextId) return;
+    if (lastColorReset.current === nextId) return;
+    lastColorReset.current = nextId;
     if (nextId !== fenceColorId) setFenceColorId(nextId);
   }, [availableColoursKey, fenceColorId, setFenceColorId]);
 
