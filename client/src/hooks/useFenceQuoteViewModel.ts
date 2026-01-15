@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useAppStore } from "@/store/appStore";
+import { usePricingStore } from "@/store/pricingStore";
 import { calculateCosts } from "@/lib/pricing";
 import { getFenceColourMode } from "@/config/fenceColors";
 import type { QuoteLineItemViewModel, QuoteViewModel } from "@/hooks/useQuoteViewModel";
@@ -53,6 +54,7 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
     lines,
     warnings,
   } = useAppStore();
+  const residentialIndex = usePricingStore((state) => state.residentialIndex);
 
   return useMemo(() => {
     const costs = calculateCosts({
@@ -60,6 +62,7 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
       fenceStyleId,
       fenceHeightM,
       fenceColourMode: getFenceColourMode(fenceColorId),
+      residentialIndex,
       panels,
       posts,
       gates,
@@ -148,5 +151,6 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
     lines,
     warnings,
     user?.email,
+    residentialIndex,
   ]);
 };

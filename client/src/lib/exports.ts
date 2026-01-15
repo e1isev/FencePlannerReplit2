@@ -4,6 +4,7 @@ import { FenceLine, Post, Gate, PanelSegment, FenceColourMode, FenceCategoryId }
 import { FenceStyleId } from "@/types/models";
 import { calculateCosts } from "./pricing";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
+import { usePricingStore } from "@/store/pricingStore";
 
 export function exportCuttingListCSV(args: {
   fenceCategoryId: FenceCategoryId;
@@ -25,11 +26,13 @@ export function exportCuttingListCSV(args: {
     gates,
     lines,
   } = args;
+  const residentialIndex = usePricingStore.getState().residentialIndex;
   const costs = calculateCosts({
     fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
+    residentialIndex,
     panels,
     posts,
     gates,
@@ -90,11 +93,13 @@ export function exportPDF(args: {
     lines,
   } = args;
   const doc = new jsPDF();
+  const residentialIndex = usePricingStore.getState().residentialIndex;
   const costs = calculateCosts({
     fenceCategoryId,
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
+    residentialIndex,
     panels,
     posts,
     gates,

@@ -42,6 +42,7 @@ import {
   getGateWidthRules,
   normalizeGateWidthMm,
 } from "@/lib/gates/gateWidth";
+import { getSupportedPanelHeights, usePricingStore } from "@/store/pricingStore";
 
 const ENDPOINT_WELD_EPS_MM = 60; // physical tolerance for welding endpoints
 const SEGMENT_INTERIOR_TOL_MM = 20;
@@ -675,12 +676,12 @@ export const useAppStore = create<AppState>()(
         if (fenceStyleId === styleId) return;
 
         const fenceColourMode = getFenceColourMode(fenceColorId);
-        const pricingIndex = usePricingStore.getState().pricingIndex;
+        const residentialIndex = usePricingStore.getState().residentialIndex;
         const supportedHeights = getSupportedPanelHeights(
           styleId,
           fenceColourMode,
           getFenceStyleCategory(styleId),
-          pricingIndex
+          residentialIndex
         );
         const hasSupportedHeight = supportedHeights.some((height) =>
           heightEquals(height, fenceHeightM)

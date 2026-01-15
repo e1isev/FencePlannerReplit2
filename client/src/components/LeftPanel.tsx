@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppStore } from "@/store/appStore";
+import { getSupportedPanelHeights, usePricingStore } from "@/store/pricingStore";
 import { GateType } from "@/types/models";
 import { calculateCosts } from "@/lib/pricing";
 import { FenceStylePicker } from "@/components/FenceStylePicker";
@@ -42,6 +43,7 @@ export function LeftPanel() {
     setFenceHeightM,
     setFenceColorId,
   } = useAppStore();
+  const residentialIndex = usePricingStore((state) => state.residentialIndex);
   const activeProject = useProjectSessionStore((state) =>
     state.activeProjectId ? state.projectsById[state.activeProjectId] : null
   );
@@ -50,7 +52,16 @@ export function LeftPanel() {
   const projectType = coerceFenceProjectType(activeProject?.projectType ?? null);
 
   const fenceColourMode = getFenceColourMode(fenceColorId);
-  const supportedHeights = useMemo(() => FENCE_HEIGHTS_M, []);
+  const supportedHeights = useMemo(
+    () =>
+      getSupportedPanelHeights(
+        fenceStyleId,
+        fenceColourMode,
+        fenceCategoryId,
+        residentialIndex
+      ),
+    [fenceStyleId, fenceColourMode, fenceCategoryId, residentialIndex]
+  );
   const resolvedFenceHeightM = useMemo(() => {
     const currentHeight = Number(fenceHeightM);
     if (Number.isFinite(currentHeight)) {
@@ -115,6 +126,7 @@ export function LeftPanel() {
     fenceStyleId,
     fenceHeightM,
     fenceColourMode,
+    residentialIndex,
     panels,
     posts,
     gates,
