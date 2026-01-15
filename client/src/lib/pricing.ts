@@ -62,15 +62,23 @@ export function calculateCosts(args: {
   fenceCategoryId: FenceCategoryId;
   fenceStyleId: FenceStyleId;
   fenceHeightM: number;
-  fenceColourMode: FenceColourMode;
+  fenceColourMode?: FenceColourMode;
   residentialIndex?: ResidentialPricingIndex | null;
   panels: PanelSegment[];
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
 }): QuoteSummary {
-  const { fenceCategoryId, fenceStyleId, fenceHeightM, panels, posts, gates, lines } =
-    args;
+  const {
+    fenceCategoryId,
+    fenceStyleId,
+    fenceHeightM,
+    panels,
+    posts,
+    gates,
+    lines,
+  } = args;
+  const fenceColourMode: FenceColourMode = args.fenceColourMode ?? "White";
 
   const lineItems: QuoteLineItem[] = [];
   const missingItems: QuoteLineItem[] = [];

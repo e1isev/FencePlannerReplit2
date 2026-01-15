@@ -35,7 +35,7 @@ type FencingPlannerState = {
   fenceCategoryId: FenceCategoryId;
   fenceHeightM: FenceHeightM;
   fenceColorId: FenceColorId;
-  selectedGateType: GateType;
+  selectedGateType: GateType | null;
   selectedGateId: string | null;
   drawingMode: boolean;
   mmPerPixel: number;

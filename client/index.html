@@ -11,6 +11,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if (typeof globalThis.__publicField !== "function") {
+        globalThis.__publicField = (target, key, value) => {
+          Object.defineProperty(target, key, {
+            value,
+            writable: true,
+            configurable: true,
+          });
+          return value;
+        };
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
