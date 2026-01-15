@@ -47,17 +47,15 @@ const addDays = (isoDate: string, days: number) => {
 
 export const useFenceQuoteViewModel = (): QuoteViewModel => {
   const user = useAuthStore((state) => state.user);
-  const {
-    fenceCategoryId,
-    fenceStyleId,
-    fenceHeightM,
-    fenceColorId,
-    panels,
-    posts,
-    gates,
-    lines,
-    warnings,
-  } = useAppStore();
+  const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
+  const fenceStyleId = useAppStore((state) => state.fenceStyleId);
+  const fenceHeightM = useAppStore((state) => state.fenceHeightM);
+  const fenceColorId = useAppStore((state) => state.fenceColorId);
+  const panels = useAppStore((state) => state.panels);
+  const posts = useAppStore((state) => state.posts);
+  const gates = useAppStore((state) => state.gates);
+  const lines = useAppStore((state) => state.lines);
+  const warnings = useAppStore((state) => state.warnings);
   const residentialIndex = usePricingStore((state) => state.residentialIndex);
 
   return useMemo(() => {

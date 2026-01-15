@@ -104,20 +104,18 @@ export function CanvasStage({ readOnly = false, initialMapMode }: CanvasStagePro
   const mapRef = useRef<MaplibreMap | null>(null);
   const isDev = import.meta.env.DEV;
 
-  const {
-    lines,
-    posts,
-    gates,
-    addLine,
-    splitLineAtPoint,
-    selectedGateType,
-    selectedGateId,
-    addGate,
-    updateLine,
-    mmPerPixel,
-    setMmPerPixel,
-    setSelectedGateId,
-  } = useAppStore();
+  const lines = useAppStore((state) => state.lines);
+  const posts = useAppStore((state) => state.posts);
+  const gates = useAppStore((state) => state.gates);
+  const addLine = useAppStore((state) => state.addLine);
+  const splitLineAtPoint = useAppStore((state) => state.splitLineAtPoint);
+  const selectedGateType = useAppStore((state) => state.selectedGateType);
+  const selectedGateId = useAppStore((state) => state.selectedGateId);
+  const addGate = useAppStore((state) => state.addGate);
+  const updateLine = useAppStore((state) => state.updateLine);
+  const mmPerPixel = useAppStore((state) => state.mmPerPixel);
+  const setMmPerPixel = useAppStore((state) => state.setMmPerPixel);
+  const setSelectedGateId = useAppStore((state) => state.setSelectedGateId);
 
   const mmToPx = useCallback(
     (mm: number) => (mmPerPixel > 0 ? mm / mmPerPixel : mm),

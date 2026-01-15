@@ -43,6 +43,7 @@ import {
   normalizeGateWidthMm,
 } from "@/lib/gates/gateWidth";
 import { getSupportedPanelHeights, usePricingStore } from "@/store/pricingStore";
+import { makeLoopGuard } from "@/utils/devLoopGuard";
 
 const ENDPOINT_WELD_EPS_MM = 60; // physical tolerance for welding endpoints
 const SEGMENT_INTERIOR_TOL_MM = 20;
@@ -61,6 +62,177 @@ const weldToleranceMeters = () => mmToMeters(ENDPOINT_WELD_EPS_MM);
 const segmentInteriorToleranceMeters = () => mmToMeters(SEGMENT_INTERIOR_TOL_MM);
 
 const lineLengthMm = (a: Point, b: Point) => metersToMm(lineLengthMeters([a, b]));
+
+type CanonicalState = {
+  lines: FenceLine[];
+  gates: Gate[];
+  mmPerPixel: number;
+};
+
+type DerivedState = {
+  posts: Post[];
+  panels: PanelSegment[];
+  leftovers: Leftover[];
+  warnings: WarningMsg[];
+  panelPositionsMap: Map<string, number[]>;
+};
+
+const normalizeMmPerPixel = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return { value: 1, didNormalize: true };
+  }
+  return { value, didNormalize: false };
+};
+
+const recalculateDerived = (state: CanonicalState, now: number): DerivedState => {
+  const isDev = import.meta.env.DEV;
+
+  if (isDev) {
+    console.time("recalculate");
+  }
+
+  const { value: effectiveMmPerPixel } = normalizeMmPerPixel(state.mmPerPixel);
+  const { lines, gates } = state;
+
+  const allPanels: PanelSegment[] = [];
+  const allNewLeftovers: Leftover[] = [];
+  const allWarnings: WarningMsg[] = [];
+  const panelPositionsMap = new Map<string, number[]>();
+
+  if (isDev) {
+    console.time("fitPanels");
+  }
+
+  lines.forEach((line) => {
+    if (line.gateId) return;
+
+    const remainder = line.length_mm % PANEL_LENGTH_MM;
+    const normalizedRemainder = remainder < 0.5 ? 0 : remainder;
+    const autoEvenSpacing = normalizedRemainder > 0 && normalizedRemainder < MIN_LEFTOVER_MM;
+    const shouldEvenSpace = line.even_spacing || autoEvenSpacing;
+
+    const result = fitPanels(
+      line.id,
+      line.length_mm,
+      shouldEvenSpace,
+      allNewLeftovers
+    );
+
+    allPanels.push(...result.segments);
+    allNewLeftovers.push(...result.newLeftovers);
+    panelPositionsMap.set(line.id, result.panelPositions);
+
+    if (isDev && line.length_mm > PANEL_LENGTH_MM * 1.5 && result.panelPositions.length === 0) {
+      console.warn("No panel positions generated for long run", {
+        runId: line.id,
+        length_mm: line.length_mm,
+        mmPerPixel: effectiveMmPerPixel,
+      });
+    }
+
+    result.warnings.forEach((text) => {
+      allWarnings.push({
+        id: generateId("warn"),
+        text,
+        runId: line.id,
+        timestamp: now,
+      });
+    });
+  });
+
+  if (isDev) {
+    console.timeEnd("fitPanels");
+  }
+
+  gates.forEach((gate) => {
+    const line = lines.find((l) => l.id === gate.runId);
+    if (!line) return;
+
+    const warning = validateSlidingReturn(gate, line, lines);
+    if (warning) {
+      allWarnings.push({
+        id: generateId("warn"),
+        text: warning,
+        runId: gate.runId,
+        timestamp: now,
+      });
+    }
+  });
+
+  if (isDev) {
+    console.time("generatePosts");
+  }
+  const posts = generatePosts(lines, gates, panelPositionsMap, effectiveMmPerPixel);
+  if (isDev) {
+    console.timeEnd("generatePosts");
+  }
+
+  const tJunctions = posts.filter((post) => post.category === "t");
+
+  tJunctions.forEach((post) => {
+    allWarnings.push({
+      id: generateId("warn"),
+      text: "T-junction with more than 2 runs detected. This may require custom post configuration.",
+      timestamp: now,
+    });
+  });
+
+  if (isDev) {
+    console.timeEnd("recalculate");
+    console.debug("recalculate stats", {
+      lines: lines.length,
+      gates: gates.length,
+      panels: allPanels.length,
+      leftovers: allNewLeftovers.length,
+    });
+    if (allNewLeftovers.length > LEFTOVER_WARN_THRESHOLD) {
+      console.warn(`Leftovers exceeded threshold: ${allNewLeftovers.length}`);
+    }
+  }
+
+  return {
+    posts,
+    panels: allPanels,
+    leftovers: allNewLeftovers,
+    warnings: allWarnings,
+    panelPositionsMap,
+  };
+};
+
+let recalcQueued = false;
+const recalcGuard = import.meta.env.DEV
+  ? makeLoopGuard("appStore.queueRecalculate", 200, 20)
+  : null;
+
+const queueRecalculate = (
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void
+) => {
+  recalcGuard?.();
+  if (recalcQueued) return;
+  recalcQueued = true;
+
+  requestAnimationFrame(() => {
+    recalcQueued = false;
+    const { lines, gates, mmPerPixel } = get();
+    const normalized = normalizeMmPerPixel(mmPerPixel);
+    if (normalized.didNormalize) {
+      console.warn("Invalid mmPerPixel detected, resetting to 1");
+    }
+    const derived = recalculateDerived(
+      {
+        lines,
+        gates,
+        mmPerPixel: normalized.value,
+      },
+      Date.now()
+    );
+    set({
+      ...derived,
+      ...(normalized.didNormalize ? { mmPerPixel: normalized.value } : {}),
+    });
+  });
+};
 
 type FencingPlannerSnapshotState = {
   productKind?: ProductKind;
@@ -668,9 +840,7 @@ export const useAppStore = create<AppState>()(
           selectedGateType: null,
         });
 
-        if (nextStyleId !== fenceStyleId || nextColorId !== fenceColorId) {
-          get().recalculate();
-        }
+        queueRecalculate(get, set);
       },
       
       setFenceStyle: (styleId) => {
@@ -697,19 +867,21 @@ export const useAppStore = create<AppState>()(
           fenceCategoryId: getFenceStyleCategory(styleId),
           fenceHeightM: nextHeight,
         });
-        get().recalculate();
+        queueRecalculate(get, set);
       },
 
       setFenceHeightM: (height) => {
-        set((state) =>
-          state.fenceHeightM !== undefined && heightEquals(state.fenceHeightM, height)
-            ? state
-            : { fenceHeightM: height }
-        );
+        const currentHeight = get().fenceHeightM;
+        if (currentHeight !== undefined && heightEquals(currentHeight, height)) return;
+        set({ fenceHeightM: height });
+        queueRecalculate(get, set);
       },
 
       setFenceColorId: (colorId) => {
-        set((state) => (state.fenceColorId === colorId ? state : { fenceColorId: colorId }));
+        const currentColor = get().fenceColorId;
+        if (currentColor === colorId) return;
+        set({ fenceColorId: colorId });
+        queueRecalculate(get, set);
       },
       
       setSelectedGateType: (type) =>
@@ -742,7 +914,7 @@ export const useAppStore = create<AppState>()(
           }),
         }));
 
-        get().recalculate();
+        queueRecalculate(get, set);
       },
 
       splitLineAtPoint: (lineId, splitPoint) => {
@@ -832,7 +1004,7 @@ export const useAppStore = create<AppState>()(
 
         set({ lines: mergedLines, selectedLineId });
         get().saveToHistory();
-        get().recalculate();
+        queueRecalculate(get, set);
       },
       
       updateLine: (id, length_mm, fromEnd = "b", options = {}) => {
@@ -944,7 +1116,7 @@ export const useAppStore = create<AppState>()(
 
         set({ lines: nextLines });
         get().saveToHistory();
-        get().recalculate();
+        queueRecalculate(get, set);
       },
       
       toggleEvenSpacing: (id) => {
@@ -953,7 +1125,7 @@ export const useAppStore = create<AppState>()(
         );
         set({ lines });
         get().saveToHistory();
-        get().recalculate();
+        queueRecalculate(get, set);
       },
       
       deleteLine: (id) => {
@@ -973,7 +1145,7 @@ export const useAppStore = create<AppState>()(
             : selectedGateId,
         });
         get().saveToHistory();
-        get().recalculate();
+        queueRecalculate(get, set);
       },
       
       addGate: (runId, clickPoint) => {
@@ -1138,7 +1310,7 @@ export const useAppStore = create<AppState>()(
         
         get().setSelectedGateType(null);
         get().saveToHistory();
-        get().recalculate();
+        queueRecalculate(get, set);
       },
       
       updateGateReturnDirection: (gateId, direction) => {
@@ -1147,7 +1319,7 @@ export const useAppStore = create<AppState>()(
             g.id === gateId ? { ...g, slidingReturnDirection: direction } : g
           ),
         });
-        get().recalculate();
+        queueRecalculate(get, set);
       },
 
       updateGateReturnSide: (gateId, side) => {
@@ -1156,7 +1328,7 @@ export const useAppStore = create<AppState>()(
             g.id === gateId ? { ...g, slidingReturnSide: side } : g
           ),
         });
-        get().recalculate();
+        queueRecalculate(get, set);
       },
 
       updateGateWidth: (gateId, widthMm, options) => {
@@ -1285,129 +1457,13 @@ export const useAppStore = create<AppState>()(
           gates: updatedGates,
         });
         get().saveToHistory();
-        get().recalculate();
+        queueRecalculate(get, set);
 
         return { ok: true, widthMm: finalWidthMm };
       },
       
       recalculate: () => {
-        const isDev = process.env.NODE_ENV === "development";
-        if (isDev) {
-          console.time("recalculate");
-        }
-
-        const { lines, gates, mmPerPixel } = get();
-
-        let effectiveMmPerPixel = mmPerPixel;
-        if (!Number.isFinite(effectiveMmPerPixel) || effectiveMmPerPixel <= 0) {
-          console.warn("Invalid mmPerPixel detected, resetting to 1");
-          effectiveMmPerPixel = 1;
-          set({ mmPerPixel: effectiveMmPerPixel });
-        }
-        
-        const allPanels: PanelSegment[] = [];
-        const allNewLeftovers: Leftover[] = [];
-        const allWarnings: WarningMsg[] = [];
-        const panelPositionsMap = new Map<string, number[]>();
-        
-        if (isDev) {
-          console.time("fitPanels");
-        }
-
-        lines.forEach((line) => {
-          if (line.gateId) return;
-
-          const remainder = line.length_mm % PANEL_LENGTH_MM;
-          const normalizedRemainder = remainder < 0.5 ? 0 : remainder;
-          const autoEvenSpacing = normalizedRemainder > 0 && normalizedRemainder < MIN_LEFTOVER_MM;
-          const shouldEvenSpace = line.even_spacing || autoEvenSpacing;
-
-          const result = fitPanels(
-            line.id,
-            line.length_mm,
-            shouldEvenSpace,
-            allNewLeftovers
-          );
-
-          allPanels.push(...result.segments);
-          allNewLeftovers.push(...result.newLeftovers);
-          panelPositionsMap.set(line.id, result.panelPositions);
-
-          if (isDev && line.length_mm > PANEL_LENGTH_MM * 1.5 && result.panelPositions.length === 0) {
-            console.warn("No panel positions generated for long run", {
-              runId: line.id,
-              length_mm: line.length_mm,
-              mmPerPixel: effectiveMmPerPixel,
-            });
-          }
-
-          result.warnings.forEach((text) => {
-            allWarnings.push({
-              id: generateId("warn"),
-              text,
-              runId: line.id,
-              timestamp: Date.now(),
-            });
-          });
-        });
-        
-        if (isDev) {
-          console.timeEnd("fitPanels");
-        }
-        
-        gates.forEach((gate) => {
-          const line = lines.find((l) => l.id === gate.runId);
-          if (!line) return;
-
-          const warning = validateSlidingReturn(gate, line, lines);
-          if (warning) {
-            allWarnings.push({
-              id: generateId("warn"),
-              text: warning,
-              runId: gate.runId,
-              timestamp: Date.now(),
-            });
-          }
-        });
-        
-        if (isDev) {
-          console.time("generatePosts");
-        }
-        const posts = generatePosts(lines, gates, panelPositionsMap, effectiveMmPerPixel);
-        if (isDev) {
-          console.timeEnd("generatePosts");
-        }
-        
-        const tJunctions = posts.filter((post) => post.category === "t");
-        
-        tJunctions.forEach((post) => {
-          allWarnings.push({
-            id: generateId("warn"),
-            text: "T-junction with more than 2 runs detected. This may require custom post configuration.",
-            timestamp: Date.now(),
-          });
-        });
-        
-        if (isDev) {
-          console.timeEnd("recalculate");
-          console.debug("recalculate stats", {
-            lines: lines.length,
-            gates: gates.length,
-            panels: allPanels.length,
-            leftovers: allNewLeftovers.length,
-          });
-          if (allNewLeftovers.length > LEFTOVER_WARN_THRESHOLD) {
-            console.warn(`Leftovers exceeded threshold: ${allNewLeftovers.length}`);
-          }
-        }
-
-        set({
-          posts,
-          panels: allPanels,
-          leftovers: allNewLeftovers,
-          warnings: allWarnings,
-          panelPositionsMap,
-        });
+        queueRecalculate(get, set);
       },
       
       clear: () => {
@@ -1499,7 +1555,7 @@ export const useAppStore = create<AppState>()(
           history: [],
           historyIndex: -1,
         });
-        get().recalculate();
+        queueRecalculate(get, set);
       },
       
       undo: () => {
@@ -1512,7 +1568,7 @@ export const useAppStore = create<AppState>()(
             historyIndex: historyIndex - 1,
             selectedGateId: null,
           });
-          get().recalculate();
+          queueRecalculate(get, set);
         }
       },
       
@@ -1526,7 +1582,7 @@ export const useAppStore = create<AppState>()(
             historyIndex: historyIndex + 1,
             selectedGateId: null,
           });
-          get().recalculate();
+          queueRecalculate(get, set);
         }
       },
       

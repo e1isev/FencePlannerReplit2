@@ -1,16 +1,16 @@
-export function makeLoopGuard(label: string, limit = 25) {
+export function makeLoopGuard(label: string, windowMs = 200, limit = 20) {
   let count = 0;
-  let last = performance.now();
+  let t0 = performance.now();
 
   return function guard() {
     const now = performance.now();
-    if (now - last > 100) {
+    if (now - t0 > windowMs) {
+      t0 = now;
       count = 0;
-      last = now;
     }
     count++;
     if (count > limit) {
-      console.error(`[loop-guard] ${label} exceeded ${limit} calls in ~100ms`);
+      console.warn(`[loop-guard] ${label}: ${count} calls in ${windowMs}ms`);
     }
   };
 }
