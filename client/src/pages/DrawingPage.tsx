@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Stage, Layer, Line, Text, Group, Rect } from "react-konva";
 import { useAppStore } from "@/store/appStore";
+import { usePricingStore } from "@/store/pricingStore";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
@@ -28,6 +29,7 @@ export default function DrawingPage() {
     fenceCategoryId,
     mmPerPixel,
   } = useAppStore();
+  const residentialIndex = usePricingStore((state) => state.residentialIndex);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const costs = calculateCosts({
@@ -35,6 +37,7 @@ export default function DrawingPage() {
     fenceStyleId,
     fenceHeightM,
     fenceColourMode: getFenceColourMode(fenceColorId),
+    residentialIndex,
     panels,
     posts,
     gates,

@@ -1,7 +1,20 @@
-import type { FenceCategoryId, FenceColourMode, FenceStyleId, Gate, PanelSegment, Post } from "@/types/models";
+import type {
+  FenceCategoryId,
+  FenceColourMode,
+  FenceStyleId,
+  Gate,
+  PanelSegment,
+  Post,
+} from "@/types/models";
 import type { FenceLine } from "@/types/models";
 import { countBoardsPurchased } from "@/geometry/panels";
 import { getFenceStyleLabel } from "@/config/fenceStyles";
+import {
+  resolveResidentialRow,
+  resolveResidentialSkuAndPrice,
+  type ResidentialPricingIndex,
+  type ResidentialSelection,
+} from "@shared/pricing/residentialPricing";
 
 export type LineItemType =
   | "panel"
@@ -26,6 +39,7 @@ export type QuoteLineItem = {
   itemType: LineItemType;
   gateWidthM?: number;
   gateWidthRange?: string | null;
+  debugInfo?: string;
 };
 
 export type QuoteSummary = {
@@ -49,24 +63,72 @@ export function calculateCosts(args: {
   fenceStyleId: FenceStyleId;
   fenceHeightM: number;
   fenceColourMode: FenceColourMode;
+  residentialIndex?: ResidentialPricingIndex | null;
   panels: PanelSegment[];
   posts: Post[];
   gates: Gate[];
   lines: FenceLine[];
 }): QuoteSummary {
-  const { fenceStyleId, fenceHeightM, panels, posts, gates, lines } = args;
+  const { fenceCategoryId, fenceStyleId, fenceHeightM, panels, posts, gates, lines } =
+    args;
 
   const lineItems: QuoteLineItem[] = [];
+  const missingItems: QuoteLineItem[] = [];
 
   const totalLengthMm = lines.reduce((sum, line) => sum + line.length_mm, 0);
 
-  const addLineItem = (item: Omit<QuoteLineItem, "unitPrice" | "lineTotal" | "sku">) => {
-    lineItems.push({
+  const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
+  const colourLabel = fenceColourMode === "Colour" ? "Coloured" : "White";
+
+  const addLineItem = (
+    item: Omit<QuoteLineItem, "unitPrice" | "lineTotal" | "sku">,
+    selection?: ResidentialSelection
+  ) => {
+    let sku: string | null = null;
+    let unitPrice: number | null = 0;
+    let lineTotal: number | null = 0;
+    let debugInfo: string | undefined;
+    let gateWidthRange: string | null | undefined = item.gateWidthRange;
+
+    if (fenceCategoryId === "residential" && selection) {
+      const resolved = resolveResidentialSkuAndPrice(args.residentialIndex ?? null, selection);
+      if (resolved) {
+        sku = resolved.sku;
+        unitPrice = resolved.unit_price;
+        lineTotal = resolved.unit_price * item.quantity;
+        if (selection.type === "Sliding Gate") {
+          const row = resolveResidentialRow(args.residentialIndex ?? null, selection);
+          if (row && row.width && typeof row.width !== "number") {
+            gateWidthRange = `${row.width.min}-${row.width.max}`;
+          }
+        }
+      } else {
+        const key = [
+          selection.type,
+          selection.fenceStyle,
+          selection.colour,
+          selection.height_m,
+          selection.gateWidth_m ?? "",
+        ]
+          .filter((value) => value !== "")
+          .join("|");
+        sku = "MISSING_SHEET_MATCH";
+        unitPrice = 0;
+        lineTotal = 0;
+        debugInfo = `Missing residential pricing for ${key}`;
+      }
+    }
+
+    const lineItem = {
       ...item,
-      sku: null,
-      unitPrice: 0,
-      lineTotal: 0,
-    });
+      sku,
+      unitPrice,
+      lineTotal,
+      gateWidthRange,
+      debugInfo,
+    };
+    lineItems.push(lineItem);
+    if (debugInfo) missingItems.push(lineItem);
   };
 
   const panelQuantity = countBoardsPurchased(panels);
@@ -75,6 +137,12 @@ export function calculateCosts(args: {
       name: `${getFenceStyleLabel(fenceStyleId)} Panel ${formatHeightM(fenceHeightM)}`,
       quantity: panelQuantity,
       itemType: "panel",
+    },
+    {
+      type: "Panel",
+      fenceStyle: fenceStyleLabel,
+      colour: colourLabel,
+      height_m: fenceHeightM,
     });
   }
 
@@ -95,14 +163,39 @@ export function calculateCosts(args: {
 
   postItems.forEach((postItem) => {
     if (postItem.quantity <= 0) return;
-    addLineItem({
-      name: postItem.label,
-      quantity: postItem.quantity,
-      itemType: postItem.itemType,
-    });
+    const typeMap: Record<LineItemType, ResidentialSelection["type"] | null> = {
+      panel: "Panel",
+      gate: "Single Gate",
+      post_end: "End Post",
+      post_corner: "Corner Post",
+      post_line: "Line Post",
+      post_t: "Corner Post",
+      post_blank: "Blank Post",
+      cap: null,
+      bracket: null,
+    };
+    const selectionType = typeMap[postItem.itemType];
+    addLineItem(
+      {
+        name: postItem.label,
+        quantity: postItem.quantity,
+        itemType: postItem.itemType,
+      },
+      selectionType
+        ? {
+            type: selectionType,
+            fenceStyle: fenceStyleLabel,
+            colour: colourLabel,
+            height_m: fenceHeightM,
+          }
+        : undefined
+    );
   });
 
-  const gateGroups = new Map<string, { quantity: number; name: string; gateWidthM: number }>();
+  const gateGroups = new Map<
+    string,
+    { quantity: number; name: string; gateWidthM: number; gateType: Gate["type"] }
+  >();
 
   gates.forEach((gate) => {
     const gateWidthM = gate.opening_mm / 1000;
@@ -111,18 +204,38 @@ export function calculateCosts(args: {
     if (existing) {
       existing.quantity += 1;
     } else {
-      gateGroups.set(name, { quantity: 1, name, gateWidthM });
+      gateGroups.set(name, { quantity: 1, name, gateWidthM, gateType: gate.type });
     }
   });
 
   gateGroups.forEach((group) => {
-    addLineItem({
-      name: group.name,
-      quantity: group.quantity,
-      itemType: "gate",
-      gateWidthM: group.gateWidthM,
-      gateWidthRange: null,
-    });
+    const selectionType: ResidentialSelection["type"] | null = group.gateType.startsWith(
+      "single"
+    )
+      ? "Single Gate"
+      : group.gateType.startsWith("double")
+        ? "Double Gate"
+        : group.gateType.startsWith("sliding")
+          ? "Sliding Gate"
+          : null;
+    addLineItem(
+      {
+        name: group.name,
+        quantity: group.quantity,
+        itemType: "gate",
+        gateWidthM: group.gateWidthM,
+        gateWidthRange: null,
+      },
+      selectionType
+        ? {
+            type: selectionType,
+            fenceStyle: fenceStyleLabel,
+            colour: colourLabel,
+            height_m: fenceHeightM,
+            gateWidth_m: group.gateWidthM,
+          }
+        : undefined
+    );
   });
 
   const pricedTotal = lineItems.reduce((sum, item) => sum + (item.lineTotal ?? 0), 0);
@@ -130,7 +243,7 @@ export function calculateCosts(args: {
 
   return {
     lineItems,
-    missingItems: [],
+    missingItems,
     pricedTotal,
     grandTotal,
     totalLengthMm,
