@@ -17,6 +17,7 @@ import { DEFAULT_FENCE_HEIGHT_M, FENCE_HEIGHTS_M, FenceHeightM } from "@/config/
 import { DEFAULT_FENCE_COLOR, FENCE_COLORS, getFenceColourMode } from "@/config/fenceColors";
 import { coerceFenceProjectType, fencingModeFromProjectType, plannerOptions } from "@/config/plannerOptions";
 import { useProjectSessionStore } from "@/store/projectSessionStore";
+import { makeLoopGuard } from "@/utils/devLoopGuard";
 import { useEffect, useMemo, useRef } from "react";
 
 const GATE_TYPES: { type: GateType; label: string }[] = [
@@ -60,7 +61,7 @@ export function LeftPanel() {
         fenceCategoryId,
         residentialIndex
       ),
-    [fenceStyleId, fenceColourMode, fenceCategoryId, residentialIndex]
+    [fenceStyleId, fenceColourMode, fenceCategoryId]
   );
   const supportedHeightsKey = useMemo(
     () => supportedHeights.map((height) => height.toFixed(3)).join("|"),
@@ -85,8 +86,14 @@ export function LeftPanel() {
   );
   const lastHeightReset = useRef<FenceHeightM | null>(null);
   const lastColorReset = useRef<string | null>(null);
+  const defaultSetterGuard = useMemo(
+    () =>
+      import.meta.env.DEV ? makeLoopGuard("LeftPanel default setters") : null,
+    []
+  );
   useEffect(() => {
     if (!supportedHeights.length) return;
+    defaultSetterGuard?.();
     const currentHeight = Number(fenceHeightM);
     const isValidHeight =
       Number.isFinite(currentHeight) &&
@@ -96,9 +103,10 @@ export function LeftPanel() {
     if (lastHeightReset.current === nextHeight) return;
     lastHeightReset.current = nextHeight;
     setFenceHeightM(nextHeight);
-  }, [supportedHeightsKey, fenceHeightM, setFenceHeightM]);
+  }, [defaultSetterGuard, supportedHeightsKey, fenceHeightM, setFenceHeightM]);
 
   useEffect(() => {
+    defaultSetterGuard?.();
     const availableIds = new Set(availableColours.map((color) => color.id));
     const currentValid = fenceColorId && availableIds.has(fenceColorId);
     if (currentValid) return;
@@ -109,7 +117,7 @@ export function LeftPanel() {
     if (lastColorReset.current === nextId) return;
     lastColorReset.current = nextId;
     if (nextId !== fenceColorId) setFenceColorId(nextId);
-  }, [availableColoursKey, fenceColorId, setFenceColorId]);
+  }, [defaultSetterGuard, availableColoursKey, fenceColorId, setFenceColorId]);
 
   if (!hasBootstrapped) {
     return (
