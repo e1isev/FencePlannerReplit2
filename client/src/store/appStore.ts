@@ -20,7 +20,7 @@ import {
   getFenceStylesByCategory,
 } from "@/config/fenceStyles";
 import { DEFAULT_FENCE_HEIGHT_M, FenceHeightM } from "@/config/fenceHeights";
-import { DEFAULT_FENCE_COLOR, FenceColorId, getFenceColourMode } from "@/config/fenceColors";
+import { DEFAULT_FENCE_COLOR, FenceColorId } from "@/config/fenceColors";
 import { FENCE_HEIGHTS_M } from "@/config/fenceHeights";
 import { generateId } from "@/lib/ids";
 import { DEFAULT_POINT_QUANTIZE_STEP_MM, quantizePointMm } from "@/geometry/coordinates";
@@ -117,23 +117,21 @@ const findAlignedBoundaryPoint = (
       (pointsMatch(line.a, endpoint, weldEpsPx) || pointsMatch(line.b, endpoint, weldEpsPx))
   );
 
-  let bestMatchPoint: Point | null = null;
-  let bestMatchDot = 0;
+  let bestMatch: { point: Point; dot: number } | null = null;
   candidates.forEach((line) => {
     const otherPoint = pointsMatch(line.a, endpoint, weldEpsPx) ? line.b : line.a;
     const candidateDir = lineDirectionMeters(endpoint, otherPoint);
     const dot = Math.abs(gateDir.x * candidateDir.x + gateDir.y * candidateDir.y);
-    if (!bestMatchPoint || dot > bestMatchDot) {
-      bestMatchPoint = otherPoint;
-      bestMatchDot = dot;
+    if (!bestMatch || dot > bestMatch.dot) {
+      bestMatch = { point: otherPoint, dot };
     }
   });
 
-  if (!bestMatchPoint || bestMatchDot < 0.5) {
+  if (!bestMatch || bestMatch.dot < 0.5) {
     return endpoint;
   }
 
-  return bestMatchPoint;
+  return bestMatch.point;
 };
 
 export function pointOnSegmentInterior(p: Point, a: Point, b: Point, tolPx: number) {
@@ -688,9 +686,9 @@ export const useAppStore = create<AppState>()(
         const hasSupportedHeight = supportedHeights.some((height) =>
           heightEquals(height, fenceHeightM)
         );
-        const nextHeight = (hasSupportedHeight
+        const nextHeight = hasSupportedHeight
           ? fenceHeightM
-          : supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
+          : supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M;
 
         set({
           fenceStyleId: styleId,
@@ -1464,15 +1462,10 @@ export const useAppStore = create<AppState>()(
         const map = new Map<string, number[]>(Object.entries(state.panelPositionsMap ?? {}));
         const gates = (state.gates ?? []).map((gate) => {
           if (!gate.type.startsWith("sliding")) return gate;
-          const normalizedSide =
-            gate.slidingReturnSide === "a" || gate.slidingReturnSide === "b"
-              ? gate.slidingReturnSide
-              : gate.slidingReturnDirection === "left"
-                ? "a"
-                : "b";
+          if (gate.slidingReturnSide) return gate;
           return {
             ...gate,
-            slidingReturnSide: normalizedSide,
+            slidingReturnSide: gate.slidingReturnDirection === "left" ? "a" : "b",
           };
         });
         const normalizedGates = gates.map((gate) => normalizeGateWidthMm(gate));

@@ -4,11 +4,7 @@ import { useAppStore } from "@/store/appStore";
 import { usePricingStore } from "@/store/pricingStore";
 import { calculateCosts } from "@/lib/pricing";
 import { getFenceColourMode } from "@/config/fenceColors";
-import type {
-  QuoteDescriptionBlock,
-  QuoteLineItemViewModel,
-  QuoteViewModel,
-} from "@/hooks/useQuoteViewModel";
+import type { QuoteLineItemViewModel, QuoteViewModel } from "@/hooks/useQuoteViewModel";
 
 const DEFAULT_DELIVERY_TERMS = [
   "Delivery window will be confirmed prior to dispatch.",
@@ -90,13 +86,12 @@ export const useFenceQuoteViewModel = (): QuoteViewModel => {
           : item.itemType === "gate" && item.gateWidthM
             ? `Gate width: ${item.gateWidthM.toFixed(2)} m`
             : null;
-      const longDescriptionBlocks: QuoteDescriptionBlock[] = gateWidthLabel
-        ? [{ type: "text", text: gateWidthLabel }]
-        : [];
       return {
         id: `${item.sku ?? item.name}-${index}`,
         title: item.name,
-        longDescriptionBlocks,
+        longDescriptionBlocks: [
+          ...(gateWidthLabel ? [{ type: "text", text: gateWidthLabel }] : []),
+        ],
         quantity,
         unitPriceExDiscount: unitPrice,
         discountPercent: 0,

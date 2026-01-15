@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import {
   Table,
   TableBody,
@@ -47,14 +47,9 @@ const renderValue = (value: string) => value || "—";
 type QuoteDocumentProps = {
   viewModel: QuoteViewModel;
   hidePricing?: boolean;
-  headerAddon?: ReactNode;
 };
 
-export function QuoteDocument({
-  viewModel,
-  hidePricing = false,
-  headerAddon,
-}: QuoteDocumentProps) {
+export function QuoteDocument({ viewModel, hidePricing = false }: QuoteDocumentProps) {
   const { quoteMeta, comments, lineItems, totals, delivery, paymentSchedule, companyFooter } = viewModel;
   const showPricing = !hidePricing;
 
@@ -92,8 +87,6 @@ export function QuoteDocument({
           </div>
         </div>
       </header>
-
-      {headerAddon && <div className="quote-section">{headerAddon}</div>}
 
       <section className="quote-section space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Comments from Sales Team</h2>
