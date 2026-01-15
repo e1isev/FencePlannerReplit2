@@ -62,12 +62,16 @@ export function LeftPanel() {
       ),
     [fenceStyleId, fenceColourMode, fenceCategoryId, residentialIndex]
   );
+  const supportedHeightsKey = useMemo(
+    () => supportedHeights.map((height) => height.toFixed(3)).join("|"),
+    [supportedHeights]
+  );
   const resolvedFenceHeightM = useMemo(() => {
     const currentHeight = Number(fenceHeightM);
-    if (Number.isFinite(currentHeight)) {
-      const matches = supportedHeights.includes(currentHeight as FenceHeightM);
-      if (matches) return currentHeight as FenceHeightM;
-    }
+    const isValidHeight =
+      Number.isFinite(currentHeight) &&
+      supportedHeights.some((height) => Math.abs(height - currentHeight) < 1e-6);
+    if (isValidHeight) return currentHeight as FenceHeightM;
     return (supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
   }, [fenceHeightM, supportedHeights]);
   const resolvedProjectType = projectType ?? "residential";
@@ -92,7 +96,7 @@ export function LeftPanel() {
     if (lastHeightReset.current === nextHeight) return;
     lastHeightReset.current = nextHeight;
     setFenceHeightM(nextHeight);
-  }, [supportedHeights, fenceHeightM, setFenceHeightM]);
+  }, [supportedHeightsKey, fenceHeightM, setFenceHeightM]);
 
   useEffect(() => {
     const availableIds = new Set(availableColours.map((color) => color.id));
