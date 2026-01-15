@@ -13,6 +13,26 @@ const SCHEMA_VERSION: ProjectSnapshot["schemaVersion"] = "1.0.0";
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+const toSharedBreakerAxis = (
+  axis: DeckEntity["breakerLines"][number]["axis"]
+): DeckInput["breakerLines"][number]["axis"] => (axis === "x" ? "vertical" : "horizontal");
+
+const toSharedEdgeConstraints = (
+  constraints?: DeckEntity["edgeConstraints"]
+): DeckInput["edgeConstraints"] => {
+  const mapped: DeckInput["edgeConstraints"] = {};
+  const entries = Object.entries(constraints ?? {}) as Array<
+    [string, DeckEntity["edgeConstraints"][number]]
+  >;
+  entries.forEach(([key, constraint]) => {
+    mapped[Number(key)] = {
+      ...constraint,
+      mode: constraint.mode === "locked" ? "locked" : "free",
+    };
+  });
+  return mapped;
+};
+
 export const buildDeckInput = (deck: DeckEntity): DeckInput => ({
   id: deck.id,
   name: deck.name,
@@ -23,9 +43,12 @@ export const buildDeckInput = (deck: DeckEntity): DeckInput => ({
   pictureFrameBoardWidthMm: deck.pictureFrameBoardWidthMm,
   pictureFrameGapMm: deck.pictureFrameGapMm,
   fasciaThicknessMm: deck.fasciaThicknessMm,
-  edgeConstraints: clone(deck.edgeConstraints ?? {}),
+  edgeConstraints: toSharedEdgeConstraints(deck.edgeConstraints ?? {}),
   baselineEdgeIndex: deck.baselineEdgeIndex ?? null,
-  breakerLines: clone(deck.breakerLines ?? []),
+  breakerLines: (deck.breakerLines ?? []).map((line) => ({
+    ...clone(line),
+    axis: toSharedBreakerAxis(line.axis),
+  })),
   joistSpacingMode: deck.joistSpacingMode ?? "residential",
 });
 

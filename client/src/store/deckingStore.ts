@@ -385,6 +385,22 @@ function createDeckEntity(points: Point[], name: string): DeckEntity {
 
 function hydrateDeckFromInput(input: DeckInput): DeckEntity {
   const { baselineEdgeIndex, normalizedPolygon } = normalisePolygon(input.polygon);
+  const edgeConstraints: DeckEntity["edgeConstraints"] = {};
+  const edgeEntries = Object.entries(input.edgeConstraints ?? {}) as Array<
+    [string, DeckInput["edgeConstraints"][number]]
+  >;
+  edgeEntries.forEach(([key, constraint]) => {
+    edgeConstraints[Number(key)] = {
+      ...constraint,
+      mode: constraint.mode === "locked" ? "locked" : "unlocked",
+    };
+  });
+  const breakerLines: DeckEntity["breakerLines"] = (input.breakerLines ?? []).map(
+    (line): DeckEntity["breakerLines"][number] => ({
+      ...line,
+      axis: line.axis === "vertical" ? "x" : "y",
+    })
+  );
 
   return {
     id: input.id,
@@ -393,7 +409,7 @@ function hydrateDeckFromInput(input: DeckInput): DeckEntity {
     infillPolygon: normalizedPolygon,
     boards: [],
     breakerBoards: [],
-    breakerLines: input.breakerLines ?? [],
+    breakerLines,
     pictureFramePieces: [],
     fasciaPieces: [],
     selectedColor: input.selectedColor,
@@ -407,7 +423,7 @@ function hydrateDeckFromInput(input: DeckInput): DeckEntity {
     pictureFrameGapMm: input.pictureFrameGapMm,
     pictureFrameWarning: null,
     fasciaThicknessMm: input.fasciaThicknessMm,
-    edgeConstraints: input.edgeConstraints ?? {},
+    edgeConstraints,
     baselineEdgeIndex: input.baselineEdgeIndex ?? baselineEdgeIndex ?? null,
   };
 }
