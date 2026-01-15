@@ -36,6 +36,9 @@ export default defineConfig({
     target: "es2022",
   },
   server: {
+    hmr: {
+      overlay: false,
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],
