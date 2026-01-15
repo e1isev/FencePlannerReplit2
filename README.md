@@ -58,6 +58,34 @@ npm run dev
 ```
 The app starts on `http://localhost:5000` (or the port set in `PORT`). Hot reloading is enabled by Vite.
 
+## Vite prebundle cache reset (__publicField is not defined)
+If you see `__publicField is not defined` or dependency updates are not being picked up, clear Vite's prebundle cache and force a re-optimization.
+
+1) Stop the dev server.
+2) Kill any stuck Node processes:
+```powershell
+taskkill /F /IM node.exe 2>$null
+```
+3) Delete Vite's prebundle caches from the repo root:
+```powershell
+Remove-Item -Recurse -Force .\node_modules\.vite 2>$null
+Remove-Item -Recurse -Force .\client\node_modules\.vite 2>$null
+```
+4) If the error persists, do a full dependency reinstall:
+```powershell
+Remove-Item -Recurse -Force .\node_modules 2>$null
+Remove-Item -Recurse -Force .\client\node_modules 2>$null
+Remove-Item -Force .\package-lock.json 2>$null
+npm cache clean --force
+npm install
+```
+5) Restart Vite with a forced dependency re-optimization:
+```powershell
+npm run dev -- --force
+```
+6) In the browser, hard reload and clear site data for `http://localhost:5000`:
+DevTools → Application → Storage → Clear site data, then `Ctrl + Shift + R`.
+
 ## Production build
 Build the client and bundle the server, then start the compiled server output:
 ```bash

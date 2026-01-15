@@ -6,17 +6,6 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-// Avoid setState inside ref callbacks; Radix ref lifecycles can fire repeatedly.
-const composeRefs = <T,>(...refs: Array<React.Ref<T> | undefined>) => {
-  return (node: T) => {
-    for (const ref of refs) {
-      if (!ref) continue
-      if (typeof ref === "function") ref(node)
-      else (ref as React.MutableRefObject<T | null>).current = node
-    }
-  }
-}
-
 const Select = SelectPrimitive.Root
 
 const SelectGroup = SelectPrimitive.Group
@@ -28,9 +17,19 @@ const SelectTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
 >(({ className, children, ...props }, ref) => {
   const localRef = React.useRef<React.ElementRef<typeof SelectPrimitive.Trigger> | null>(null)
+  const setRefs = React.useCallback(
+    (node: React.ElementRef<typeof SelectPrimitive.Trigger> | null) => {
+      localRef.current = node
+
+      if (!ref) return
+      if (typeof ref === "function") ref(node)
+      else (ref as React.MutableRefObject<typeof node | null>).current = node
+    },
+    [ref]
+  )
   return (
     <SelectPrimitive.Trigger
-      ref={composeRefs(ref, localRef)}
+      ref={setRefs}
       className={cn(
         "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
         className
