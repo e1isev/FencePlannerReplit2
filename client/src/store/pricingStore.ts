@@ -36,12 +36,12 @@ export const getSupportedPanelHeights = (
   categoryId: FenceCategoryId,
   _pricingIndex: ResidentialPricingIndex | null
 ) => {
-  if (categoryId !== "residential") return FENCE_HEIGHTS_M;
+  if (categoryId !== "residential") return [...FENCE_HEIGHTS_M];
 
   const styleLabel = getFenceStyleLabel(styleId);
   if ((residentialOptions.panelStyles as string[]).includes(styleLabel)) {
     return (residentialOptions.heights as number[]).slice().sort((a, b) => a - b);
   }
 
-  return FENCE_HEIGHTS_M;
+  return [...FENCE_HEIGHTS_M];
 };
