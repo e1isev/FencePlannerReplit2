@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
 import PlannerPage from "@/pages/PlannerPage";
 import { getActiveProject, useProjectSessionStore } from "@/store/projectSessionStore";
 import { hydratePlannerSnapshot, normalizePlannerSnapshot } from "@/lib/plannerSnapshot";
@@ -7,7 +8,7 @@ import { useAppStore } from "@/store/appStore";
 import { coerceFenceProjectType } from "@/config/plannerOptions";
 
 export default function PlannerEntryPage({ params }: { params: { projectId?: string } }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
   const projectId = params.projectId;
   const startNewProject = useProjectSessionStore((state) => state.startNewProject);
@@ -29,8 +30,13 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
   const localId = query.get("localId");
   const requestedProjectType =
     coerceFenceProjectType(requestedType) ?? coerceFenceProjectType(query.get("category"));
+  const isRuralBlocked = requestedProjectType === "rural";
 
   useEffect(() => {
+    if (isRuralBlocked && !projectId && !localId) {
+      setLocation("/projects");
+      return;
+    }
     if (projectId) {
       setLoading(true);
       void loadProject(projectId).finally(() => setLoading(false));
@@ -61,6 +67,7 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
     requestedType,
     projectName,
     localId,
+    isRuralBlocked,
     requestedProjectType,
     startNewProject,
     restoreActiveProject,
@@ -71,10 +78,12 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
     projectsById,
     sessionIntent,
     hasBootstrapped,
+    setLocation,
   ]);
 
   useEffect(() => {
     if (!activeProject?.snapshot) return;
+    if (activeProject?.projectType === "rural") return;
     const normalized = normalizePlannerSnapshot(
       activeProject.snapshot,
       coerceFenceProjectType(activeProject.projectType) ?? undefined
@@ -96,6 +105,25 @@ export default function PlannerEntryPage({ params }: { params: { projectId?: str
     hydrateFromSnapshot,
     hydratePlannerSnapshot,
   ]);
+
+  if (activeProject?.projectType === "rural") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+          <h2 className="text-lg font-semibold text-amber-900">
+            Rural planner is temporarily unavailable
+          </h2>
+          <p className="mt-2 text-sm text-amber-700">
+            We are fixing issues with rural fencing plans. Please open a different
+            project for now.
+          </p>
+          <Button className="mt-4" onClick={() => setLocation("/projects")}>
+            Back to projects
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
