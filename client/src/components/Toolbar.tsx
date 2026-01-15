@@ -15,22 +15,20 @@ import { getFenceColourMode } from "@/config/fenceColors";
 import { getSlidingReturnSide } from "@/geometry/gates";
 
 export function Toolbar() {
-  const {
-    clear,
-    undo,
-    redo,
-    history,
-    historyIndex,
-    gates,
-    fenceCategoryId,
-    fenceStyleId,
-    fenceHeightM,
-    fenceColorId,
-    panels,
-    posts,
-    lines,
-    updateGateReturnSide,
-  } = useAppStore();
+  const clear = useAppStore((state) => state.clear);
+  const undo = useAppStore((state) => state.undo);
+  const redo = useAppStore((state) => state.redo);
+  const history = useAppStore((state) => state.history);
+  const historyIndex = useAppStore((state) => state.historyIndex);
+  const gates = useAppStore((state) => state.gates);
+  const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
+  const fenceStyleId = useAppStore((state) => state.fenceStyleId);
+  const fenceHeightM = useAppStore((state) => state.fenceHeightM);
+  const fenceColorId = useAppStore((state) => state.fenceColorId);
+  const panels = useAppStore((state) => state.panels);
+  const posts = useAppStore((state) => state.posts);
+  const lines = useAppStore((state) => state.lines);
+  const updateGateReturnSide = useAppStore((state) => state.updateGateReturnSide);
   const [, setLocation] = useLocation();
   const selectedGate = gates.find((g) =>
     g.type.startsWith("sliding")

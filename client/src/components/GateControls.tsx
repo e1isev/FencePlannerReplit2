@@ -13,7 +13,8 @@ interface GateControlsProps {
 }
 
 export function GateControls({ gateId, onClose }: GateControlsProps) {
-  const { gates, updateGateWidth } = useAppStore();
+  const gates = useAppStore((state) => state.gates);
+  const updateGateWidth = useAppStore((state) => state.updateGateWidth);
   const gate = gates.find((item) => item.id === gateId);
   const rules = useMemo(() => (gate ? getGateWidthRules(gate.type) : null), [gate?.type]);
 

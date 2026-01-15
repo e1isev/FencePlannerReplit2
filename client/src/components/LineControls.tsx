@@ -11,7 +11,9 @@ interface LineControlsProps {
 }
 
 export function LineControls({ lineId, onClose }: LineControlsProps) {
-  const { lines, toggleEvenSpacing, deleteLine } = useAppStore();
+  const lines = useAppStore((state) => state.lines);
+  const toggleEvenSpacing = useAppStore((state) => state.toggleEvenSpacing);
+  const deleteLine = useAppStore((state) => state.deleteLine);
   const line = lines.find((l) => l.id === lineId);
 
   if (!line || line.gateId) return null;

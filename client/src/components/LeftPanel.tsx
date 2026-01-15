@@ -30,20 +30,18 @@ const GATE_TYPES: { type: GateType; label: string }[] = [
 ];
 
 export function LeftPanel() {
-  const {
-    fenceCategoryId,
-    fenceStyleId,
-    fenceHeightM,
-    fenceColorId,
-    selectedGateType,
-    lines,
-    panels,
-    posts,
-    gates,
-    setSelectedGateType,
-    setFenceHeightM,
-    setFenceColorId,
-  } = useAppStore();
+  const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
+  const fenceStyleId = useAppStore((state) => state.fenceStyleId);
+  const fenceHeightM = useAppStore((state) => state.fenceHeightM);
+  const fenceColorId = useAppStore((state) => state.fenceColorId);
+  const selectedGateType = useAppStore((state) => state.selectedGateType);
+  const lines = useAppStore((state) => state.lines);
+  const panels = useAppStore((state) => state.panels);
+  const posts = useAppStore((state) => state.posts);
+  const gates = useAppStore((state) => state.gates);
+  const setSelectedGateType = useAppStore((state) => state.setSelectedGateType);
+  const setFenceHeightM = useAppStore((state) => state.setFenceHeightM);
+  const setFenceColorId = useAppStore((state) => state.setFenceColorId);
   const residentialIndex = usePricingStore((state) => state.residentialIndex);
   const activeProject = useProjectSessionStore((state) =>
     state.activeProjectId ? state.projectsById[state.activeProjectId] : null

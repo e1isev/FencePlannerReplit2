@@ -17,18 +17,16 @@ import { countBoardsPurchased } from "@/geometry/panels";
 
 export default function DrawingPage() {
   const [, setLocation] = useLocation();
-  const {
-    lines,
-    posts,
-    gates,
-    warnings,
-    panels,
-    fenceStyleId,
-    fenceHeightM,
-    fenceColorId,
-    fenceCategoryId,
-    mmPerPixel,
-  } = useAppStore();
+  const lines = useAppStore((state) => state.lines);
+  const posts = useAppStore((state) => state.posts);
+  const gates = useAppStore((state) => state.gates);
+  const warnings = useAppStore((state) => state.warnings);
+  const panels = useAppStore((state) => state.panels);
+  const fenceStyleId = useAppStore((state) => state.fenceStyleId);
+  const fenceHeightM = useAppStore((state) => state.fenceHeightM);
+  const fenceColorId = useAppStore((state) => state.fenceColorId);
+  const fenceCategoryId = useAppStore((state) => state.fenceCategoryId);
+  const mmPerPixel = useAppStore((state) => state.mmPerPixel);
   const residentialIndex = usePricingStore((state) => state.residentialIndex);
   const containerRef = useRef<HTMLDivElement>(null);
 
