@@ -65,7 +65,7 @@ export function LeftPanel() {
   const resolvedFenceHeightM = useMemo(() => {
     const currentHeight = Number(fenceHeightM);
     if (Number.isFinite(currentHeight)) {
-      const matches = supportedHeights.includes(currentHeight);
+      const matches = supportedHeights.includes(currentHeight as FenceHeightM);
       if (matches) return currentHeight as FenceHeightM;
     }
     return (supportedHeights[0] ?? DEFAULT_FENCE_HEIGHT_M) as FenceHeightM;
@@ -121,18 +121,25 @@ export function LeftPanel() {
     );
   }
 
-  const costs = calculateCosts({
-    fenceCategoryId,
-    fenceStyleId,
-    fenceHeightM,
-    fenceColourMode,
-    residentialIndex,
-    panels,
-    posts,
-    gates,
-    lines,
-  });
+  let costs = null as ReturnType<typeof calculateCosts> | null;
+  try {
+    costs = calculateCosts({
+      fenceCategoryId,
+      fenceStyleId,
+      fenceHeightM,
+      fenceColourMode,
+      residentialIndex,
+      panels,
+      posts,
+      gates,
+      lines,
+    });
+  } catch (error) {
+    console.error("[pricing] calculateCosts failed", error);
+  }
   const fenceStyleLabel = getFenceStyleLabel(fenceStyleId);
+  const lineItems = costs?.lineItems ?? [];
+  const totalLengthMm = costs?.totalLengthMm ?? 0;
   const resolvedFencingMode = fencingMode ?? "residential";
   const availableCategories =
     resolvedFencingMode === "rural"
@@ -248,6 +255,11 @@ export function LeftPanel() {
           <p className="text-xs text-slate-500 mb-2">
             Style: <span className="font-medium text-slate-700">{fenceStyleLabel}</span>
           </p>
+          {!costs && (
+            <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Pricing unavailable. Please try again.
+            </div>
+          )}
           <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
             <table className="w-full text-xs">
               <thead>
@@ -261,14 +273,14 @@ export function LeftPanel() {
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {costs.lineItems.length === 0 && (
+                {lineItems.length === 0 && (
                   <tr className="border-b border-slate-100">
                     <td className="px-3 py-2 text-slate-400" colSpan={2}>
                       Add fence segments to see items.
                     </td>
                   </tr>
                 )}
-                {costs.lineItems.map((item, index) => (
+                {lineItems.map((item, index) => (
                   <tr
                     key={`${item.name}-${index}`}
                     className="border-b border-slate-100"
@@ -281,7 +293,7 @@ export function LeftPanel() {
             </table>
           </div>
           <div className="mt-2 text-xs text-slate-500 font-mono space-y-1">
-            <div>Total Length: {(costs.totalLengthMm / 1000).toFixed(2)}m</div>
+            <div>Total Length: {(totalLengthMm / 1000).toFixed(2)}m</div>
           </div>
         </div>
       </div>
