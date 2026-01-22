@@ -78,6 +78,16 @@ const buildLocalProject = (
   };
 };
 
+const buildLocalId = () => {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return `local-${globalThis.crypto.randomUUID()}`;
+  }
+  const timestamp = Date.now().toString(36);
+  const randomSeed = Math.random().toString(36).slice(2);
+  const secondarySeed = Math.random().toString(36).slice(2);
+  return `local-${timestamp}-${randomSeed}-${secondarySeed}`;
+};
+
 const debounce = (callback: () => void, delayMs: number) => {
   let timer: number | null = null;
   return () => {
@@ -136,7 +146,7 @@ export const useProjectSessionStore = create<ProjectSessionState>((set, get) => 
   startNewProject: (projectType, name) => {
     const dependencies = get().dependencies;
     const nowIso = new Date().toISOString();
-    const localId = `local-${crypto.randomUUID()}`;
+    const localId = buildLocalId();
     initializePlannerState(projectType);
     const snapshot = buildPlannerSnapshot(projectType, name, dependencies);
     const projectRecord = buildLocalProject(snapshot, name, localId, nowIso);
