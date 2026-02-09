@@ -103,29 +103,202 @@ const recalculateDerived = (state: CanonicalState, now: number): DerivedState =>
     console.time("fitPanels");
   }
 
-  lines.forEach((line) => {
-    if (line.gateId) return;
+  type NodeInfo = {
+    point: Point;
+    lineIds: string[];
+  };
 
-    const remainder = line.length_mm % PANEL_LENGTH_MM;
+  const quantizeKey = (point: Point) => {
+    const quantized = quantizePoint(point, effectiveMmPerPixel);
+    return `${quantized.x.toFixed(6)},${quantized.y.toFixed(6)}`;
+  };
+
+  const nodeMap = new Map<string, NodeInfo>();
+  const lineEndpointKeys = new Map<string, { aKey: string; bKey: string }>();
+  const lineLookup = new Map<string, FenceLine>();
+
+  lines.forEach((line) => {
+    lineLookup.set(line.id, line);
+    const aKey = quantizeKey(line.a);
+    const bKey = quantizeKey(line.b);
+    lineEndpointKeys.set(line.id, { aKey, bKey });
+
+    const addNode = (key: string, point: Point) => {
+      const existing = nodeMap.get(key);
+      if (existing) {
+        if (!existing.lineIds.includes(line.id)) {
+          existing.lineIds.push(line.id);
+        }
+        return;
+      }
+      nodeMap.set(key, { point, lineIds: [line.id] });
+    };
+
+    addNode(aKey, line.a);
+    addNode(bKey, line.b);
+  });
+
+  const hardNodeKeys = new Set<string>();
+  const mergeAngleTol = degToRad(MERGE_ANGLE_TOL_DEG);
+
+  nodeMap.forEach((node, key) => {
+    if (node.lineIds.length !== 2) {
+      hardNodeKeys.add(key);
+      return;
+    }
+
+    const [lineAId, lineBId] = node.lineIds;
+    const lineA = lineLookup.get(lineAId);
+    const lineB = lineLookup.get(lineBId);
+    if (!lineA || !lineB) {
+      hardNodeKeys.add(key);
+      return;
+    }
+
+    if (lineHasGateOrOpening(lineA) || lineHasGateOrOpening(lineB)) {
+      hardNodeKeys.add(key);
+      return;
+    }
+
+    const endpointsA = lineEndpointKeys.get(lineAId);
+    const endpointsB = lineEndpointKeys.get(lineBId);
+    if (!endpointsA || !endpointsB) {
+      hardNodeKeys.add(key);
+      return;
+    }
+
+    const otherA = key === endpointsA.aKey ? lineA.b : lineA.a;
+    const otherB = key === endpointsB.aKey ? lineB.b : lineB.a;
+    const dirA = normalise(vectorMeters(node.point, otherA));
+    const dirB = normalise(vectorMeters(node.point, otherB));
+    const dot = Math.abs(dirA.x * dirB.x + dirA.y * dirB.y);
+    const clamped = Math.min(1, Math.max(-1, dot));
+    const angle = Math.acos(clamped);
+    if (angle > mergeAngleTol) {
+      hardNodeKeys.add(key);
+    }
+  });
+
+  type RunSegment = {
+    line: FenceLine;
+    forward: boolean;
+    length_mm: number;
+  };
+
+  type PanelRun = {
+    id: string;
+    segments: RunSegment[];
+    length_mm: number;
+  };
+
+  const panelizableLineIds = new Set(lines.filter((line) => !line.gateId).map((line) => line.id));
+  const visitedLineIds = new Set<string>();
+  const runs: PanelRun[] = [];
+
+  const buildRunFrom = (startKey: string, startLineId: string): PanelRun => {
+    const segments: RunSegment[] = [];
+    let totalLength = 0;
+    let currentLine = lineLookup.get(startLineId);
+    let fromKey = startKey;
+    let safety = 0;
+
+    while (currentLine && safety < lines.length + 5) {
+      visitedLineIds.add(currentLine.id);
+
+      const endpoints = lineEndpointKeys.get(currentLine.id);
+      if (!endpoints) break;
+
+      const forward = fromKey === endpoints.aKey;
+      const toKey = forward ? endpoints.bKey : endpoints.aKey;
+      segments.push({
+        line: currentLine,
+        forward,
+        length_mm: currentLine.length_mm,
+      });
+      totalLength += currentLine.length_mm;
+
+      if (hardNodeKeys.has(toKey)) break;
+
+      const node = nodeMap.get(toKey);
+      if (!node || node.lineIds.length < 2) break;
+
+      const nextLineId = node.lineIds.find(
+        (lineId) => lineId !== currentLine!.id && panelizableLineIds.has(lineId) && !visitedLineIds.has(lineId)
+      );
+      if (!nextLineId) break;
+
+      fromKey = toKey;
+      currentLine = lineLookup.get(nextLineId);
+      safety += 1;
+    }
+
+    return {
+      id: `run-${runs.length + 1}`,
+      segments,
+      length_mm: totalLength,
+    };
+  };
+
+  const sortedHardKeys = Array.from(hardNodeKeys).sort();
+  sortedHardKeys.forEach((hardKey) => {
+    const node = nodeMap.get(hardKey);
+    if (!node) return;
+    node.lineIds.forEach((lineId) => {
+      if (!panelizableLineIds.has(lineId) || visitedLineIds.has(lineId)) return;
+      const run = buildRunFrom(hardKey, lineId);
+      if (run.segments.length > 0) {
+        runs.push(run);
+      }
+    });
+  });
+
+  lines.forEach((line) => {
+    if (!panelizableLineIds.has(line.id) || visitedLineIds.has(line.id)) return;
+    const endpoints = lineEndpointKeys.get(line.id);
+    if (!endpoints) return;
+    const startKey = endpoints.aKey < endpoints.bKey ? endpoints.aKey : endpoints.bKey;
+    const run = buildRunFrom(startKey, line.id);
+    if (run.segments.length > 0) {
+      runs.push(run);
+    }
+  });
+
+  runs.forEach((run) => {
+    const remainder = run.length_mm % PANEL_LENGTH_MM;
     const normalizedRemainder = remainder < 0.5 ? 0 : remainder;
     const autoEvenSpacing = normalizedRemainder > 0 && normalizedRemainder < MIN_LEFTOVER_MM;
-    const shouldEvenSpace = line.even_spacing || autoEvenSpacing;
+    const shouldEvenSpace =
+      run.segments.some((segment) => segment.line.even_spacing) || autoEvenSpacing;
 
-    const result = fitPanels(
-      line.id,
-      line.length_mm,
-      shouldEvenSpace,
-      allNewLeftovers
-    );
-
+    const result = fitPanels(run.id, run.length_mm, shouldEvenSpace, allNewLeftovers);
     allPanels.push(...result.segments);
     allNewLeftovers.push(...result.newLeftovers);
-    panelPositionsMap.set(line.id, result.panelPositions);
 
-    if (isDev && line.length_mm > PANEL_LENGTH_MM * 1.5 && result.panelPositions.length === 0) {
+    let segmentIndex = 0;
+    let segmentStart = 0;
+
+    result.panelPositions.forEach((station) => {
+      while (
+        segmentIndex < run.segments.length - 1 &&
+        station > segmentStart + run.segments[segmentIndex].length_mm + 0.5
+      ) {
+        segmentStart += run.segments[segmentIndex].length_mm;
+        segmentIndex += 1;
+      }
+
+      const segment = run.segments[segmentIndex];
+      const offset = station - segmentStart;
+      const posOnLine = segment.forward ? offset : segment.length_mm - offset;
+
+      const current = panelPositionsMap.get(segment.line.id) ?? [];
+      current.push(posOnLine);
+      panelPositionsMap.set(segment.line.id, current);
+    });
+
+    if (isDev && run.length_mm > PANEL_LENGTH_MM * 1.5 && result.panelPositions.length === 0) {
       console.warn("No panel positions generated for long run", {
-        runId: line.id,
-        length_mm: line.length_mm,
+        runId: run.id,
+        length_mm: run.length_mm,
         mmPerPixel: effectiveMmPerPixel,
       });
     }
@@ -134,10 +307,15 @@ const recalculateDerived = (state: CanonicalState, now: number): DerivedState =>
       allWarnings.push({
         id: generateId("warn"),
         text,
-        runId: line.id,
+        runId: run.id,
         timestamp: now,
       });
     });
+  });
+
+  panelPositionsMap.forEach((positions, lineId) => {
+    const sorted = positions.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+    panelPositionsMap.set(lineId, sorted);
   });
 
   if (isDev) {
@@ -162,7 +340,7 @@ const recalculateDerived = (state: CanonicalState, now: number): DerivedState =>
   if (isDev) {
     console.time("generatePosts");
   }
-  const posts = generatePosts(lines, gates, panelPositionsMap, effectiveMmPerPixel);
+  const posts = generatePosts(lines, gates, panelPositionsMap, effectiveMmPerPixel, hardNodeKeys);
   if (isDev) {
     console.timeEnd("generatePosts");
   }
