@@ -254,7 +254,8 @@ export function generatePosts(
   lines: FenceLine[],
   gates: Gate[],
   panelPositionsMap: Map<string, number[]> = new Map(),
-  mmPerPixel: number = 1
+  mmPerPixel: number = 1,
+  hardNodeKeys: Set<string> = new Set()
 ): Post[] {
   const SEGMENT_TOLERANCE = 0.5;
 
@@ -320,16 +321,24 @@ export function generatePosts(
   };
 
   lines.forEach((line) => {
-    addEdge(line.a, line);
-    addEdge(line.b, line);
+    const aKey = makePointKey(line.a);
+    const bKey = makePointKey(line.b);
+    if (hardNodeKeys.has(aKey)) {
+      addEdge(line.a, line);
+    }
+    if (hardNodeKeys.has(bKey)) {
+      addEdge(line.b, line);
+    }
 
     const panelPositions = panelPositionsMap.get(line.id) || [];
-    const linePosts = getLinePosts(line, panelPositions);
+    const linePosts = getLinePosts(line, panelPositions, true);
     linePosts.forEach((point) => addEdge(point, line, "panel", "line"));
   });
 
   lines.forEach((line, index) => {
     [line.a, line.b].forEach((endpoint) => {
+      const endpointKey = makePointKey(endpoint);
+      if (!hardNodeKeys.has(endpointKey)) return;
       for (let i = 0; i < lines.length; i++) {
         if (i === index) continue;
         const candidate = lines[i];
@@ -372,7 +381,8 @@ export function generatePosts(
 
 export function getLinePosts(
   line: FenceLine,
-  panelPositions: number[]
+  panelPositions: number[],
+  includeEndpoints: boolean = false
 ): Point[] {
   const posts: Point[] = [];
   const totalLength_mm = line.length_mm;
@@ -381,7 +391,7 @@ export function getLinePosts(
 
   panelPositions.forEach((pos_mm) => {
     const t = pos_mm / totalLength_mm;
-    if (t > 0 && t < 1) {
+    if (includeEndpoints ? t >= 0 && t <= 1 : t > 0 && t < 1) {
       posts.push(interpolateLngLat(line.a, line.b, t));
     }
   });
