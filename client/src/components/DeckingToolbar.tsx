@@ -62,7 +62,14 @@ export function DeckingToolbar() {
           Redo
         </Button>
       </div>
-      <div className="flex items-center gap-2" />
+      <div className="flex items-center gap-2">
+        <img
+          src="/onedeck-logo.svg"
+          alt="ONEDECK"
+          className="h-8 w-auto object-contain"
+          data-testid="onedeck-logo"
+        />
+      </div>
     </div>
   );
 }
