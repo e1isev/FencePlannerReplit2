@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { useAuthStore } from "@/store/authStore";
+import { useProjectSessionStore } from "@/store/projectSessionStore";
+import { useDeckingStore } from "@/store/deckingStore";
+import { buildDeckingBomLines } from "@/lib/deckingBom";
 
 export type QuoteDescriptionBlock =
   | { type: "text"; text: string }
@@ -106,17 +109,31 @@ export const useQuoteViewModel = (): QuoteViewModel => {
   const projectId = useProjectStore((state) => state.projectId);
   const warnings = useProjectStore((state) => state.warnings);
   const user = useAuthStore((state) => state.user);
+  const sessionProjectName = useProjectSessionStore((state) => state.projectName);
+  const sessionProjectId = useProjectSessionStore((state) => state.projectId);
+  const sessionLocalId = useProjectSessionStore((state) => state.localId);
+  const activeProjectId = useProjectSessionStore((state) => state.activeProjectId);
+  const decks = useDeckingStore((state) => state.decks);
 
   return useMemo(() => {
     const createdDate = projectMeta?.createdAt ?? new Date().toISOString();
     const expiresDate = addDays(createdDate, 30);
+    const fallbackLines = buildDeckingBomLines().map((line) => ({
+      sku: line.sku,
+      qty: line.qty,
+      uom: line.uom,
+      unitPrice: 0,
+      lineTotal: 0,
+      warning: undefined as string | undefined,
+    }));
+    const effectiveLines = pricingSummary?.lines.length ? pricingSummary.lines : fallbackLines;
     const subtotal = pricingSummary?.totals.subtotal ?? 0;
     const taxAmount = pricingSummary?.totals.tax ?? 0;
     const total = pricingSummary?.totals.total ?? subtotal + taxAmount;
     const taxRate = resolveTaxRate(subtotal, taxAmount);
 
     const lineItems: QuoteLineItemViewModel[] =
-      pricingSummary?.lines.map((line, index) => {
+      effectiveLines.map((line, index) => {
         const totalAfterDiscount = Number.isFinite(line.lineTotal) ? line.lineTotal : 0;
         const unitPrice = Number.isFinite(line.unitPrice) ? line.unitPrice : 0;
         const quantity = Number.isFinite(line.qty) ? line.qty : 0;
@@ -156,9 +173,9 @@ export const useQuoteViewModel = (): QuoteViewModel => {
 
     return {
       quoteMeta: {
-        customerName: projectMeta?.name ?? "",
+        customerName: projectMeta?.name ?? sessionProjectName ?? "",
         customerEmail: "",
-        referenceId: projectId ?? "",
+        referenceId: projectId ?? sessionProjectId ?? sessionLocalId ?? activeProjectId ?? "",
         createdDate,
         expiresDate,
         createdByName: buildDisplayName(user?.email),
@@ -184,5 +201,16 @@ export const useQuoteViewModel = (): QuoteViewModel => {
       paymentSchedule: defaultPaymentSchedule,
       companyFooter: DEFAULT_COMPANY_FOOTER,
     };
-  }, [pricingSummary, projectMeta, projectId, warnings, user?.email]);
+  }, [
+    pricingSummary,
+    projectMeta,
+    projectId,
+    warnings,
+    user?.email,
+    sessionProjectName,
+    sessionProjectId,
+    sessionLocalId,
+    activeProjectId,
+    decks,
+  ]);
 };
